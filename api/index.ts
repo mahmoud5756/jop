@@ -1,4 +1,4 @@
-import { createApp } from '../server/app.ts';
+import { createApp } from '../server/app';
 
 // Vercel serverless entry point.
 // Vercel's Node runtime accepts an Express app directly as the default
