@@ -1,0 +1,110 @@
+{
+  "applicants": [],
+  "experiences": [],
+  "documents": [],
+  "interviews": [],
+  "assets": [],
+  "hr_decisions": [],
+  "employees": [],
+  "audit_logs": [],
+  "branches": [
+    {
+      "id": "b1",
+      "name": "فرع التجمع الخامس (الفرع الرئيسي)",
+      "city": "القاهرة الجديدة",
+      "is_active": true
+    },
+    {
+      "id": "b2",
+      "name": "فرع مدينة نصر (شارع عباس العقاد)",
+      "city": "القاهرة",
+      "is_active": true
+    },
+    {
+      "id": "b3",
+      "name": "فرع الشيخ زايد (مول العرب)",
+      "city": "الجيزة",
+      "is_active": true
+    },
+    {
+      "id": "b4",
+      "name": "فرع المعادي (شارع النصر)",
+      "city": "القاهرة",
+      "is_active": true
+    },
+    {
+      "id": "b5",
+      "name": "فرع المهندسين (جامعة الدول)",
+      "city": "الجيزة",
+      "is_active": true
+    },
+    {
+      "id": "b6",
+      "name": "فرع الإسكندرية (سموحة)",
+      "city": "الإسكندرية",
+      "is_active": true
+    }
+  ],
+  "positions": [
+    {
+      "id": "p1",
+      "title": "كاشير (Cashier)",
+      "department": "الصالات والمبيعات",
+      "is_active": true
+    },
+    {
+      "id": "p2",
+      "title": "شيف مشويات وسندوتشات (Line Cook)",
+      "department": "المطبخ والطهي",
+      "is_active": true
+    },
+    {
+      "id": "p3",
+      "title": "مساعد شيف (Kitchen Commis)",
+      "department": "المطبخ والطهي",
+      "is_active": true
+    },
+    {
+      "id": "p4",
+      "title": "مجهز طعام وباريستا (Food Prep / Beverage)",
+      "department": "التحضير",
+      "is_active": true
+    },
+    {
+      "id": "p5",
+      "title": "عضو فريق خدمة وويتر (Team Member / Host)",
+      "department": "خدمة العملاء",
+      "is_active": true
+    },
+    {
+      "id": "p6",
+      "title": "مشرف وردية (Shift Supervisor)",
+      "department": "الإدارة والتشغيل",
+      "is_active": true
+    },
+    {
+      "id": "p7",
+      "title": "مدير فرع مساعد (Assistant Branch Manager)",
+      "department": "الإدارة والتشغيل",
+      "is_active": true
+    },
+    {
+      "id": "p8",
+      "title": "مدير فرع (Branch Manager)",
+      "department": "الإدارة والتشغيل",
+      "is_active": true
+    },
+    {
+      "id": "p9",
+      "title": "أمين مخزن وتوريدات (Inventory Specialist)",
+      "department": "المخازن واللوجستيات",
+      "is_active": true
+    },
+    {
+      "id": "p10",
+      "title": "مسؤول نظافة وتعقيم (Steward / Sanitation)",
+      "department": "الجودة والنظافة",
+      "is_active": true
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "استمارة التوظيف BOB WICH HR",
+  "description": "نظام استمارة طلب التوظيف الإلكترونية وإدارة المتقدمين والموظفين وسجل المقابلات والعهدة والطباعة لمطاعم BOB WICH",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
