@@ -13,8 +13,8 @@ import {
   UserAccount,
   CurrentUser
 } from '../src/types';
-import { hashPassword, verifyPassword } from './auth';
-import { getSupabase, uploadToSupabaseStorage } from './supabase';
+import { hashPassword, verifyPassword } from './auth.js';
+import { getSupabase, uploadToSupabaseStorage } from './supabase.js';
 
 /**
  * Supabase Data Access Layer for BOB WICH HR System

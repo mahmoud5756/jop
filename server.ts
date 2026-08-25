@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { createApp } from './server/app';
+import { createApp } from './server/app.js';
 
 // Local development / traditional Node hosting entry point.
 // For Vercel serverless deployment, see api/index.ts instead — that file

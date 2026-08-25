@@ -1,13 +1,13 @@
 import express, { Request, Response } from 'express';
-import { db } from './db';
-import { getSupabase, isSupabaseConfigured, SUPABASE_SQL_SCHEMA } from './supabase';
+import { db } from './db.js';
+import { getSupabase, isSupabaseConfigured, SUPABASE_SQL_SCHEMA } from './supabase.js';
 import {
   requireAuth,
   requireRole,
   generateToken,
   createRateLimiter,
   AuthenticatedRequest
-} from './auth';
+} from './auth.js';
 
 // Builds and returns a fully configured Express app with all API routes.
 // Shared between the local dev server (server.ts) and the Vercel serverless
