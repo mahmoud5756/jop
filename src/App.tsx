@@ -12,6 +12,9 @@ import { ApplicantsList } from './components/ApplicantsList';
 import { ApplicantForm } from './components/ApplicantForm';
 import { ApplicantDetailsModal } from './components/ApplicantDetailsModal';
 import { PrintApplicationView } from './components/PrintApplicationView';
+import { CashierContractView } from './components/CashierContractView';
+import { ResignationClearanceView } from './components/ResignationClearanceView';
+import { PayslipView } from './components/PayslipView';
 import { EmployeesView } from './components/EmployeesView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
@@ -58,6 +61,9 @@ export function App() {
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [editingApplicant, setEditingApplicant] = useState<Applicant | null>(null);
   const [printingApplicant, setPrintingApplicant] = useState<Applicant | null>(null);
+  const [printingContractEmployee, setPrintingContractEmployee] = useState<Employee | null>(null);
+  const [printingResignationEmployee, setPrintingResignationEmployee] = useState<Employee | null>(null);
+  const [printingPayslipEmployee, setPrintingPayslipEmployee] = useState<Employee | null>(null);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -165,6 +171,18 @@ export function App() {
   const handlePrintApplicant = (applicant: Applicant) => {
     setPrintingApplicant(applicant);
     setCurrentView('print');
+  };
+
+  const handlePrintCashierContract = (employee: Employee) => {
+    setPrintingContractEmployee(employee);
+  };
+
+  const handlePrintResignation = (employee: Employee) => {
+    setPrintingResignationEmployee(employee);
+  };
+
+  const handlePrintPayslip = (employee: Employee) => {
+    setPrintingPayslipEmployee(employee);
   };
 
   const handleSaveSuccess = (savedApplicant: Applicant) => {
@@ -322,6 +340,30 @@ export function App() {
         onClose={() => setIsShareModalOpen(false)}
       />
 
+      {/* Cashier Contract Print Overlay */}
+      {printingContractEmployee && (
+        <CashierContractView
+          employee={printingContractEmployee}
+          onBack={() => setPrintingContractEmployee(null)}
+        />
+      )}
+
+      {/* Resignation & Custody Clearance Print Overlay (covers any role leaving) */}
+      {printingResignationEmployee && (
+        <ResignationClearanceView
+          employee={printingResignationEmployee}
+          onBack={() => setPrintingResignationEmployee(null)}
+        />
+      )}
+
+      {/* Monthly Payslip ("مفردات المرتب") Print Overlay */}
+      {printingPayslipEmployee && (
+        <PayslipView
+          employee={printingPayslipEmployee}
+          onBack={() => setPrintingPayslipEmployee(null)}
+        />
+      )}
+
       {/* When in Print View: Render Print Layout */}
       {currentView === 'print' && printingApplicant ? (
         <PrintApplicationView
@@ -401,6 +443,9 @@ export function App() {
                     currentUser={currentUser}
                     onViewApplicant={handleViewApplicant}
                     onPrintApplicant={handlePrintApplicant}
+                    onPrintContract={handlePrintCashierContract}
+                    onPrintResignation={handlePrintResignation}
+                    onPrintPayslip={handlePrintPayslip}
                     onUpdateStatus={handleUpdateEmployeeStatus}
                     onDelete={handleDeleteEmployee}
                   />

@@ -8,6 +8,9 @@ interface EmployeesViewProps {
   currentUser: CurrentUser;
   onViewApplicant: (applicant: Applicant) => void;
   onPrintApplicant: (applicant: Applicant) => void;
+  onPrintContract?: (employee: Employee) => void;
+  onPrintResignation?: (employee: Employee) => void;
+  onPrintPayslip?: (employee: Employee) => void;
   onUpdateStatus?: (employeeId: string, newStatus: string) => void;
   onDelete?: (employeeId: string) => void;
 }
@@ -18,6 +21,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   currentUser,
   onViewApplicant,
   onPrintApplicant,
+  onPrintContract,
+  onPrintResignation,
+  onPrintPayslip,
   onUpdateStatus,
   onDelete,
 }) => {
@@ -210,6 +216,36 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                                 <SvgIcons.Print className="w-3.5 h-3.5" />
                               </button>
                             </>
+                          )}
+                          {onPrintContract && emp.position_name?.includes('كاشير') && (
+                            <button
+                              onClick={() => onPrintContract(emp)}
+                              className="bg-stone-100 hover:bg-[#9E1A24] hover:text-white text-stone-800 px-2 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 text-[11px]"
+                              title="طباعة عقد عمل الكاشير الرسمي (مسؤولية العهدة)"
+                            >
+                              <SvgIcons.Briefcase className="w-3.5 h-3.5" />
+                              <span>عقد كاشير</span>
+                            </button>
+                          )}
+                          {onPrintResignation && (
+                            <button
+                              onClick={() => onPrintResignation(emp)}
+                              className="bg-stone-100 hover:bg-amber-600 hover:text-white text-stone-800 px-2 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 text-[11px]"
+                              title="طباعة استمارة استقالة وإخلاء طرف (تصلح لأي وظيفة)"
+                            >
+                              <SvgIcons.FileText className="w-3.5 h-3.5" />
+                              <span>استقالة/إخلاء طرف</span>
+                            </button>
+                          )}
+                          {onPrintPayslip && (
+                            <button
+                              onClick={() => onPrintPayslip(emp)}
+                              className="bg-stone-100 hover:bg-emerald-700 hover:text-white text-stone-800 px-2 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 text-[11px]"
+                              title="إنشاء وطباعة مفردات المرتب الشهرية"
+                            >
+                              <SvgIcons.FileText className="w-3.5 h-3.5" />
+                              <span>مفردات مرتب</span>
+                            </button>
                           )}
                           {onDelete && (currentUser.role === 'admin' || currentUser.role === 'hr') && (
                             <button
