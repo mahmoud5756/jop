@@ -61,6 +61,40 @@ export class ApiService {
     return headers;
   }
 
+  /**
+   * Safely parses a fetch Response as JSON.
+   *
+   * Some failures never reach our Express handlers at all — e.g. Vercel
+   * rejects any serverless function request body over ~4.5MB *before* our
+   * code runs, and returns a plain-text response like "Request Entity Too
+   * Large" instead of JSON. Calling `res.json()` directly on that crashes
+   * with a cryptic "Unexpected token 'R' ... is not valid JSON" error. This
+   * reads the body as text first and only parses it if it looks like JSON,
+   * so callers always get a clear, localized error message instead.
+   */
+  private static async parseResponse(res: Response): Promise<any> {
+    const text = await res.text();
+    let json: any = {};
+
+    if (text) {
+      try {
+        json = JSON.parse(text);
+      } catch {
+        if (res.status === 413) {
+          throw new Error(
+            'حجم الملفات أو الصور المرفقة كبير جداً، يرجى استخدام صور أصغر حجماً ثم إعادة المحاولة'
+          );
+        }
+        throw new Error('حدث خطأ غير متوقع في الاتصال بالخادم، يرجى المحاولة مرة أخرى لاحقاً');
+      }
+    }
+
+    if (!res.ok) {
+      throw new Error(json.error || 'حدث خطأ أثناء تنفيذ الطلب');
+    }
+    return json;
+  }
+
   // =========================================================================
   // Authentication & Profile Endpoints
   // =========================================================================
@@ -225,10 +259,7 @@ export class ApiService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(applicant),
     });
-    const json = await res.json();
-    if (!res.ok) {
-      throw new Error(json.error || 'حدث خطأ أثناء إرسال طلب التوظيف');
-    }
+    const json = await this.parseResponse(res);
     return json.data;
   }
 
@@ -240,7 +271,12 @@ export class ApiService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nationalId }),
     });
-    return await res.json();
+    try {
+      return await this.parseResponse(res);
+    } catch {
+      // Non-critical: fail open rather than blocking the user on a check.
+      return { exists: false };
+    }
   }
 
   // =========================================================================
@@ -338,10 +374,7 @@ export class ApiService {
       headers: this.getAuthHeaders(),
       body: JSON.stringify(applicant),
     });
-    const json = await res.json();
-    if (!res.ok) {
-      throw new Error(json.error || 'حدث خطأ أثناء حفظ طلب التوظيف');
-    }
+    const json = await this.parseResponse(res);
     return json.data;
   }
 
@@ -351,10 +384,7 @@ export class ApiService {
       headers: this.getAuthHeaders(),
       body: JSON.stringify(applicant),
     });
-    const json = await res.json();
-    if (!res.ok) {
-      throw new Error(json.error || 'حدث خطأ أثناء تحديث طلب التوظيف');
-    }
+    const json = await this.parseResponse(res);
     return json.data;
   }
 

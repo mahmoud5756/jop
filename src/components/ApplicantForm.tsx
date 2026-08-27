@@ -12,6 +12,7 @@ import {
 } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
+import { compressImageFile } from '../utils/imageCompression';
 
 interface ApplicantFormProps {
   initialData?: Applicant | null;
@@ -223,41 +224,53 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
   }, [formData.national_id, initialData?.id]);
 
   // Handle Photo upload
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Photos are resized/compressed on-device before being turned into base64:
+  // this form's data is sent as one JSON request to a Vercel serverless
+  // function, which rejects any request body over ~4.5MB at the platform
+  // level (before our code even runs) — a limit that isn't configurable
+  // from express/body-parser.
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('حجم الصورة يجب ألا يتعدى 5 ميجابايت');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFormData(prev => ({ ...prev, photo_url: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      alert('حجم الصورة يجب ألا يتعدى 8 ميجابايت');
+      return;
     }
+    const dataUrl = await compressImageFile(file, { maxDimension: 1000, quality: 0.75 });
+    setFormData(prev => ({ ...prev, photo_url: dataUrl }));
   };
 
   // Add Document
-  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>, docType: any) => {
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: any) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const newDoc: ApplicantDocument = {
-          id: 'doc_' + Date.now(),
-          applicant_id: initialData?.id || '',
-          document_type: docType,
-          file_name: file.name,
-          file_url: reader.result as string,
-          file_size: (file.size / 1024).toFixed(1) + ' KB',
-          uploaded_by: currentUser.name,
-          uploaded_at: new Date().toISOString(),
-        };
-        setDocuments(prev => [...prev, newDoc]);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('حجم الملف يجب ألا يتعدى 5 ميجابايت');
+      return;
     }
+
+    const isImage = file.type !== 'application/pdf';
+    const dataUrl = isImage
+      ? await compressImageFile(file, { maxDimension: 1400, quality: 0.75 })
+      : await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+
+    const newDoc: ApplicantDocument = {
+      id: 'doc_' + Date.now(),
+      applicant_id: initialData?.id || '',
+      document_type: docType,
+      file_name: file.name,
+      file_url: dataUrl,
+      file_size: (file.size / 1024).toFixed(1) + ' KB',
+      uploaded_by: currentUser.name,
+      uploaded_at: new Date().toISOString(),
+    };
+    setDocuments(prev => [...prev, newDoc]);
   };
 
   const removeDocument = (docId: string) => {

@@ -8,6 +8,12 @@ import {
 } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons, BobWichHeaderLogo } from './BobWichLogo';
+import { compressImageFile, estimateDataUrlBytes } from '../utils/imageCompression';
+
+// Vercel serverless functions reject any request body over ~4.5MB (platform-level
+// limit, not configurable from our server code). We keep a safety margin below
+// that so the photo + all attached documents + form fields never trigger it.
+const MAX_TOTAL_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 interface PublicApplicantPortalProps {
   onGoToAdmin?: () => void;
@@ -135,7 +141,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   }, [formData.national_id]);
 
   // Handle Photo upload
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -144,15 +150,15 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFormData(prev => ({ ...prev, photo_url: reader.result as string }));
-    };
-    reader.readAsDataURL(file);
+    setErrorMessage(null);
+    // Resize/compress on-device so the final base64 payload stays small,
+    // regardless of how large the original phone photo was.
+    const dataUrl = await compressImageFile(file, { maxDimension: 1000, quality: 0.75 });
+    setFormData(prev => ({ ...prev, photo_url: dataUrl }));
   };
 
   // Handle Document upload with file type & size check
-  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>, docType: ApplicantDocument['document_type']) => {
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: ApplicantDocument['document_type']) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -168,21 +174,29 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
     }
 
     setErrorMessage(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const newDoc: ApplicantDocument = {
-        id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-        applicant_id: '',
-        document_type: docType,
-        file_name: file.name,
-        file_url: reader.result as string,
-        file_size: `${(file.size / 1024).toFixed(1)} KB`,
-        uploaded_at: new Date().toISOString(),
-        uploaded_by: 'المتقدم نفسه',
-      };
-      setDocuments(prev => [...prev.filter(d => d.document_type !== docType), newDoc]);
+
+    // Images get compressed on-device before being turned into base64;
+    // PDFs are kept as-is (they're already capped at 5MB above).
+    const isImage = file.type !== 'application/pdf';
+    const dataUrl = isImage
+      ? await compressImageFile(file, { maxDimension: 1400, quality: 0.75 })
+      : await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+
+    const newDoc: ApplicantDocument = {
+      id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      applicant_id: '',
+      document_type: docType,
+      file_name: file.name,
+      file_url: dataUrl,
+      file_size: `${(file.size / 1024).toFixed(1)} KB`,
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: 'المتقدم نفسه',
     };
-    reader.readAsDataURL(file);
+    setDocuments(prev => [...prev.filter(d => d.document_type !== docType), newDoc]);
   };
 
   // Experience handlers
@@ -389,6 +403,20 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep(5)) return;
+
+    // Guard against Vercel's hard ~4.5MB request body limit: check the
+    // combined size of the photo + all attached documents BEFORE sending,
+    // so the candidate gets a clear message instead of a server crash.
+    const totalUploadBytes =
+      estimateDataUrlBytes(formData.photo_url) +
+      documents.reduce((sum, doc) => sum + estimateDataUrlBytes(doc.file_url), 0);
+
+    if (totalUploadBytes > MAX_TOTAL_UPLOAD_BYTES) {
+      setErrorMessage(
+        'الحجم الإجمالي للصورة الشخصية والمستندات المرفقة كبير جداً. يرجى استخدام صور أصغر حجماً (يفضل صور بدلاً من ملفات PDF كبيرة) ثم إعادة المحاولة.'
+      );
+      return;
+    }
 
     try {
       setIsSubmitting(true);
