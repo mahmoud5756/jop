@@ -24,7 +24,7 @@ export const CashierContractView: React.FC<CashierContractViewProps> = ({
     : '__________________';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/80 backdrop-blur-xs flex justify-center p-2 sm:p-6 print:p-0 print:bg-white print:static print:overflow-visible">
+    <div className="print-root fixed inset-0 z-50 overflow-y-auto bg-stone-900/80 backdrop-blur-xs flex justify-center p-2 sm:p-6 print:p-0 print:bg-white print:static print:overflow-visible">
       {/* Action Bar (hidden on print) */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-white/95 backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl border border-stone-200 flex items-center gap-4 print:hidden">
         <button
@@ -46,7 +46,7 @@ export const CashierContractView: React.FC<CashierContractViewProps> = ({
       <div className="bg-white text-stone-900 w-full max-w-[210mm] shadow-2xl print:shadow-none font-sans text-right dir-rtl my-16 print:my-0 rounded-lg print:rounded-none overflow-hidden">
 
         {/* ================= PAGE 1 ================= */}
-        <div className="p-6 sm:p-8 print:p-0 min-h-[297mm] print:min-h-[297mm] print:h-[297mm] print-page flex flex-col justify-between relative border-b-4 border-dashed border-stone-300 print:border-none page-break-after">
+        <div className="p-6 sm:p-8 print:p-0 min-h-[297mm] print-page flex flex-col justify-between relative border-b-4 border-dashed border-stone-300 print:border-none page-break-after">
           <div>
             {/* Header */}
             <div className="flex items-start justify-between border-b-2 border-[#9E1A24] pb-3 mb-4">
@@ -69,7 +69,7 @@ export const CashierContractView: React.FC<CashierContractViewProps> = ({
             <h3 className="text-center font-black text-base mb-3 text-stone-900">عقد عمل محدد البنود</h3>
 
             {/* Section 1: Parties */}
-            <div className="mb-3">
+            <div className="mb-3 print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">أولاً: بيانات الطرفين</div>
               <div className="border border-stone-300 border-t-0 p-2.5 text-xs space-y-1.5 bg-white">
                 <div className="flex items-center gap-1.5">
@@ -101,7 +101,7 @@ export const CashierContractView: React.FC<CashierContractViewProps> = ({
             </div>
 
             {/* Section 2: Job & Duration */}
-            <div className="mb-3">
+            <div className="mb-3 print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">ثانياً: الوظيفة ومدة العمل</div>
               <div className="border border-stone-300 border-t-0 p-2.5 text-xs space-y-1.5 bg-white leading-relaxed">
                 <p>
@@ -115,7 +115,7 @@ export const CashierContractView: React.FC<CashierContractViewProps> = ({
             </div>
 
             {/* Section 3: Salary */}
-            <div className="mb-3">
+            <div className="mb-3 print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">ثالثاً: الأجر والمزايا</div>
               <div className="border border-stone-300 border-t-0 p-2.5 text-xs space-y-1.5 bg-white">
                 <div className="grid grid-cols-2 gap-3">
@@ -142,7 +142,7 @@ export const CashierContractView: React.FC<CashierContractViewProps> = ({
             </div>
 
             {/* Section 4: Daily variable custody responsibility */}
-            <div className="mb-2">
+            <div className="mb-2 print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">رابعاً: العهدة اليومية المتغيرة ومسؤولية الكاشير</div>
               <div className="border border-stone-300 border-t-0 p-2.5 text-[10.5px] space-y-1.5 bg-white leading-relaxed text-justify">
                 <p>نظرًا لطبيعة عمل الطرف الثاني بوظيفة كاشير، يقر الطرف الثاني بأن العهدة المالية الخاصة بعمله عهدة يومية متغيرة وليست عهدة ثابتة، وتتحدد قيمتها وفقًا للمبيعات والتحصيلات والعمليات المالية التي تتم خلال يوم العمل أو الوردية المسندة إليه.</p>
@@ -153,53 +153,105 @@ export const CashierContractView: React.FC<CashierContractViewProps> = ({
               </div>
             </div>
           </div>
-          <div className="text-center text-[10px] text-stone-400 font-semibold pt-2">صفحة 1 من 2 — يتبع</div>
+          <div className="text-center text-[10px] text-stone-400 font-semibold pt-2">يتبع &larr;</div>
         </div>
 
-        {/* ================= PAGE 2 ================= */}
-        <div className="p-6 sm:p-8 print:p-0 min-h-[297mm] print:min-h-[297mm] print:h-[297mm] print-page flex flex-col justify-between relative">
+        {/* ================= PAGE 2+ =================
+            Everything below is the full set of custody sub-clauses plus
+            the closing section and signatures. There is no hard page
+            break inside this block — each clause is wrapped in
+            print-avoid-break so it never splits mid-paragraph, and the
+            browser paginates naturally (2nd, 3rd... page as needed) via
+            the .print-page rules in index.css. */}
+        <div className="p-6 sm:p-8 print:p-0 print-page flex flex-col relative">
           <div className="text-[10.5px] space-y-2.5 leading-relaxed text-justify">
-            <div>
+            <div className="print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">1. نظام نقاط البيع POS</div>
               <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
                 <p>يلتزم الطرف الثاني باستخدام حساب المستخدم الشخصي المخصص له فقط، ويحظر عليه مشاركة اسم المستخدم أو كلمة المرور أو رمز الدخول أو تمكين أي شخص آخر من استخدام حسابه.</p>
-                <p>كما يحظر عليه إجراء أي عملية خارج الصلاحيات الممنوحة له أو حذف أو تعديل أو إخفاء أي بيانات أو عمليات بيع أو تحصيل أو تسوية. وتعتبر سجلات نظام POS وسجل الدخول والخروج ووقت تنفيذ العمليات واسم المستخدم من السجلات المعتمدة التي يجوز الرجوع إليها في مراجعة الوردية وتحديد المسؤولية.</p>
+                <p>كما يحظر عليه إجراء أي عملية خارج الصلاحيات الممنوحة له أو حذف أو تعديل أو إخفاء أي بيانات أو عمليات بيع أو تحصيل أو تسوية. وتعتبر سجلات نظام POS وسجل الدخول والخروج ووقت تنفيذ العمليات واسم المستخدم والتقارير الإلكترونية الناتجة عن النظام من السجلات المعتمدة التي يجوز الرجوع إليها في مراجعة الوردية وتحديد المسؤولية.</p>
+                <p>وفي حالة ثبوت استخدام حساب الطرف الثاني بواسطة شخص آخر بعلمه أو بإذنه أو نتيجة مخالفته لتعليمات حماية بيانات الدخول، يظل مسؤولًا عن الآثار المترتبة على هذا الاستخدام في حدود ما يثبته التحقيق.</p>
               </div>
             </div>
-            <div>
+            <div className="print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">2. النقدية ودرج الكاشير</div>
               <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
                 <p>يلتزم الطرف الثاني بالمحافظة على النقدية الموجودة في درج الكاشير والمتحصلات الناتجة عن المبيعات خلال ورديته، وعدم إخراج أي مبالغ من الدرج إلا وفق الإجراءات المعتمدة، وعدم خلط أمواله الشخصية بأموال المنشأة. ولا يجوز لأي شخص غير مصرح له التعامل مع درج الكاشير أو النقدية الموجودة به.</p>
+                <p>وفي حالة السماح لموظف آخر بالتعامل مع الدرج أو النقدية أثناء الوردية، يجب أن يتم ذلك من خلال الإجراء المعتمد بالمنشأة وأن يكون قابلًا للإثبات من خلال سجلات النظام أو وسيلة التوثيق المعتمدة.</p>
               </div>
             </div>
-            <div>
-              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">3. عمليات الإلغاء (VOID) والخصومات والمرتجعات</div>
+            <div className="print-avoid-break">
+              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">3. الطلبات الملغاة (VOID)</div>
               <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
-                <p>يحظر على الطرف الثاني إلغاء أي طلب أو عملية بيع، أو منح أي خصم، أو إجراء أي مرتجع أو رد نقدي، إلا في الحالات المسموح بها ووفق الصلاحيات المحددة له، وتخضع جميع هذه العمليات للمراجعة وفق الصلاحيات والسياسات المعتمدة.</p>
+                <p>يحظر على الطرف الثاني إلغاء أي طلب أو صنف أو عملية بيع إلا في الحالات المسموح بها ووفق الصلاحيات المحددة له، ويلتزم بتسجيل السبب الحقيقي للإلغاء، وتخضع جميع عمليات VOID للمراجعة.</p>
+                <p>وتعتبر أي عملية VOID تمت من خلال حسابه أو باستخدام صلاحياته محل مراجعة، وتحدد مسؤوليته عنها وفق نتيجة المراجعة والتحقيق والسجلات المتاحة.</p>
               </div>
             </div>
-            <div>
-              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">4. العجز والتسوية والزيادة</div>
+            <div className="print-avoid-break">
+              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">4. الخصومات</div>
               <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
-                <p>في حالة وجود فرق أو عجز عند إجراء التسوية النهائية للوردية، تتم مطابقة النقدية الفعلية مع المبيعات المسجلة على نظام POS وعمليات الدفع الإلكتروني والمرتجعات والخصومات وعمليات VOID. فإذا ثبت أن العجز نتج عن خطأ الطرف الثاني أو إهماله أو مخالفته للتعليمات، يكون مسؤولًا عن قيمة الضرر أو الفقد المثبت في حدود ما يقرره القانون. ولا يُعتد بأي عجز غير مثبت أو غير قابل للربط بالوردية أو بالعمليات التي كانت تحت مسؤوليته. وفي حالة وجود زيادة في النقدية، يلتزم الطرف الثاني بالإفصاح عنها فورًا وإثباتها ضمن تقرير التسوية.</p>
+                <p>يحظر على الطرف الثاني منح أو تسجيل أي خصم غير مصرح به أو تجاوز نسبة الخصم أو شروطه أو استخدام خصم لصالحه أو لصالح أي شخص آخر بالمخالفة لسياسة المنشأة. وتخضع جميع الخصومات المسجلة على حسابه أو خلال ورديته للمراجعة وفق الصلاحيات والسياسات المعتمدة.</p>
               </div>
             </div>
-            <div>
-              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">5. المسؤولية القانونية عن العهدة</div>
+            <div className="print-avoid-break">
+              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">5. المرتجعات ورد المبالغ</div>
               <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
-                <p>يقر الطرف الثاني بأن العهدة المخصصة له أثناء الوردية ليست مجرد مسؤولية وظيفية شكلية، ويلتزم بالمحافظة عليها وبذل العناية اللازمة بها، ويكون مسؤولًا عن الفقد أو التلف أو العجز الذي يثبت أنه نتج عن خطئه أو إهماله أو مخالفته للتعليمات، وذلك وفقًا لأحكام قانون العمل ولائحة تنظيم العمل والجزاءات المعتمدة بالمنشأة. ولا يجوز إجراء أي اقتطاع من أجره أو توقيع أي جزاء مالي إلا وفقًا للإجراءات والحدود المنصوص عليها في قانون العمل.</p>
+                <p>يحظر على الطرف الثاني إجراء أي مرتجع أو رد نقدي أو إلغاء عملية تحصيل إلا وفق الإجراءات والصلاحيات المعتمدة، ويجب تسجيل سبب المرتجع أو الاسترداد وبيانات العملية الأصلية بصورة صحيحة على النظام.</p>
+                <p>وتخضع عمليات المرتجعات والاستردادات للمراجعة من الإدارة، ولا يكون تنفيذها بمعرفة الطرف الثاني سببًا تلقائيًا لمسؤوليته المالية إلا إذا ثبتت مخالفته أو خطؤه أو تقصيره.</p>
               </div>
             </div>
-            <div>
-              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">سادساً: الالتزامات والسرية</div>
+            <div className="print-avoid-break">
+              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">6. العجز</div>
               <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
-                <p>يلتزم الطرف الثاني بالمحافظة على أسرار العمل وبيانات العملاء والأسعار والتقارير وعدم استخدامها خارج نطاق العمل. يلتزم الطرفان بأحكام قانون العمل واللوائح الداخلية، وبإخطار الطرف الآخر عند الرغبة في إنهاء العلاقة وفق المدد والإجراءات القانونية الواجبة. ويقر الطرف الثاني بأنه اطلع على قواعد تشغيل الكاشير وإجراءات النقدية ونظام POS وسياسة الخصومات والمرتجعات وعمليات VOID وتسوية الوردية، والتزم بها.</p>
+                <p>في حالة وجود فرق أو عجز عند إجراء التسوية النهائية للوردية، تتم مطابقة النقدية الفعلية مع المبيعات المسجلة على نظام POS، وعمليات الدفع الإلكتروني، والمرتجعات، والخصومات، وعمليات VOID، وأي عمليات مالية أخرى مرتبطة بالوردية، ويتم تحديد سبب العجز والمسؤول عنه من خلال السجلات الإلكترونية والمستندات ونتائج المراجعة والتحقيق.</p>
+                <p>فإذا ثبت أن العجز نتج عن خطأ الطرف الثاني أو إهماله أو مخالفته للتعليمات أو إساءة استخدامه للصلاحيات أو عدم محافظته على العهدة التي كانت تحت سيطرته أثناء الوردية، يكون مسؤولًا عن قيمة الضرر أو الفقد المثبت، وذلك في حدود ما يقرره القانون. ولا يُعتد بأي عجز غير مثبت أو غير قابل للربط بالوردية أو بالعمليات أو بالعهدة التي كانت تحت مسؤولية الطرف الثاني.</p>
+              </div>
+            </div>
+            <div className="print-avoid-break">
+              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">7. الزيادة</div>
+              <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
+                <p>في حالة وجود زيادة في النقدية عن القيمة المستحقة وفق التسوية، يلتزم الطرف الثاني بالإفصاح عنها فورًا وعدم الاحتفاظ بها أو التصرف فيها، ويتم إثباتها ضمن تقرير التسوية وفق النظام المالي المعتمد بالمنشأة.</p>
+              </div>
+            </div>
+            <div className="print-avoid-break">
+              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">8. عند دخول أشخاص آخرين على الدرج</div>
+              <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
+                <p>إذا قام مدير الفرع أو أي موظف آخر مصرح له بالدخول إلى درج الكاش أو استخدام نقطة البيع أو إجراء عملية مالية أثناء وردية الطرف الثاني، فإن ذلك يجب أن يتم من خلال حسابه وصلاحياته الشخصية وبالطريقة التي تسمح بتحديد منفذ العملية.</p>
+                <p>ولا يتحمل الطرف الثاني مسؤولية أي عملية قام بها شخص آخر إذا ثبت أنها تمت بواسطة ذلك الشخص ودون علم أو إذن أو تمكين من الطرف الثاني. وفي حالة ثبوت قيام الطرف الثاني بتمكين شخص آخر من استخدام حسابه أو درج العهدة بالمخالفة للتعليمات، يكون ذلك محل تحقيق وتحديد للمسؤولية وفقًا للقانون.</p>
+              </div>
+            </div>
+            <div className="print-avoid-break">
+              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">9. نهاية الوردية والعهدة</div>
+              <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
+                <p>عند انتهاء الوردية، يلتزم الطرف الثاني بإتمام التسوية النهائية وتسليم النقدية والعهدة وفق النظام المعتمد. وتعتبر عملية إتمام التسوية والتسليم وانتقال السيطرة على العهدة إلى الكاشير التالي أو الموظف المختص هي نقطة انتهاء مسؤولية الطرف الثاني عن العهدة الخاصة بالوردية، مع احتفاظ المنشأة بحقها في مراجعة العمليات التي تمت أثناء الوردية واتخاذ الإجراءات القانونية عند اكتشاف أي مخالفة أو عجز أو تلاعب مرتبط بها.</p>
+              </div>
+            </div>
+            <div className="print-avoid-break">
+              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">10. وسائل إثبات بداية ونهاية الوردية والعهدة</div>
+              <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
+                <p>اتفق الطرفان على أن إثبات بداية ونهاية الوردية والعهدة والعمليات المرتبطة بها يجوز أن يتم من خلال مجموعة السجلات المعتمدة بالمنشأة، ومنها: سجل الحضور والانصراف، وجدول الورديات، وتسجيل الدخول إلى نظام POS، وحساب المستخدم الخاص بالكاشير، وتقارير المبيعات والنقدية والدفع الإلكتروني، وتقارير VOID والخصومات والمرتجعات والاستردادات، وتقارير التسوية اليومية، وسجلات تسليم واستلام الوردية، وأي سجلات إلكترونية أخرى معتمدة بالمنشأة.</p>
+                <p>ولا يشترط تحرير محضر عهدة مستقل لكل وردية متى كانت بيانات الوردية والعهدة والعمليات قابلة للإثبات من خلال النظام والسجلات المعتمدة.</p>
+              </div>
+            </div>
+            <div className="print-avoid-break">
+              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">11. المسؤولية القانونية عن العهدة</div>
+              <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
+                <p>يقر الطرف الثاني بعلمه بأن العهدة التي يتم تخصيصها له أثناء الوردية ليست مجرد مسؤولية وظيفية شكلية، وإنما يلتزم بالمحافظة عليها وبذل العناية اللازمة بها، ويكون مسؤولًا عن الفقد أو التلف أو العجز الذي يثبت أنه نتج عن خطئه أو إهماله أو مخالفته للتعليمات أو بسبب تصرف منسوب إليه، وذلك وفقًا لأحكام القانون ولائحة تنظيم العمل والجزاءات المعتمدة بالمنشأة.</p>
+                <p>ولا يعتبر توقيع الطرف الثاني على هذا العقد إقرارًا مسبقًا بمسؤوليته عن أي عجز مستقبلي، وإنما يعد إقرارًا بالتزامه بالمحافظة على العهدة واتباع إجراءات العمل والمحافظة على وسائل التحصيل والأنظمة والصلاحيات المخصصة له.</p>
+                <p>وفي جميع الأحوال، لا يجوز إجراء أي اقتطاع من أجر الطرف الثاني أو توقيع أي جزاء مالي إلا وفقًا للإجراءات والحدود والضوابط المنصوص عليها في قانون العمل واللوائح المنظمة للعمل. ويقر الطرف الثاني بأنه اطلع على قواعد تشغيل الكاشير وإجراءات النقدية ونظام POS وسياسة الخصومات والمرتجعات وعمليات VOID وتسوية الوردية، والتزم بها.</p>
+              </div>
+            </div>
+            <div className="print-avoid-break">
+              <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">خامساً: الالتزامات والسرية وإنهاء العمل</div>
+              <div className="border border-stone-300 border-t-0 p-2.5 bg-white space-y-1.5">
+                <p>يلتزم الطرف الثاني بالمحافظة على أسرار العمل وبيانات العملاء والأسعار والتقارير وعدم استخدامها خارج نطاق العمل.</p>
+                <p>يلتزم الطرفان بأحكام قانون العمل واللوائح الداخلية، وبإخطار الطرف الآخر عند الرغبة في إنهاء العلاقة وفق المدد والإجراءات القانونية الواجبة.</p>
               </div>
             </div>
           </div>
 
           {/* Signatures */}
-          <div className="grid grid-cols-2 gap-8 mt-8 pt-6 border-t-2 border-stone-300">
+          <div className="grid grid-cols-2 gap-8 mt-8 pt-6 border-t-2 border-stone-300 print-avoid-break">
             <div className="text-center space-y-8">
               <p className="font-bold text-sm text-stone-800">الطرف الثاني - الموظف</p>
               <div className="text-xs space-y-4">
@@ -215,7 +267,6 @@ export const CashierContractView: React.FC<CashierContractViewProps> = ({
               </div>
             </div>
           </div>
-          <div className="text-center text-[10px] text-stone-400 font-semibold pt-4">صفحة 2 من 2</div>
         </div>
       </div>
     </div>

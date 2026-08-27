@@ -89,6 +89,51 @@ class SupabaseDataAccessLayer {
     return true;
   }
 
+  // =========================================================================
+  // Company Settings (single fixed row: السجل التجاري / البطاقة الضريبية)
+  // Filled in once from الإعدادات ("Company Settings") and reused
+  // automatically on every printed document (payslip, contracts, etc.)
+  // instead of being typed by hand each time.
+  // =========================================================================
+
+  public async getCompanySettings(): Promise<{ commercial_registry: string; tax_card: string }> {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('company_settings')
+      .select('*')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching company settings from Supabase:', error);
+      throw new Error(`فشل استرجاع بيانات الشركة: ${error.message}`);
+    }
+
+    return {
+      commercial_registry: data?.commercial_registry || '',
+      tax_card: data?.tax_card || '',
+    };
+  }
+
+  public async updateCompanySettings(
+    updates: { commercial_registry?: string; tax_card?: string },
+    updatedBy?: string
+  ): Promise<{ commercial_registry: string; tax_card: string }> {
+    const supabase = getSupabase();
+    const payload = {
+      id: 'default',
+      ...(updates.commercial_registry !== undefined && { commercial_registry: updates.commercial_registry.trim() }),
+      ...(updates.tax_card !== undefined && { tax_card: updates.tax_card.trim() }),
+      updated_at: new Date().toISOString(),
+      updated_by: updatedBy || null,
+    };
+    const { error } = await supabase.from('company_settings').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      throw new Error(`فشل تحديث بيانات الشركة: ${error.message}`);
+    }
+    return this.getCompanySettings();
+  }
+
   public async createPosition(title: string, department?: string, is_active: boolean = true): Promise<JobPosition> {
     const supabase = getSupabase();
     const newPos: JobPosition = {

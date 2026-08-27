@@ -21,7 +21,7 @@ export const ResignationClearanceView: React.FC<ResignationClearanceViewProps> =
   const today = new Date().toISOString().split('T')[0];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/80 backdrop-blur-xs flex justify-center p-2 sm:p-6 print:p-0 print:bg-white print:static print:overflow-visible">
+    <div className="print-root fixed inset-0 z-50 overflow-y-auto bg-stone-900/80 backdrop-blur-xs flex justify-center p-2 sm:p-6 print:p-0 print:bg-white print:static print:overflow-visible">
       {/* Action Bar (hidden on print) */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-white/95 backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl border border-stone-200 flex items-center gap-4 print:hidden">
         <button
@@ -41,7 +41,7 @@ export const ResignationClearanceView: React.FC<ResignationClearanceViewProps> =
       </div>
 
       <div className="bg-white text-stone-900 w-full max-w-[210mm] shadow-2xl print:shadow-none font-sans text-right dir-rtl my-16 print:my-0 rounded-lg print:rounded-none overflow-hidden">
-        <div className="p-6 sm:p-8 print:p-0 min-h-[297mm] print:min-h-[297mm] print:h-[297mm] print-page flex flex-col justify-between relative">
+        <div className="p-6 sm:p-8 print:p-0 min-h-[297mm] print-page flex flex-col justify-between relative">
           <div>
             {/* Header */}
             <div className="flex items-start justify-between border-b-2 border-[#9E1A24] pb-3 mb-4">
@@ -62,7 +62,7 @@ export const ResignationClearanceView: React.FC<ResignationClearanceViewProps> =
             </div>
 
             {/* Section 1: Employee data */}
-            <div className="mb-3">
+            <div className="mb-3 print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">أولاً: بيانات الموظف المستقيل</div>
               <div className="border border-stone-300 border-t-0 p-2.5 text-xs space-y-1.5 bg-white">
                 <div className="grid grid-cols-2 gap-3">
@@ -103,7 +103,7 @@ export const ResignationClearanceView: React.FC<ResignationClearanceViewProps> =
             </div>
 
             {/* Section 2: Resignation statement */}
-            <div className="mb-3">
+            <div className="mb-3 print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">ثانياً: إقرار الاستقالة</div>
               <div className="border border-stone-300 border-t-0 p-2.5 text-[11px] space-y-2 bg-white leading-relaxed text-justify">
                 <p>
@@ -119,7 +119,7 @@ export const ResignationClearanceView: React.FC<ResignationClearanceViewProps> =
             </div>
 
             {/* Section 3: Custody & final settlement clearance — generic for any role */}
-            <div className="mb-3">
+            <div className="mb-3 print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">ثالثاً: إخلاء الطرف والإعفاء النهائي من العهدة</div>
               <div className="border border-stone-300 border-t-0 p-2.5 text-[11px] space-y-2 bg-white leading-relaxed text-justify">
                 <p>
@@ -135,7 +135,7 @@ export const ResignationClearanceView: React.FC<ResignationClearanceViewProps> =
             </div>
 
             {/* Section 4: HR / Management acknowledgment */}
-            <div className="mb-3">
+            <div className="mb-3 print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">رابعاً: إقرار الإدارة باستلام العهدة وإتمام التسوية</div>
               <div className="border border-stone-300 border-t-0 p-2.5 text-[11px] space-y-1.5 bg-white leading-relaxed">
                 <p>يقر مسؤول الفرع/الموارد البشرية الموقّع أدناه بأنه تم استلام كافة العهدات المشار إليها أعلاه من الموظف المذكور، وتمت مطابقتها وتسويتها دون وجود أي عجز أو ملاحظات، أو تم إثبات الملاحظات التالية إن وجدت:</p>
@@ -145,7 +145,7 @@ export const ResignationClearanceView: React.FC<ResignationClearanceViewProps> =
           </div>
 
           {/* Signatures */}
-          <div className="grid grid-cols-3 gap-6 mt-6 pt-6 border-t-2 border-stone-300">
+          <div className="grid grid-cols-3 gap-6 mt-6 pt-6 border-t-2 border-stone-300 print-avoid-break">
             <div className="text-center space-y-6">
               <p className="font-bold text-xs text-stone-800">الموظف المستقيل</p>
               <div className="text-[11px] space-y-3">

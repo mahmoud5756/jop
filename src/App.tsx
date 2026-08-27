@@ -18,6 +18,7 @@ import { PayslipView } from './components/PayslipView';
 import { EmployeesView } from './components/EmployeesView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
+import { CompanySettingsView } from './components/CompanySettingsView';
 import { PublicApplicantPortal } from './components/PublicApplicantPortal';
 import { SharePortalModal } from './components/SharePortalModal';
 import { LoginView } from './components/LoginView';
@@ -44,7 +45,7 @@ export function App() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Navigation & View State
-  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'print'>('applicants');
+  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'print'>('applicants');
 
   // Share & QR Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -318,7 +319,7 @@ export function App() {
     <div className="min-h-screen bg-stone-100 text-stone-900 font-sans dir-rtl" dir="rtl">
       {/* Toast popup */}
       {toastMessage && (
-        <div className="fixed bottom-6 left-6 z-70 bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-stone-700 flex items-center gap-3 animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-6 left-6 z-70 bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-stone-700 flex items-center gap-3 animate-in slide-in-from-bottom-5 print:hidden">
           <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
           <span className="text-xs sm:text-sm font-bold">{toastMessage}</span>
           <button onClick={() => setToastMessage(null)} className="text-stone-400 hover:text-white mr-2 text-xs cursor-pointer">
@@ -371,7 +372,7 @@ export function App() {
           onBack={() => setCurrentView('applicants')}
         />
       ) : (
-        <>
+        <div className="print:hidden">
           {/* Top Authenticated Navbar */}
           <Navbar
             currentUser={currentUser}
@@ -458,6 +459,11 @@ export function App() {
                 {currentView === 'branches_positions' && currentUser && (
                   <BranchesAndPositionsView currentUser={currentUser} showToast={showToast} />
                 )}
+
+                {/* VIEW: COMPANY SETTINGS (السجل التجاري / البطاقة الضريبية) */}
+                {currentView === 'company_settings' && currentUser && (
+                  <CompanySettingsView currentUser={currentUser} showToast={showToast} />
+                )}
               </>
             )}
           </main>
@@ -474,7 +480,7 @@ export function App() {
               onDelete={handleDeleteApplicant}
             />
           )}
-        </>
+        </div>
       )}
     </div>
   );

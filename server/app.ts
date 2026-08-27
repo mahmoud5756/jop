@@ -579,6 +579,39 @@ export function createApp() {
     }
   });
 
+  // =========================================================================
+  // Company Settings (السجل التجاري / البطاقة الضريبية)
+  // Fixed, single record filled in once by admin/hr and reused automatically
+  // on every printed document (payslip, contracts, ...). Readable by any
+  // authenticated staff member (needed to print), editable by admin/hr only.
+  // =========================================================================
+  app.get('/api/company-settings', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const settings = await db.getCompanySettings();
+      res.json({ data: settings });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'فشل استرجاع بيانات الشركة' });
+    }
+  });
+
+  app.put('/api/admin/company-settings', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
+    const { commercial_registry, tax_card } = req.body;
+    try {
+      const settings = await db.updateCompanySettings({ commercial_registry, tax_card }, req.user?.name);
+      await db.addAuditLog(
+        'company_settings',
+        'company_settings',
+        'تحديث بيانات الشركة',
+        req.user?.name || 'مسؤول النظام',
+        req.user?.role || 'admin',
+        `تم تحديث السجل التجاري و/أو البطاقة الضريبية للشركة`
+      );
+      res.json({ success: true, data: settings });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'فشل تحديث بيانات الشركة' });
+    }
+  });
+
 
   return app;
 }

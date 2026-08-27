@@ -127,6 +127,17 @@ CREATE TABLE IF NOT EXISTS branches (
     is_active BOOLEAN DEFAULT TRUE
 );
 
+-- 2ب. بيانات الشركة الثابتة (السجل التجاري / البطاقة الضريبية) - صف وحيد
+CREATE TABLE IF NOT EXISTS company_settings (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    commercial_registry TEXT NOT NULL DEFAULT '',
+    tax_card TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_by TEXT
+);
+INSERT INTO company_settings (id, commercial_registry, tax_card)
+VALUES ('default', '', '') ON CONFLICT (id) DO NOTHING;
+
 -- 3. جدول المسميات والأقسام الوظيفية (Job Positions)
 CREATE TABLE IF NOT EXISTS positions (
     id TEXT PRIMARY KEY,

@@ -168,7 +168,7 @@ export interface Employee {
 
 export interface AuditLog {
   id: string;
-  entity_type: 'applicant' | 'employee' | 'interview' | 'asset' | 'hr_decision' | 'document' | 'branch' | 'position';
+  entity_type: 'applicant' | 'employee' | 'interview' | 'asset' | 'hr_decision' | 'document' | 'branch' | 'position' | 'company_settings';
   entity_id: string;
   entity_code?: string;
   entity_name?: string;
@@ -217,6 +217,14 @@ export interface UserAccount {
   is_active: boolean;
   created_at: string;
   last_login?: string;
+}
+
+export interface CompanySettings {
+  id: string;
+  commercial_registry: string;
+  tax_card: string;
+  updated_at?: string;
+  updated_by?: string;
 }
 
 export interface AuthResponse {

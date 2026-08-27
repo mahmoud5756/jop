@@ -196,6 +196,28 @@ export class ApiService {
     if (!res.ok) throw new Error(json.error || 'فشل حذف الوظيفة');
   }
 
+  // =========================================================================
+  // Company Settings (السجل التجاري / البطاقة الضريبية) — بيانات ثابتة
+  // تُعبّأ مرة واحدة من الإعدادات وتظهر تلقائيًا في كل المستندات المطبوعة.
+  // =========================================================================
+  static async getCompanySettings(): Promise<{ commercial_registry: string; tax_card: string }> {
+    const res = await fetch('/api/company-settings', { headers: this.getAuthHeaders() });
+    if (!res.ok) return { commercial_registry: '', tax_card: '' };
+    const json = await res.json();
+    return json.data || { commercial_registry: '', tax_card: '' };
+  }
+
+  static async updateCompanySettings(updates: { commercial_registry?: string; tax_card?: string }): Promise<{ commercial_registry: string; tax_card: string }> {
+    const res = await fetch('/api/admin/company-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+      body: JSON.stringify(updates),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'فشل تحديث بيانات الشركة');
+    return json.data;
+  }
+
   // Public candidate submission (no auth token required)
   static async publicApply(applicant: Partial<Applicant>): Promise<Applicant> {
     const res = await fetch('/api/applicants/public-apply', {
