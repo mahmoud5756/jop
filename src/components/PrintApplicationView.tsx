@@ -80,7 +80,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
         <div className="p-6 sm:p-8 print:p-0 min-h-[297mm] print:min-h-[297mm] print:h-[297mm] print-page flex flex-col justify-between relative border-b-4 border-dashed border-stone-300 print:border-none page-break-after">
           <div>
             {/* Page 1 Header */}
-            <div className="flex items-start justify-between border-b-2 border-[#9E1A24] pb-3 mb-3">
+            <div className="print-avoid-break flex items-start justify-between border-b-2 border-[#9E1A24] pb-3 mb-3">
               {/* Brand Logo & Title */}
               <div className="flex items-center gap-3">
                 <div className="w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden shadow-sm border border-[#9E1A24]/30 bg-[#83141D] flex items-center justify-center">
@@ -118,7 +118,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
             </div>
 
             {/* Section 1: البيانات الشخصية */}
-            <div className="mb-3">
+            <div className="print-avoid-break mb-3">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t flex justify-between items-center">
                 <span>1. البيانات الشخصية</span>
               </div>
@@ -217,7 +217,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
             </div>
 
             {/* Section 2: الوظيفة المطلوبة */}
-            <div className="mb-3">
+            <div className="print-avoid-break mb-3">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">
                 2. الوظيفة المطلوبة
               </div>
@@ -269,7 +269,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
             </div>
 
             {/* Sections 3 & 5 side by side (Education & Skills) */}
-            <div className="grid grid-cols-12 gap-2.5 mb-3">
+            <div className="print-avoid-break grid grid-cols-12 gap-2.5 mb-3">
               {/* Section 3: المؤهل الدراسي */}
               <div className="col-span-5">
                 <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">
@@ -349,7 +349,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
             </div>
 
             {/* Section 4: الخبرات السابقة */}
-            <div className="mb-3">
+            <div className="print-avoid-break mb-3">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">
                 4. الخبرات السابقة
               </div>
@@ -380,7 +380,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
             </div>
 
             {/* Section 6: أوقات العمل */}
-            <div className="mb-3">
+            <div className="print-avoid-break mb-3">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">
                 6. أوقات العمل
               </div>
@@ -456,7 +456,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
             </div>
 
             {/* Section 8: المرفقات */}
-            <div>
+            <div className="print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">
                 8. المرفقات
               </div>
@@ -488,7 +488,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
         <div className="p-6 sm:p-8 print:p-0 min-h-[297mm] print:min-h-[297mm] print:h-[297mm] print-page flex flex-col justify-between relative">
           <div>
             {/* Page 2 Header */}
-            <div className="flex items-center justify-between border-b-2 border-[#9E1A24] pb-3 mb-3">
+            <div className="print-avoid-break flex items-center justify-between border-b-2 border-[#9E1A24] pb-3 mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden shadow-sm border border-[#9E1A24]/30 bg-[#83141D] flex items-center justify-center">
                   <img
@@ -511,7 +511,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
             </div>
 
             {/* Section 9: إقرار المتقدم والعهدة */}
-            <div className="mb-3">
+            <div className="print-avoid-break mb-3">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">
                 9. إقرار المتقدم والعهدة
               </div>
@@ -529,7 +529,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
             </div>
 
             {/* Custody / Assets Table */}
-            <div className="mb-3">
+            <div className="print-avoid-break mb-3">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">
                 العهدة المستلمة
               </div>
@@ -585,7 +585,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
             </div>
 
             {/* Section: للاستخدام بواسطة إدارة BOB WICH */}
-            <div>
+            <div className="print-avoid-break">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">
                 للاستخدام بواسطة إدارة BOB WICH
               </div>

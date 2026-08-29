@@ -48,8 +48,12 @@
       padding: 0 !important;
       box-sizing: border-box !important;
       overflow: visible !important;
-      page-break-after: auto !important;
-      break-after: auto !important;
+      /* page-break-after is intentionally NOT set here — it's owned by
+         .page-break-after (forces a break after page 1) and
+         .print-page:last-child (forbids one after page 2), below. Setting
+         it here too would tie with .page-break-after on specificity, and
+         whichever rule is declared later would silently win, so page 1's
+         forced break could be cancelled depending on source order. */
     }
     .print-page:last-child {
       page-break-after: avoid !important;
