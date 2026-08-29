@@ -36,6 +36,17 @@ function sanitizePostgrestValue(value: string): string {
   return value.replace(/[,()%_]/g, '');
 }
 
+/**
+ * Same OR-injection protection as sanitizePostgrestValue (strips comma and
+ * parentheses), but for use with `eq.` filters instead of `ilike.` ones.
+ * `%` and `_` are only wildcards under LIKE/ILIKE — under `eq` they are
+ * ordinary characters, so stripping them would corrupt legitimate values
+ * that contain them (e.g. generated IDs like "app_1699999999999_ab12cd").
+ */
+function sanitizePostgrestEqValue(value: string): string {
+  return value.replace(/[,()]/g, '');
+}
+
 
 /**
  * Supabase Data Access Layer for BOB WICH HR System
@@ -420,7 +431,7 @@ class SupabaseDataAccessLayer {
         assets:applicant_assets(*),
         hr_decision:hr_decisions(*)
       `)
-      .or(`id.eq.${sanitizePostgrestValue(id)},application_code.eq.${sanitizePostgrestValue(id)}`)
+      .or(`id.eq.${sanitizePostgrestEqValue(id)},application_code.eq.${sanitizePostgrestEqValue(id)}`)
       .maybeSingle();
 
     if (error) {
@@ -1209,7 +1220,7 @@ class SupabaseDataAccessLayer {
     const { data: employee, error } = await supabase
       .from('employees')
       .select('*')
-      .or(`id.eq.${sanitizePostgrestValue(id)},employee_code.eq.${sanitizePostgrestValue(id)}`)
+      .or(`id.eq.${sanitizePostgrestEqValue(id)},employee_code.eq.${sanitizePostgrestEqValue(id)}`)
       .maybeSingle();
 
     if (error) {
