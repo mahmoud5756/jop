@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import crypto from 'crypto';
 import { db } from './db.js';
 import { getSupabase, isSupabaseConfigured, SUPABASE_SQL_SCHEMA } from './supabase.js';
 import {
@@ -8,6 +9,9 @@ import {
   createRateLimiter,
   AuthenticatedRequest
 } from './auth.js';
+
+const UPLOADS_BUCKET = 'hr-documents';
+const ALLOWED_UPLOAD_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 // Builds and returns a fully configured Express app with all API routes.
 // Shared between the local dev server (server.ts) and the Vercel serverless
@@ -24,6 +28,7 @@ export function createApp() {
   const loginLimiter = createRateLimiter(15, 60 * 1000, 'تم تجاوز عدد محاولات الدخول، يرجى المحاولة بعد دقيقة');
   const publicApplyLimiter = createRateLimiter(10, 60 * 1000, 'تم تجاوز الحد المسموح به لإرسال الطلبات، يرجى المحاولة بعد قليل');
   const nationalIdCheckLimiter = createRateLimiter(30, 60 * 1000, 'تم تجاوز معدل الفحص السريع');
+  const uploadSignedUrlLimiter = createRateLimiter(30, 60 * 1000, 'تم تجاوز الحد المسموح لعمليات رفع الملفات، يرجى المحاولة بعد قليل');
 
   // =========================================================================
   // 1. PUBLIC API ROUTES (مفتوحة لعامة المتقدمين بدون توكن)
@@ -33,6 +38,52 @@ export function createApp() {
   app.get('/api/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', time: new Date().toISOString(), database: 'Supabase PostgreSQL' });
   });
+
+  // Public/Staff: request a signed URL to upload a photo or document directly
+  // from the browser to Supabase Storage. This is the key piece that lets
+  // large files skip the ~4.5MB Vercel serverless request-body limit
+  // entirely — only this small JSON request (filename + content type) goes
+  // through our API route; the actual file bytes are PUT straight to
+  // Supabase Storage using the returned token, bypassing Vercel's function
+  // body limit altogether.
+  app.post('/api/uploads/signed-url', uploadSignedUrlLimiter, async (req: Request, res: Response) => {
+    const { fileName, contentType } = req.body || {};
+
+    if (!contentType || typeof contentType !== 'string' || !ALLOWED_UPLOAD_CONTENT_TYPES.includes(contentType)) {
+      return res.status(400).json({ error: 'نوع الملف غير مسموح به. يرجى رفع صور (JPEG, PNG, WEBP) أو ملفات PDF فقط.' });
+    }
+
+    // Build a safe, unpredictable storage path — never trust the client's
+    // filename directly (path traversal / overwrite risk), only reuse its
+    // extension for readability.
+    const rawExt = typeof fileName === 'string' ? fileName.split('.').pop() || '' : '';
+    const safeExt = rawExt.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase() ||
+      (contentType === 'application/pdf' ? 'pdf' : 'jpg');
+    const datePrefix = new Date().toISOString().slice(0, 10);
+    const uniquePath = `public-uploads/${datePrefix}/${crypto.randomUUID()}.${safeExt}`;
+
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase.storage
+        .from(UPLOADS_BUCKET)
+        .createSignedUploadUrl(uniquePath);
+
+      if (error) throw error;
+
+      const { data: publicUrlData } = supabase.storage.from(UPLOADS_BUCKET).getPublicUrl(uniquePath);
+
+      res.json({
+        bucket: UPLOADS_BUCKET,
+        path: data.path,
+        token: data.token,
+        publicUrl: publicUrlData?.publicUrl || null,
+      });
+    } catch (err: any) {
+      console.error('API /api/uploads/signed-url error:', err);
+      res.status(500).json({ error: err.message || 'فشل إنشاء رابط رفع الملف' });
+    }
+  });
+
 
   // Public Master Data for Application Form
   app.get('/api/branches', async (req: Request, res: Response) => {

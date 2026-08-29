@@ -8,12 +8,7 @@ import {
 } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons, BobWichHeaderLogo } from './BobWichLogo';
-import { compressImageFile, estimateDataUrlBytes } from '../utils/imageCompression';
-
-// Vercel serverless functions reject any request body over ~4.5MB (platform-level
-// limit, not configurable from our server code). We keep a safety margin below
-// that so the photo + all attached documents + form fields never trigger it.
-const MAX_TOTAL_UPLOAD_BYTES = 4 * 1024 * 1024;
+import { uploadFileDirectToStorage } from '../utils/imageCompression';
 
 interface PublicApplicantPortalProps {
   onGoToAdmin?: () => void;
@@ -93,6 +88,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [nationalIdDuplicateWarning, setNationalIdDuplicateWarning] = useState<string | null>(null);
   const [submittedApplicant, setSubmittedApplicant] = useState<Applicant | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [uploadingDocType, setUploadingDocType] = useState<ApplicantDocument['document_type'] | null>(null);
 
   // Load branches & positions (Do NOT auto-select first item)
   useEffect(() => {
@@ -140,7 +137,10 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
     return () => clearTimeout(timer);
   }, [formData.national_id]);
 
-  // Handle Photo upload
+  // Handle Photo upload — uploads directly to Supabase Storage from the
+  // browser (compressing images on-device first) and stores only the
+  // resulting short public URL in form state, so the eventual submit
+  // request stays tiny regardless of the original photo's size.
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -151,13 +151,24 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
     }
 
     setErrorMessage(null);
-    // Resize/compress on-device so the final base64 payload stays small,
-    // regardless of how large the original phone photo was.
-    const dataUrl = await compressImageFile(file, { maxDimension: 1000, quality: 0.75 });
-    setFormData(prev => ({ ...prev, photo_url: dataUrl }));
+    setIsUploadingPhoto(true);
+    try {
+      const publicUrl = await uploadFileDirectToStorage(file, {
+        isImage: true,
+        maxDimension: 1000,
+        quality: 0.75,
+      });
+      setFormData(prev => ({ ...prev, photo_url: publicUrl }));
+    } catch (err: any) {
+      setErrorMessage(err.message || 'فشل رفع الصورة، يرجى المحاولة مرة أخرى');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
-  // Handle Document upload with file type & size check
+  // Handle Document upload with file type & size check — same direct-to-
+  // storage approach as the photo above; PDFs are uploaded as-is (only
+  // images get compressed).
   const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: ApplicantDocument['document_type']) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -174,29 +185,31 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
     }
 
     setErrorMessage(null);
+    setUploadingDocType(docType);
+    try {
+      const isImage = file.type !== 'application/pdf';
+      const publicUrl = await uploadFileDirectToStorage(file, {
+        isImage,
+        maxDimension: 1400,
+        quality: 0.75,
+      });
 
-    // Images get compressed on-device before being turned into base64;
-    // PDFs are kept as-is (they're already capped at 5MB above).
-    const isImage = file.type !== 'application/pdf';
-    const dataUrl = isImage
-      ? await compressImageFile(file, { maxDimension: 1400, quality: 0.75 })
-      : await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
-
-    const newDoc: ApplicantDocument = {
-      id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      applicant_id: '',
-      document_type: docType,
-      file_name: file.name,
-      file_url: dataUrl,
-      file_size: `${(file.size / 1024).toFixed(1)} KB`,
-      uploaded_at: new Date().toISOString(),
-      uploaded_by: 'المتقدم نفسه',
-    };
-    setDocuments(prev => [...prev.filter(d => d.document_type !== docType), newDoc]);
+      const newDoc: ApplicantDocument = {
+        id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        applicant_id: '',
+        document_type: docType,
+        file_name: file.name,
+        file_url: publicUrl,
+        file_size: `${(file.size / 1024).toFixed(1)} KB`,
+        uploaded_at: new Date().toISOString(),
+        uploaded_by: 'المتقدم نفسه',
+      };
+      setDocuments(prev => [...prev.filter(d => d.document_type !== docType), newDoc]);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'فشل رفع الملف، يرجى المحاولة مرة أخرى');
+    } finally {
+      setUploadingDocType(null);
+    }
   };
 
   // Experience handlers
@@ -403,20 +416,6 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep(5)) return;
-
-    // Guard against Vercel's hard ~4.5MB request body limit: check the
-    // combined size of the photo + all attached documents BEFORE sending,
-    // so the candidate gets a clear message instead of a server crash.
-    const totalUploadBytes =
-      estimateDataUrlBytes(formData.photo_url) +
-      documents.reduce((sum, doc) => sum + estimateDataUrlBytes(doc.file_url), 0);
-
-    if (totalUploadBytes > MAX_TOTAL_UPLOAD_BYTES) {
-      setErrorMessage(
-        'الحجم الإجمالي للصورة الشخصية والمستندات المرفقة كبير جداً. يرجى استخدام صور أصغر حجماً (يفضل صور بدلاً من ملفات PDF كبيرة) ثم إعادة المحاولة.'
-      );
-      return;
-    }
 
     try {
       setIsSubmitting(true);
@@ -676,13 +675,14 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <p className="text-xs text-stone-500 leading-relaxed">
                   يفضل رفع صورة واضحة بخلفية بيضاء أو محايدة بحجم مناسب (اختياري ولكن يفضل للتوظيف).
                 </p>
-                <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-800 text-xs font-bold cursor-pointer transition-all">
+                <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${isUploadingPhoto ? 'bg-stone-100 text-stone-400 cursor-wait' : 'bg-stone-200 hover:bg-stone-300 text-stone-800 cursor-pointer'}`}>
                   <SvgIcons.Upload className="w-4 h-4" />
-                  <span>اختيار صورة من الهاتف أو الكمبيوتر</span>
+                  <span>{isUploadingPhoto ? 'جاري رفع الصورة...' : 'اختيار صورة من الهاتف أو الكمبيوتر'}</span>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handlePhotoUpload}
+                    disabled={isUploadingPhoto}
                     className="hidden"
                   />
                 </label>
@@ -1216,13 +1216,16 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-stone-300 rounded-xl bg-white hover:bg-stone-50 cursor-pointer transition-all">
+                  <label className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-all ${uploadingDocType === 'صورة بطاقة الرقم القومي' ? 'border-stone-200 bg-stone-100 cursor-wait' : 'border-stone-300 bg-white hover:bg-stone-50 cursor-pointer'}`}>
                     <SvgIcons.Upload className="w-6 h-6 text-stone-400 mb-1" />
-                    <span className="text-xs font-bold text-stone-700">اضغط لرفع صورة البطاقة</span>
+                    <span className="text-xs font-bold text-stone-700">
+                      {uploadingDocType === 'صورة بطاقة الرقم القومي' ? 'جاري الرفع...' : 'اضغط لرفع صورة البطاقة'}
+                    </span>
                     <input
                       type="file"
                       accept="image/*,.pdf"
                       onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي')}
+                      disabled={uploadingDocType !== null}
                       className="hidden"
                     />
                   </label>
@@ -1247,13 +1250,16 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-stone-300 rounded-xl bg-white hover:bg-stone-50 cursor-pointer transition-all">
+                  <label className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-all ${uploadingDocType === 'شهادة صحية' ? 'border-stone-200 bg-stone-100 cursor-wait' : 'border-stone-300 bg-white hover:bg-stone-50 cursor-pointer'}`}>
                     <SvgIcons.Upload className="w-6 h-6 text-stone-400 mb-1" />
-                    <span className="text-xs font-bold text-stone-700">اضغط لرفع الشهادة الصحية</span>
+                    <span className="text-xs font-bold text-stone-700">
+                      {uploadingDocType === 'شهادة صحية' ? 'جاري الرفع...' : 'اضغط لرفع الشهادة الصحية'}
+                    </span>
                     <input
                       type="file"
                       accept="image/*,.pdf"
                       onChange={e => handleDocumentUpload(e, 'شهادة صحية')}
+                      disabled={uploadingDocType !== null}
                       className="hidden"
                     />
                   </label>

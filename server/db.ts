@@ -17,6 +17,27 @@ import { hashPassword, verifyPassword } from './auth.js';
 import { getSupabase, uploadToSupabaseStorage } from './supabase.js';
 
 /**
+ * Escapes characters that are structurally significant in PostgREST filter
+ * strings (used by Supabase's `.or()` and `.ilike()` builders below).
+ *
+ * These queries are built by interpolating user-supplied values directly
+ * into a filter string, e.g.:
+ *   .or(`username.ilike.${sanitizePostgrestValue(cleanInput)},email.ilike.${sanitizePostgrestValue(cleanInput)}`)
+ * A value containing a comma or parenthesis can inject additional filter
+ * clauses (PostgREST filter injection) — e.g. a login username of
+ * `x,role.eq.admin` turns the filter into an OR that can match an
+ * unrelated admin row. `%`/`_` are LIKE wildcards and are stripped too so
+ * user input can't be used to broaden an ilike match into an unintended
+ * multi-row result. This does not affect legitimate input (names, phone
+ * numbers, national IDs, and generated codes never legitimately contain
+ * these characters).
+ */
+function sanitizePostgrestValue(value: string): string {
+  return value.replace(/[,()%_]/g, '');
+}
+
+
+/**
  * Supabase Data Access Layer for BOB WICH HR System
  * All persistent data operations communicate exclusively with Supabase PostgreSQL and Supabase Storage.
  */
@@ -399,7 +420,7 @@ class SupabaseDataAccessLayer {
         assets:applicant_assets(*),
         hr_decision:hr_decisions(*)
       `)
-      .or(`id.eq.${id},application_code.eq.${id}`)
+      .or(`id.eq.${sanitizePostgrestValue(id)},application_code.eq.${sanitizePostgrestValue(id)}`)
       .maybeSingle();
 
     if (error) {
@@ -1188,7 +1209,7 @@ class SupabaseDataAccessLayer {
     const { data: employee, error } = await supabase
       .from('employees')
       .select('*')
-      .or(`id.eq.${id},employee_code.eq.${id}`)
+      .or(`id.eq.${sanitizePostgrestValue(id)},employee_code.eq.${sanitizePostgrestValue(id)}`)
       .maybeSingle();
 
     if (error) {
@@ -1294,6 +1315,7 @@ class SupabaseDataAccessLayer {
       return { applicants: [], employees: [] };
     }
     const q = query.trim();
+    const sq = sanitizePostgrestValue(q);
     const supabase = getSupabase();
 
     const [applicantsRes, employeesRes] = await Promise.all([
@@ -1307,12 +1329,12 @@ class SupabaseDataAccessLayer {
           assets:applicant_assets(*),
           hr_decision:hr_decisions(*)
         `)
-        .or(`full_name.ilike.%${q}%,national_id.ilike.%${q}%,phone.ilike.%${q}%,application_code.ilike.%${q}%,branch_name.ilike.%${q}%,position_name.ilike.%${q}%`)
+        .or(`full_name.ilike.%${sq}%,national_id.ilike.%${sq}%,phone.ilike.%${sq}%,application_code.ilike.%${sq}%,branch_name.ilike.%${sq}%,position_name.ilike.%${sq}%`)
         .limit(10),
       supabase
         .from('employees')
         .select('*')
-        .or(`full_name.ilike.%${q}%,national_id.ilike.%${q}%,phone.ilike.%${q}%,employee_code.ilike.%${q}%,application_code.ilike.%${q}%,branch_name.ilike.%${q}%,position_name.ilike.%${q}%`)
+        .or(`full_name.ilike.%${sq}%,national_id.ilike.%${sq}%,phone.ilike.%${sq}%,employee_code.ilike.%${sq}%,application_code.ilike.%${sq}%,branch_name.ilike.%${sq}%,position_name.ilike.%${sq}%`)
         .limit(10),
     ]);
 
@@ -1383,7 +1405,7 @@ class SupabaseDataAccessLayer {
     }
 
     const supabase = getSupabase();
-    const cleanInput = usernameOrEmail.trim().toLowerCase();
+    const cleanInput = sanitizePostgrestValue(usernameOrEmail.trim().toLowerCase());
 
     const { data: user, error } = await supabase
       .from('users')

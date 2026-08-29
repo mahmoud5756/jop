@@ -12,7 +12,7 @@ import {
 } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
-import { compressImageFile } from '../utils/imageCompression';
+import { uploadFileDirectToStorage } from '../utils/imageCompression';
 
 interface ApplicantFormProps {
   initialData?: Applicant | null;
@@ -35,6 +35,8 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [nationalIdDuplicateWarning, setNationalIdDuplicateWarning] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState<Partial<Applicant>>({
@@ -223,12 +225,10 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
     return () => clearTimeout(timer);
   }, [formData.national_id, initialData?.id]);
 
-  // Handle Photo upload
-  // Photos are resized/compressed on-device before being turned into base64:
-  // this form's data is sent as one JSON request to a Vercel serverless
-  // function, which rejects any request body over ~4.5MB at the platform
-  // level (before our code even runs) — a limit that isn't configurable
-  // from express/body-parser.
+  // Handle Photo upload — uploads directly to Supabase Storage from the
+  // browser (bypassing our own serverless function's ~4.5MB request-body
+  // limit on Vercel entirely) and stores only the resulting short public
+  // URL, instead of embedding the full file as base64 in the applicant JSON.
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -237,11 +237,22 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
       alert('حجم الصورة يجب ألا يتعدى 8 ميجابايت');
       return;
     }
-    const dataUrl = await compressImageFile(file, { maxDimension: 1000, quality: 0.75 });
-    setFormData(prev => ({ ...prev, photo_url: dataUrl }));
+    setIsUploadingPhoto(true);
+    try {
+      const publicUrl = await uploadFileDirectToStorage(file, {
+        isImage: true,
+        maxDimension: 1000,
+        quality: 0.75,
+      });
+      setFormData(prev => ({ ...prev, photo_url: publicUrl }));
+    } catch (err: any) {
+      alert(err.message || 'فشل رفع الصورة، يرجى المحاولة مرة أخرى');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
-  // Add Document
+  // Add Document — same direct-to-storage approach as the photo above.
   const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -251,26 +262,31 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
       return;
     }
 
-    const isImage = file.type !== 'application/pdf';
-    const dataUrl = isImage
-      ? await compressImageFile(file, { maxDimension: 1400, quality: 0.75 })
-      : await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
+    setUploadingDocType(docType);
+    try {
+      const isImage = file.type !== 'application/pdf';
+      const publicUrl = await uploadFileDirectToStorage(file, {
+        isImage,
+        maxDimension: 1400,
+        quality: 0.75,
+      });
 
-    const newDoc: ApplicantDocument = {
-      id: 'doc_' + Date.now(),
-      applicant_id: initialData?.id || '',
-      document_type: docType,
-      file_name: file.name,
-      file_url: dataUrl,
-      file_size: (file.size / 1024).toFixed(1) + ' KB',
-      uploaded_by: currentUser.name,
-      uploaded_at: new Date().toISOString(),
-    };
-    setDocuments(prev => [...prev, newDoc]);
+      const newDoc: ApplicantDocument = {
+        id: 'doc_' + Date.now(),
+        applicant_id: initialData?.id || '',
+        document_type: docType,
+        file_name: file.name,
+        file_url: publicUrl,
+        file_size: (file.size / 1024).toFixed(1) + ' KB',
+        uploaded_by: currentUser.name,
+        uploaded_at: new Date().toISOString(),
+      };
+      setDocuments(prev => [...prev, newDoc]);
+    } catch (err: any) {
+      alert(err.message || 'فشل رفع الملف، يرجى المحاولة مرة أخرى');
+    } finally {
+      setUploadingDocType(null);
+    }
   };
 
   const removeDocument = (docId: string) => {
@@ -576,10 +592,10 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   <p className="text-xs text-stone-500">
                     يفضل صورة حديثة بخلفية بيضاء (4×6 سم) بصيغة JPG أو PNG.
                   </p>
-                  <label className="inline-flex items-center gap-2 bg-white hover:bg-stone-100 text-[#9E1A24] border border-[#9E1A24] px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs">
+                  <label className={`inline-flex items-center gap-2 border px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-xs ${isUploadingPhoto ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-[#9E1A24] border-[#9E1A24] cursor-pointer'}`}>
                     <SvgIcons.Upload className="w-4 h-4" />
-                    <span>اختر صورة من الجهاز</span>
-                    <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+                    <span>{isUploadingPhoto ? 'جاري رفع الصورة...' : 'اختر صورة من الجهاز'}</span>
+                    <input type="file" accept="image/*" onChange={handlePhotoChange} disabled={isUploadingPhoto} className="hidden" />
                   </label>
                   {formData.photo_url && (
                     <button
@@ -1351,13 +1367,14 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 text-center space-y-2">
                     <div className="font-bold text-xs text-stone-800">بطاقة الرقم القومي</div>
                     <p className="text-[11px] text-stone-500">وجه أو ظهر البطاقة</p>
-                    <label className="inline-flex items-center gap-1.5 bg-white hover:bg-stone-100 text-[#9E1A24] border border-[#9E1A24] px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors">
+                    <label className={`inline-flex items-center gap-1.5 border px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${uploadingDocType === 'صورة بطاقة الرقم القومي' ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-[#9E1A24] border-[#9E1A24] cursor-pointer'}`}>
                       <SvgIcons.Upload className="w-3.5 h-3.5" />
-                      <span>رفع صورة البطاقة</span>
+                      <span>{uploadingDocType === 'صورة بطاقة الرقم القومي' ? 'جاري الرفع...' : 'رفع صورة البطاقة'}</span>
                       <input
                         type="file"
                         accept="image/*,.pdf"
                         onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي')}
+                        disabled={uploadingDocType !== null}
                         className="hidden"
                       />
                     </label>
@@ -1367,13 +1384,14 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 text-center space-y-2">
                     <div className="font-bold text-xs text-stone-800">شهادة صحية (سارية)</div>
                     <p className="text-[11px] text-stone-500">خاصة بالعاملين بالمطاعم</p>
-                    <label className="inline-flex items-center gap-1.5 bg-white hover:bg-stone-100 text-[#9E1A24] border border-[#9E1A24] px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors">
+                    <label className={`inline-flex items-center gap-1.5 border px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${uploadingDocType === 'شهادة صحية' ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-[#9E1A24] border-[#9E1A24] cursor-pointer'}`}>
                       <SvgIcons.Upload className="w-3.5 h-3.5" />
-                      <span>رفع الشهادة الصحية</span>
+                      <span>{uploadingDocType === 'شهادة صحية' ? 'جاري الرفع...' : 'رفع الشهادة الصحية'}</span>
                       <input
                         type="file"
                         accept="image/*,.pdf"
                         onChange={e => handleDocumentUpload(e, 'شهادة صحية')}
+                        disabled={uploadingDocType !== null}
                         className="hidden"
                       />
                     </label>
@@ -1383,13 +1401,14 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 text-center space-y-2">
                     <div className="font-bold text-xs text-stone-800">مستندات أخرى</div>
                     <p className="text-[11px] text-stone-500">فيش جنائي / مؤهل / سيرة ذاتية</p>
-                    <label className="inline-flex items-center gap-1.5 bg-white hover:bg-stone-100 text-stone-700 border border-stone-300 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors">
+                    <label className={`inline-flex items-center gap-1.5 border px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${uploadingDocType === 'أخرى' ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-stone-700 border-stone-300 cursor-pointer'}`}>
                       <SvgIcons.Upload className="w-3.5 h-3.5" />
-                      <span>رفع مستند إضافي</span>
+                      <span>{uploadingDocType === 'أخرى' ? 'جاري الرفع...' : 'رفع مستند إضافي'}</span>
                       <input
                         type="file"
                         accept="image/*,.pdf"
                         onChange={e => handleDocumentUpload(e, 'أخرى')}
+                        disabled={uploadingDocType !== null}
                         className="hidden"
                       />
                     </label>

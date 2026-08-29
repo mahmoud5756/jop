@@ -1,9 +1,21 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { CurrentUser, UserRole } from '../src/types';
+import { getSupabase } from './supabase.js';
 
 // Server-side JWT Secret (persistent or fallback generated)
 const JWT_SECRET = process.env.JWT_SECRET || 'BOB_WICH_SECURE_AUTH_SECRET_2026_PROD_KEY_998127361';
+
+if (!process.env.JWT_SECRET) {
+  // This fallback value is checked into source control, so anyone who can read
+  // this code can forge a valid login token for ANY user (including admin).
+  // Set a long random JWT_SECRET in your Vercel project's Environment
+  // Variables (Project Settings → Environment Variables) and redeploy.
+  console.warn(
+    '⚠️  تحذير أمني: JWT_SECRET غير مضبوط في متغيرات البيئة، النظام يستخدم قيمة احتياطية ثابتة مكتوبة في الكود. ' +
+    'يرجى ضبط JWT_SECRET بقيمة عشوائية طويلة في إعدادات Vercel في أقرب وقت.'
+  );
+}
 
 export interface TokenPayload {
   userId: string;
@@ -169,46 +181,84 @@ export function requireRole(allowedRoles: UserRole[]) {
   };
 }
 
-// 5. In-Memory Rate Limiter for Public Endpoints
+// 5. Rate Limiter for Public Endpoints
+//
+// Backed by a Postgres table + atomic function (see migration_rate_limit.sql)
+// so the counter is shared and persists across every serverless invocation —
+// a plain in-memory Map (the previous approach) resets constantly on Vercel,
+// since each request can land on a different/fresh container.
+//
+// Falls back to the old in-memory counter if the Supabase call fails (e.g.
+// the migration hasn't been run yet, or the DB is briefly unreachable), so
+// this never hard-blocks legitimate traffic while you're rolling it out —
+// it just means the limiter is best-effort until the migration is applied.
 interface RateLimitRecord {
   count: number;
   resetTime: number;
 }
-const rateLimitMap = new Map<string, RateLimitRecord>();
+const rateLimitFallbackMap = new Map<string, RateLimitRecord>();
 
-// Clean up expired records every 5 minutes
+// Clean up expired in-memory fallback records every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [key, record] of rateLimitMap.entries()) {
+  for (const [key, record] of rateLimitFallbackMap.entries()) {
     if (record.resetTime < now) {
-      rateLimitMap.delete(key);
+      rateLimitFallbackMap.delete(key);
     }
   }
 }, 5 * 60 * 1000);
 
+function checkRateLimitInMemory(clientKey: string, maxRequests: number, windowMs: number): boolean {
+  const now = Date.now();
+  const record = rateLimitFallbackMap.get(clientKey);
+
+  if (!record || record.resetTime < now) {
+    rateLimitFallbackMap.set(clientKey, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+  if (record.count >= maxRequests) {
+    return false;
+  }
+  record.count += 1;
+  return true;
+}
+
 export function createRateLimiter(maxRequests = 10, windowMs = 60 * 1000, message = 'تم تجاوز الحد المسموح من الطلبات، يرجى المحاولة بعد قليل') {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
     const clientKey = `${req.path}_${Array.isArray(ip) ? ip[0] : ip}`;
-    const now = Date.now();
 
-    const record = rateLimitMap.get(clientKey);
-    if (!record || record.resetTime < now) {
-      rateLimitMap.set(clientKey, {
-        count: 1,
-        resetTime: now + windowMs,
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase.rpc('increment_rate_limit', {
+        p_key: clientKey,
+        p_window_ms: windowMs,
+        p_max: maxRequests,
       });
+
+      if (error) throw error;
+
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result) throw new Error('لا توجد بيانات من increment_rate_limit');
+
+      if (!result.allowed) {
+        const retryAfterSeconds = Math.max(
+          0,
+          Math.ceil((new Date(result.reset_at).getTime() - Date.now()) / 1000)
+        );
+        return res.status(429).json({ error: message, retryAfterSeconds });
+      }
+
+      return next();
+    } catch (err) {
+      // Migration not applied yet, or Supabase briefly unreachable —
+      // fall back to the best-effort in-memory limiter instead of failing
+      // the request outright.
+      console.warn(`Rate limiter falling back to in-memory mode for ${clientKey}:`, (err as Error).message);
+      if (!checkRateLimitInMemory(clientKey, maxRequests, windowMs)) {
+        return res.status(429).json({ error: message });
+      }
       return next();
     }
-
-    if (record.count >= maxRequests) {
-      return res.status(429).json({
-        error: message,
-        retryAfterSeconds: Math.ceil((record.resetTime - now) / 1000),
-      });
-    }
-
-    record.count += 1;
-    next();
   };
 }

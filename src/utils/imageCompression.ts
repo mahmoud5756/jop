@@ -23,6 +23,9 @@
  * calling components for the separate PDF size guard).
  */
 
+import { ApiService } from '../services/api';
+import { supabaseBrowserClient } from '../services/supabaseClient';
+
 export interface CompressImageOptions {
   /** Max width/height in pixels; image is scaled down proportionally to fit. */
   maxDimension?: number;
@@ -104,4 +107,80 @@ export function estimateDataUrlBytes(dataUrl: string | undefined | null): number
   if (!dataUrl) return 0;
   const base64Part = dataUrl.split(',')[1] ?? '';
   return Math.round((base64Part.length * 3) / 4);
+}
+
+/** Converts a compressed image data URL into a Blob, for direct upload. */
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const response = await fetch(dataUrl);
+  return response.blob();
+}
+
+export interface DirectUploadOptions {
+  /** Treated as an image (compressed before upload) vs. passed through as-is (e.g. PDFs). */
+  isImage: boolean;
+  maxDimension?: number;
+  quality?: number;
+}
+
+/**
+ * Uploads a file directly from the browser to Supabase Storage, bypassing
+ * our own backend entirely for the file bytes themselves.
+ *
+ * WHY: sending files as base64 inside the JSON request body (the old
+ * approach) runs into Vercel's hard ~4.5MB serverless request-body limit —
+ * a photo + a couple of attached documents can blow past that easily. This
+ * function instead:
+ *   1. Compresses images on-device (skipped for PDFs).
+ *   2. Asks our backend for a short-lived signed upload URL/token
+ *      (`/api/uploads/signed-url`) — a tiny JSON request, no file bytes.
+ *   3. PUTs the file directly to Supabase Storage using that token.
+ * Only the resulting short public URL is ever included in the applicant
+ * JSON payload sent afterwards.
+ *
+ * Returns the public URL to store as `photo_url` / a document's `file_url`.
+ */
+export async function uploadFileDirectToStorage(
+  file: File,
+  options: DirectUploadOptions
+): Promise<string> {
+  if (!supabaseBrowserClient) {
+    throw new Error(
+      'رفع الملفات غير مهيأ حاليًا على هذا الموقع (إعدادات Supabase غير مكتملة)، يرجى التواصل مع الدعم الفني'
+    );
+  }
+
+  let blob: Blob;
+  let contentType: string;
+  let uploadFileName: string;
+
+  if (options.isImage) {
+    const dataUrl = await compressImageFile(file, {
+      maxDimension: options.maxDimension,
+      quality: options.quality,
+    });
+    blob = await dataUrlToBlob(dataUrl);
+    contentType = 'image/jpeg';
+    // Images are always re-encoded to JPEG above, so use a matching
+    // filename instead of the original (which may have been .png/.webp).
+    uploadFileName = 'photo.jpg';
+  } else {
+    blob = file;
+    contentType = file.type || 'application/octet-stream';
+    uploadFileName = file.name;
+  }
+
+  const signed = await ApiService.getUploadSignedUrl(uploadFileName, contentType);
+
+  const { error } = await supabaseBrowserClient.storage
+    .from(signed.bucket)
+    .uploadToSignedUrl(signed.path, signed.token, blob, { contentType });
+
+  if (error) {
+    throw new Error('فشل رفع الملف إلى التخزين، يرجى المحاولة مرة أخرى');
+  }
+
+  if (signed.publicUrl) return signed.publicUrl;
+
+  const { data } = supabaseBrowserClient.storage.from(signed.bucket).getPublicUrl(signed.path);
+  return data.publicUrl;
 }

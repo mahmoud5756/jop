@@ -252,6 +252,23 @@ export class ApiService {
     return json.data;
   }
 
+  // Request a signed URL to upload a file directly to Supabase Storage
+  // (no auth token required — used by both the public candidate form and
+  // the internal HR form). Only the filename/content-type travel through
+  // this JSON request; the actual file bytes go straight to Supabase
+  // Storage afterwards, never through our own serverless function.
+  static async getUploadSignedUrl(
+    fileName: string,
+    contentType: string
+  ): Promise<{ bucket: string; path: string; token: string; publicUrl: string | null }> {
+    const res = await fetch('/api/uploads/signed-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName, contentType }),
+    });
+    return await this.parseResponse(res);
+  }
+
   // Public candidate submission (no auth token required)
   static async publicApply(applicant: Partial<Applicant>): Promise<Applicant> {
     const res = await fetch('/api/applicants/public-apply', {
