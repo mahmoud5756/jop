@@ -718,7 +718,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-2">الحالة الاجتماعية</label>
                   <div className="flex items-center gap-4">
-                    {(['أعزب', 'متزوج', 'أخرى'] as const).map(item => (
+                    {(['أعزب', 'متزوج', 'مطلق', 'أرمل'] as const).map(item => (
                       <label
                         key={item}
                         className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
@@ -745,7 +745,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-2">الموقف من التجنيد</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['أدى الخدمة', 'إعفاء', 'تأجيل', 'غير مطلوب'] as const).map(item => (
+                    {(['أدى الخدمة', 'إعفاء نهائي', 'إعفاء مؤقت', 'تأجيل', 'غير مطلوب (إناث)'] as const).map(item => (
                       <label
                         key={item}
                         className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${

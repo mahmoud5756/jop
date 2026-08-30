@@ -178,10 +178,16 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span>متزوج</span>
                     </label>
                     <label className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.marital_status === 'أخرى' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.marital_status === 'أخرى' ? '✓' : ''}
+                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.marital_status === 'مطلق' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
+                        {applicant.marital_status === 'مطلق' ? '✓' : ''}
                       </span>
-                      <span>أخرى</span>
+                      <span>مطلق</span>
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.marital_status === 'أرمل' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
+                        {applicant.marital_status === 'أرمل' ? '✓' : ''}
+                      </span>
+                      <span>أرمل</span>
                     </label>
                   </div>
 
@@ -194,10 +200,16 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span>أدى الخدمة</span>
                     </span>
                     <span className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'إعفاء' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.military_status === 'إعفاء' ? '✓' : ''}
+                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'إعفاء نهائي' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
+                        {applicant.military_status === 'إعفاء نهائي' ? '✓' : ''}
                       </span>
-                      <span>إعفاء</span>
+                      <span>إعفاء نهائي</span>
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'إعفاء مؤقت' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
+                        {applicant.military_status === 'إعفاء مؤقت' ? '✓' : ''}
+                      </span>
+                      <span>إعفاء مؤقت</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'تأجيل' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
@@ -206,10 +218,10 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span>تأجيل</span>
                     </span>
                     <span className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'غير مطلوب' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.military_status === 'غير مطلوب' ? '✓' : ''}
+                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'غير مطلوب (إناث)' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
+                        {applicant.military_status === 'غير مطلوب (إناث)' ? '✓' : ''}
                       </span>
-                      <span>غير مطلوب</span>
+                      <span>غير مطلوب (إناث)</span>
                     </span>
                   </div>
                 </div>

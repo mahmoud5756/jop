@@ -335,7 +335,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
               {/* Working Shifts & Declarations */}
               <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-2">
                 <h4 className="font-bold text-[#9E1A24] text-xs pb-1.5 border-b border-stone-200">
-                  6. أوقات العمل والجاهزية
+                  6. أوقات العمل
                 </h4>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div className="bg-white p-2 rounded-xl border border-stone-200">
@@ -346,8 +346,8 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                     </span>
                   </div>
                   <div className="bg-white p-2 rounded-xl border border-stone-200">
-                    <span className="text-stone-500 block text-[11px]">نظام الورديات:</span>
-                    <span className="font-bold">{applicant.can_work_shifts ? 'متاح' : 'غير متاح'}</span>
+                    <span className="text-stone-500 block text-[11px]">وسيلة مواصلات خاصة:</span>
+                    <span className="font-bold">{applicant.can_work_shifts ? 'نعم' : 'لا'}</span>
                   </div>
                   <div className="bg-white p-2 rounded-xl border border-stone-200">
                     <span className="text-stone-500 block text-[11px]">ساعات إضافية:</span>
@@ -356,6 +356,29 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                   <div className="bg-white p-2 rounded-xl border border-stone-200">
                     <span className="text-stone-500 block text-[11px]">أيام العطلات:</span>
                     <span className="font-bold">{applicant.can_work_holidays ? 'موافق' : 'غير موافق'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 9. إقرار المتقدم والعهدة */}
+              <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-2">
+                <h4 className="font-bold text-[#9E1A24] text-xs pb-1.5 border-b border-stone-200">
+                  9. إقرار المتقدم والعهدة
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="bg-white p-2 rounded-xl border border-stone-200">
+                    <span className="text-stone-500 block text-[11px]">حالة الإقرار:</span>
+                    <span className={`font-bold ${applicant.declaration_accepted ? 'text-emerald-700' : 'text-red-700'}`}>
+                      {applicant.declaration_accepted ? '✓ تم الإقرار والموافقة' : '✗ لم يوافق'}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2 rounded-xl border border-stone-200">
+                    <span className="text-stone-500 block text-[11px]">اسم الموقّع:</span>
+                    <span className="font-bold">{applicant.applicant_signature_name || applicant.full_name || '—'}</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-xl border border-stone-200">
+                    <span className="text-stone-500 block text-[11px]">تاريخ الإقرار:</span>
+                    <span className="font-bold font-mono">{applicant.declaration_date || '—'}</span>
                   </div>
                 </div>
               </div>

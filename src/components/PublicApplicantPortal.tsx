@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Applicant,
   ApplicantExperience,
@@ -90,6 +90,44 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   const [submittedApplicant, setSubmittedApplicant] = useState<Applicant | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [uploadingDocType, setUploadingDocType] = useState<ApplicantDocument['document_type'] | null>(null);
+
+  // Birth date picker (day/month/year selects) — mobile-friendly replacement
+  // for the native <input type="date">, whose calendar widget forces
+  // applicants to scroll back years one month at a time to reach their
+  // birth year. Derived straight from formData.birth_date ('YYYY-MM-DD')
+  // so it stays in sync without extra state.
+  const [birthDay, birthMonth, birthYear] = useMemo(() => {
+    const parts = (formData.birth_date || '').split('-');
+    return parts.length === 3 ? parts : ['', '', ''];
+  }, [formData.birth_date]);
+
+  const currentYear = new Date().getFullYear();
+  const birthYearOptions = useMemo(
+    () => Array.from({ length: 65 - 14 + 1 }, (_, i) => currentYear - 14 - i),
+    [currentYear]
+  );
+  const arabicMonths = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+  ];
+
+  const handleBirthDatePartChange = (part: 'day' | 'month' | 'year', value: string) => {
+    const day = part === 'day' ? value : birthDay;
+    const month = part === 'month' ? value : birthMonth;
+    const year = part === 'year' ? value : birthYear;
+    if (day && month && year) {
+      setFormData(prev => ({
+        ...prev,
+        birth_date: `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
+      }));
+    } else {
+      // Keep partial selections around (e.g. only year picked so far) by
+      // stashing them in a still-incomplete, non-ISO string; the required
+      // field validation on step submit catches anything left incomplete.
+      setFormData(prev => ({ ...prev, birth_date: [year, month, day].filter(Boolean).join('-') }));
+    }
+  };
+
 
   // Load branches & positions (Do NOT auto-select first item)
   useEffect(() => {
@@ -295,8 +333,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         setErrorMessage('يرجى إدخال رقم هاتف محمول مصري صحيح مكون من 11 رقم (يبدأ بـ 010, 011, 012, 015)');
         return false;
       }
-      if (!formData.birth_date) {
-        setErrorMessage('يرجى اختيار تاريخ الميلاد');
+      if (!formData.birth_date || !/^\d{4}-\d{2}-\d{2}$/.test(formData.birth_date)) {
+        setErrorMessage('يرجى اختيار تاريخ الميلاد كاملاً (اليوم والشهر والسنة)');
         return false;
       }
       const bDate = new Date(formData.birth_date);
@@ -753,15 +791,45 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 />
               </div>
 
-              {/* Birth Date */}
+              {/* Birth Date — day/month/year selects (easier to use on
+                  mobile than the native calendar widget, which forces
+                  scrolling back month-by-month to reach a birth year). */}
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">تاريخ الميلاد</label>
-                <input
-                  type="date"
-                  value={formData.birth_date || ''}
-                  onChange={e => setFormData(prev => ({ ...prev, birth_date: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
-                />
+                <label className="block text-xs font-bold text-stone-700">
+                  تاريخ الميلاد <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    value={birthDay}
+                    onChange={e => handleBirthDatePartChange('day', e.target.value)}
+                    className="w-full px-2 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm bg-white"
+                  >
+                    <option value="" disabled>اليوم</option>
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                      <option key={d} value={String(d).padStart(2, '0')}>{d}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={birthMonth}
+                    onChange={e => handleBirthDatePartChange('month', e.target.value)}
+                    className="w-full px-2 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm bg-white"
+                  >
+                    <option value="" disabled>الشهر</option>
+                    {arabicMonths.map((m, i) => (
+                      <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={birthYear}
+                    onChange={e => handleBirthDatePartChange('year', e.target.value)}
+                    className="w-full px-2 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono bg-white"
+                  >
+                    <option value="" disabled>السنة</option>
+                    {birthYearOptions.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Address */}
@@ -1012,6 +1080,32 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono"
                   />
                 </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-stone-700">هل ما زلت تدرس؟</label>
+                  <div className="flex gap-4 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-stone-800">
+                      <input
+                        type="radio"
+                        name="still_studying"
+                        checked={formData.still_studying === true}
+                        onChange={() => setFormData(prev => ({ ...prev, still_studying: true }))}
+                        className="accent-[#9E1A24] w-4 h-4"
+                      />
+                      نعم
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-stone-800">
+                      <input
+                        type="radio"
+                        name="still_studying"
+                        checked={formData.still_studying === false}
+                        onChange={() => setFormData(prev => ({ ...prev, still_studying: false }))}
+                        className="accent-[#9E1A24] w-4 h-4"
+                      />
+                      لا
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1177,6 +1271,16 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     className="accent-[#9E1A24] w-4 h-4 rounded"
                   />
                   <span>الاستعداد للعمل في العطلات الرسمية والمواسم والأعياد</span>
+                </label>
+
+                <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
+                  <input
+                    type="checkbox"
+                    checked={formData.can_work_shifts ?? false}
+                    onChange={e => setFormData(prev => ({ ...prev, can_work_shifts: e.target.checked }))}
+                    className="accent-[#9E1A24] w-4 h-4 rounded"
+                  />
+                  <span>أمتلك وسيلة مواصلات خاصة (موتوسيكل/عربية)</span>
                 </label>
               </div>
             </div>

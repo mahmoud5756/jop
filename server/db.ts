@@ -558,7 +558,7 @@ class SupabaseDataAccessLayer {
       emergency_contact_name: payload.emergency_contact_name || '',
       address: payload.address || '',
       marital_status: payload.marital_status || 'أعزب',
-      military_status: payload.military_status || 'غير مطلوب',
+      military_status: payload.military_status || 'غير مطلوب (إناث)',
       photo_url,
 
       branch_id: payload.branch_id || '',

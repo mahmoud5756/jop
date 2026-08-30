@@ -7,9 +7,9 @@ export type ApplicantStatus =
   | 'مرفوض'
   | 'قائمة انتظار';
 
-export type MaritalStatus = 'أعزب' | 'متزوج' | 'أخرى';
+export type MaritalStatus = 'أعزب' | 'متزوج' | 'مطلق' | 'أرمل';
 
-export type MilitaryStatus = 'أدى الخدمة' | 'إعفاء' | 'تأجيل' | 'غير مطلوب';
+export type MilitaryStatus = 'أدى الخدمة' | 'إعفاء نهائي' | 'إعفاء مؤقت' | 'تأجيل' | 'غير مطلوب (إناث)';
 
 export type UserRole = 'admin' | 'hr' | 'manager' | 'employee';
 
