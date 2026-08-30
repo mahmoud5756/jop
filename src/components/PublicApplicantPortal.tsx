@@ -96,7 +96,10 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   // applicants to scroll back years one month at a time to reach their
   // birth year. Derived straight from formData.birth_date ('YYYY-MM-DD')
   // so it stays in sync without extra state.
-  const [birthDay, birthMonth, birthYear] = useMemo(() => {
+  // formData.birth_date is stored as 'YYYY-MM-DD', so the split parts are
+  // [year, month, day] in that order — the destructured names must match
+  // that order, or the year/day values end up swapped between variables.
+  const [birthYear, birthMonth, birthDay] = useMemo(() => {
     const parts = (formData.birth_date || '').split('-');
     return parts.length === 3 ? parts : ['', '', ''];
   }, [formData.birth_date]);
@@ -122,9 +125,13 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
       }));
     } else {
       // Keep partial selections around (e.g. only year picked so far) by
-      // stashing them in a still-incomplete, non-ISO string; the required
-      // field validation on step submit catches anything left incomplete.
-      setFormData(prev => ({ ...prev, birth_date: [year, month, day].filter(Boolean).join('-') }));
+      // stashing them in a still-incomplete, non-ISO string. Positions must
+      // stay fixed (year-month-day) even when a part is empty — filtering
+      // out empty parts here would shift the remaining values into the
+      // wrong slot on the next parse and silently drop whatever was
+      // already picked (e.g. picking the year after the day would wipe
+      // the day out again).
+      setFormData(prev => ({ ...prev, birth_date: `${year}-${month}-${day}` }));
     }
   };
 
