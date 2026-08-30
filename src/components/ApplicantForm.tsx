@@ -105,28 +105,10 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
             id: 'ast_1',
             applicant_id: initialData?.id || '',
             item_number: 1,
-            asset_name: 'يونيفورم BOB WICH (قميص + مريلة)',
-            quantity: 2,
-            condition: 'جديد',
-            notes: 'تم التسليم عند التعيين',
-          },
-          {
-            id: 'ast_2',
-            applicant_id: initialData?.id || '',
-            item_number: 2,
-            asset_name: 'كاب BOB WICH الرسمي',
+            asset_name: '',
             quantity: 1,
-            condition: 'جديد',
-            notes: 'سليم',
-          },
-          {
-            id: 'ast_3',
-            applicant_id: initialData?.id || '',
-            item_number: 3,
-            asset_name: 'كارت تعريف ومغناطيس اسم (Name Tag)',
-            quantity: 1,
-            condition: 'جديد',
-            notes: 'سليم',
+            condition: '',
+            notes: '',
           },
         ]
   );
@@ -144,7 +126,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
       second_interview_status: 'حضر',
       joining_date: '',
       hr_notes: '',
-      recruiter_name: currentUser.name,
+      recruiter_name: '',
       hiring_decision: 'قبول',
     }
   );
