@@ -8,6 +8,8 @@ import {
   mergeFieldConfig,
   defaultFieldConfig,
   generateCustomFieldKey,
+  generateDeclarationKey,
+  declarationText,
   DEFAULT_FIELD_OPTIONS,
 } from '../formFields';
 import {
@@ -23,6 +25,7 @@ import {
   Printer,
   List,
   X,
+  FileText,
 } from 'lucide-react';
 
 interface Props {
@@ -51,6 +54,7 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
   const [newRequired, setNewRequired] = useState(false);
   const [newOptions, setNewOptions] = useState('');
   const [newPlaceholder, setNewPlaceholder] = useState('');
+  const [newContent, setNewContent] = useState('');
 
   const canEdit = currentUser.role === 'admin' || currentUser.role === 'hr';
 
@@ -82,6 +86,7 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
 
   // ---- تعديل قوائم الاختيارات (الحالة الاجتماعية، التجنيد، المؤهل، المهارات...) ----
   const [openOptionsFor, setOpenOptionsFor] = useState<string | null>(null);
+  const [openContentFor, setOpenContentFor] = useState<string | null>(null);
 
   const supportsOptions = (field: FormFieldConfig) =>
     field.is_custom ? field.type === 'select' : !!builtInDef(field.key)?.hasOptions;
@@ -115,6 +120,7 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
     setNewRequired(false);
     setNewOptions('');
     setNewPlaceholder('');
+    setNewContent('');
     setAddingToSection(null);
   };
 
@@ -132,10 +138,14 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
       showToast('يرجى كتابة اختيارات القائمة مفصولة بفاصلة');
       return;
     }
+    if (newType === 'declaration' && !newContent.trim()) {
+      showToast('يرجى كتابة نص الإقرار الذي سيوافق عليه المتقدم');
+      return;
+    }
 
     const maxOrder = Math.max(0, ...config.filter(f => f.is_custom).map(f => f.order || 0));
     const field: FormFieldConfig = {
-      key: generateCustomFieldKey(label),
+      key: newType === 'declaration' ? generateDeclarationKey(label) : generateCustomFieldKey(label),
       label,
       section,
       type: newType,
@@ -146,16 +156,22 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
       options,
       placeholder: newPlaceholder.trim(),
       show_in_print: true,
+      content: newType === 'declaration' ? newContent.trim() : undefined,
     };
     setConfig(prev => [...prev, field]);
     setIsDirty(true);
     resetAddForm();
-    showToast(`تمت إضافة الحقل "${label}" — اضغط حفظ لتفعيله للمتقدمين`);
+    showToast(
+      newType === 'declaration'
+        ? `تمت إضافة الإقرار "${label}" — اضغط حفظ لتفعيله للمتقدمين`
+        : `تمت إضافة الحقل "${label}" — اضغط حفظ لتفعيله للمتقدمين`
+    );
   };
 
   const handleDeleteField = (field: FormFieldConfig) => {
     if (!field.is_custom) return;
-    if (!confirm(`هل تريد حذف الحقل "${field.label}" نهائيًا من نموذج التقديم؟`)) return;
+    const what = field.type === 'declaration' ? 'الإقرار' : 'الحقل';
+    if (!confirm(`هل تريد حذف ${what} "${field.label}" نهائيًا من نموذج التقديم؟`)) return;
     setConfig(prev => prev.filter(f => f.key !== field.key));
     setIsDirty(true);
   };
@@ -290,12 +306,18 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                     <button
                       type="button"
                       onClick={() => {
+                        const opening = addingToSection !== section.key;
                         resetAddForm();
-                        setAddingToSection(addingToSection === section.key ? null : section.key);
+                        if (opening) {
+                          // في قسم الإقرارات الافتراضي هو إضافة إقرار جديد
+                          if (section.key === 'declaration') setNewType('declaration');
+                          setAddingToSection(section.key);
+                        }
                       }}
                       className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
                     >
-                      <Plus className="w-4 h-4" /> إضافة حقل
+                      <Plus className="w-4 h-4" />
+                      {section.key === 'declaration' ? 'إضافة إقرار جديد' : 'إضافة حقل'}
                     </button>
                   )}
                 </div>
@@ -305,12 +327,14 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                   <div className="p-4 bg-amber-50/60 border-b border-amber-200 space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="block text-[11px] font-bold text-stone-700">اسم الحقل كما سيظهر للمتقدم</label>
+                        <label className="block text-[11px] font-bold text-stone-700">
+                          {newType === 'declaration' ? 'عنوان الإقرار كما سيظهر للمتقدم' : 'اسم الحقل كما سيظهر للمتقدم'}
+                        </label>
                         <input
                           type="text"
                           value={newLabel}
                           onChange={e => setNewLabel(e.target.value)}
-                          placeholder="مثال: رقم تأمين صحي / اسم المعرّف بك"
+                          placeholder={newType === 'declaration' ? 'مثال: إقرار فترة تدريب وتقييم' : 'مثال: رقم تأمين صحي / اسم المعرّف بك'}
                           className="w-full px-3 py-2 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                         />
                       </div>
@@ -344,7 +368,25 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                         </div>
                       )}
 
-                      {newType !== 'select' && newType !== 'checkbox' && (
+                      {newType === 'declaration' && (
+                        <div className="space-y-1 sm:col-span-2">
+                          <label className="block text-[11px] font-bold text-stone-700">
+                            نص الإقرار الكامل (هو النص الذي يقرأه المتقدم ويوافق عليه ويُطبع في الاستمارة)
+                          </label>
+                          <textarea
+                            rows={7}
+                            value={newContent}
+                            onChange={e => setNewContent(e.target.value)}
+                            placeholder={'اكتب نص الإقرار هنا...\nيمكنك كتابة كل فقرة في سطر مستقل.'}
+                            className="w-full px-3 py-2 rounded-xl border border-stone-300 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                          <p className="text-[10px] text-stone-500">
+                            كل سطر جديد يظهر كفقرة مستقلة للمتقدم وفي الورقة المطبوعة.
+                          </p>
+                        </div>
+                      )}
+
+                      {newType !== 'select' && newType !== 'checkbox' && newType !== 'declaration' && (
                         <div className="space-y-1 sm:col-span-2">
                           <label className="block text-[11px] font-bold text-stone-700">نص إرشادي داخل الحقل (اختياري)</label>
                           <input
@@ -365,7 +407,9 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                           onChange={e => setNewRequired(e.target.checked)}
                           className="w-4 h-4 accent-amber-700"
                         />
-                        حقل إلزامي (لا يستطيع المتقدم إكمال الطلب بدونه)
+                        {newType === 'declaration'
+                          ? 'موافقة إلزامية (لا يستطيع المتقدم إرسال الطلب بدون الموافقة عليه)'
+                          : 'حقل إلزامي (لا يستطيع المتقدم إكمال الطلب بدونه)'}
                       </label>
                       <div className="flex items-center gap-2">
                         <button
@@ -380,7 +424,8 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                           onClick={() => handleAddField(section.key)}
                           className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5"
                         >
-                          <Plus className="w-4 h-4" /> إضافة الحقل
+                          <Plus className="w-4 h-4" />
+                          {newType === 'declaration' ? 'إضافة الإقرار' : 'إضافة الحقل'}
                         </button>
                       </div>
                     </div>
@@ -412,7 +457,12 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                                 hidden ? 'border-stone-200 text-stone-400 bg-stone-50' : 'border-stone-300 text-stone-900'
                               }`}
                             />
-                            {field.is_custom ? (
+                            {field.type === 'declaration' ? (
+                              <span className="text-[10px] font-bold text-[#9E1A24] bg-red-50 px-2 py-0.5 rounded-full border border-red-200 flex items-center gap-1">
+                                <FileText className="w-3 h-3" />
+                                {field.is_custom ? 'إقرار إضافي' : 'إقرار أساسي'}
+                              </span>
+                            ) : field.is_custom ? (
                               <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
                                 حقل إضافي · {FIELD_TYPE_LABELS[field.type]}
                               </span>
@@ -456,7 +506,9 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                                 : 'bg-white text-stone-500 border-stone-200'
                             }`}
                           >
-                            {field.required ? 'إلزامي *' : 'اختياري'}
+                            {field.type === 'declaration'
+                              ? (field.required ? 'موافقة إلزامية *' : 'موافقة اختيارية')
+                              : (field.required ? 'إلزامي *' : 'اختياري')}
                           </button>
 
                           <button
@@ -473,6 +525,20 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                             <Printer className="w-4 h-4" />
                             {field.show_in_print === false ? 'لا يُطبع' : 'يُطبع'}
                           </button>
+
+                          {field.type === 'declaration' && (
+                            <button
+                              type="button"
+                              onClick={() => setOpenContentFor(openContentFor === field.key ? null : field.key)}
+                              className={`px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all ${
+                                openContentFor === field.key
+                                  ? 'bg-[#9E1A24] text-white border-[#9E1A24]'
+                                  : 'bg-white text-[#9E1A24] border-red-200 hover:bg-red-50'
+                              }`}
+                            >
+                              <FileText className="w-4 h-4" /> نص الإقرار
+                            </button>
+                          )}
 
                           {supportsOptions(field) && (
                             <button
@@ -498,6 +564,39 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                             </button>
                           )}
                         </div>
+
+                        {/* محرر نص الإقرار */}
+                        {field.type === 'declaration' && openContentFor === field.key && (
+                          <div className="w-full bg-red-50/60 border border-red-200 rounded-2xl p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-stone-700">
+                                نص الإقرار كما سيقرأه المتقدم ويُطبع في الاستمارة
+                              </span>
+                              {!field.is_custom && canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const def = builtInDef(field.key);
+                                    if (def?.defaultContent) updateField(field.key, { content: def.defaultContent });
+                                  }}
+                                  className="text-[11px] font-bold text-stone-500 hover:text-stone-800 flex items-center gap-1"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" /> النص الافتراضي
+                                </button>
+                              )}
+                            </div>
+                            <textarea
+                              rows={9}
+                              disabled={!canEdit}
+                              value={declarationText(field)}
+                              onChange={e => updateField(field.key, { content: e.target.value })}
+                              className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs leading-relaxed bg-white focus:outline-none focus:ring-2 focus:ring-[#9E1A24]"
+                            />
+                            <p className="text-[10px] text-stone-500">
+                              كل سطر جديد يظهر كفقرة مستقلة. لا تنسَ الضغط على "حفظ النموذج" بعد التعديل.
+                            </p>
+                          </div>
+                        )}
 
                         {/* محرر قائمة الاختيارات */}
                         {supportsOptions(field) && openOptionsFor === field.key && (

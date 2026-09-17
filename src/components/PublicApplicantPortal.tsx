@@ -19,6 +19,11 @@ import {
   fieldLabel,
   validateCustomFields,
   fieldOptions,
+  declarationFields,
+  declarationText,
+  isDeclarationAccepted,
+  validateDeclarations,
+  PRIMARY_DECLARATION_KEY,
 } from '../formFields';
 
 interface PublicApplicantPortalProps {
@@ -83,15 +88,15 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
     branch_name: '',
     position_id: '',
     position_name: '',
-    experience_years: 0,
-    restaurant_experience: false,
+    experience_years: '',
+    restaurant_experience: undefined,
     last_job: '',
     leaving_reason: '',
 
     qualification: '',
     specialization: '',
     graduation_year: '',
-    still_studying: false,
+    still_studying: undefined,
 
     shift_morning: false,
     shift_night: false,
@@ -417,6 +422,19 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         setErrorMessage(`يرجى إدخال ${lbl('leaving_reason')}`);
         return false;
       }
+      if (show('restaurant_experience') && formData.restaurant_experience === undefined) {
+        setErrorMessage(`يرجى تحديد إجابة (نعم / لا) في: ${lbl('restaurant_experience', 'خبرة سابقة في مجال المطاعم')}`);
+        return false;
+      }
+      if (show('experience_years') && req('experience_years') &&
+          (formData.experience_years === '' || formData.experience_years === undefined || formData.experience_years === null)) {
+        setErrorMessage(`يرجى إدخال ${lbl('experience_years')}`);
+        return false;
+      }
+      if (show('still_studying') && formData.still_studying === undefined) {
+        setErrorMessage(`يرجى تحديد إجابة (نعم / لا) في: ${lbl('still_studying', 'هل ما زلت تدرس؟')}`);
+        return false;
+      }
       if (req('qualification') && !formData.qualification) {
         setErrorMessage(`يرجى تحديد ${lbl('qualification')}`);
         return false;
@@ -481,8 +499,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         return false;
       }
     } else if (step === 5) {
-      if (!formData.declaration_accepted) {
-        setErrorMessage('يجب الموافقة والتعهد بصحة كافة البيانات المدونة للمتابعة');
+      const declErr = validateDeclarations(fieldConfig, formData.declaration_accepted, customData);
+      if (declErr) {
+        setErrorMessage(declErr);
         return false;
       }
       if (!formData.applicant_signature_name?.trim()) {
@@ -550,6 +569,10 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
       const payload: Partial<Applicant> = {
         ...formData,
+        // تطبيع الإجابات: الحقول التي لم يملأها المتقدم تُحفظ كقيم صريحة
+        experience_years: Number(formData.experience_years) || 0,
+        restaurant_experience: formData.restaurant_experience === true,
+        still_studying: formData.still_studying === true,
         custom_data: customData,
         experiences: validExperiences,
         documents: documents,
@@ -649,13 +672,13 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     position_id: '',
                     position_name: '',
                     experience_years: 0,
-                    restaurant_experience: false,
+                    restaurant_experience: undefined,
                     last_job: '',
                     leaving_reason: '',
                     qualification: '',
                     specialization: '',
                     graduation_year: '',
-                    still_studying: false,
+                    still_studying: undefined,
                     shift_morning: false,
                     shift_night: false,
                     can_work_shifts: false,
@@ -1385,7 +1408,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
                   <input
                     type="checkbox"
-                    checked={formData.shift_morning ?? true}
+                    checked={formData.shift_morning === true}
                     onChange={e => setFormData(prev => ({ ...prev, shift_morning: e.target.checked }))}
                     className="accent-[#9E1A24] w-4 h-4 rounded"
                   />
@@ -1397,7 +1420,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
                   <input
                     type="checkbox"
-                    checked={formData.shift_night ?? true}
+                    checked={formData.shift_night === true}
                     onChange={e => setFormData(prev => ({ ...prev, shift_night: e.target.checked }))}
                     className="accent-[#9E1A24] w-4 h-4 rounded"
                   />
@@ -1409,7 +1432,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
                   <input
                     type="checkbox"
-                    checked={formData.can_work_overtime ?? true}
+                    checked={formData.can_work_overtime === true}
                     onChange={e => setFormData(prev => ({ ...prev, can_work_overtime: e.target.checked }))}
                     className="accent-[#9E1A24] w-4 h-4 rounded"
                   />
@@ -1421,7 +1444,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
                   <input
                     type="checkbox"
-                    checked={formData.can_work_holidays ?? true}
+                    checked={formData.can_work_holidays === true}
                     onChange={e => setFormData(prev => ({ ...prev, can_work_holidays: e.target.checked }))}
                     className="accent-[#9E1A24] w-4 h-4 rounded"
                   />
@@ -1433,7 +1456,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
                   <input
                     type="checkbox"
-                    checked={formData.can_work_shifts ?? false}
+                    checked={formData.can_work_shifts === true}
                     onChange={e => setFormData(prev => ({ ...prev, can_work_shifts: e.target.checked }))}
                     className="accent-[#9E1A24] w-4 h-4 rounded"
                   />
@@ -1597,28 +1620,59 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               </h2>
             </div>
 
-            {/* Declaration text from original form */}
-            <div className="p-5 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs sm:text-sm text-stone-800 leading-relaxed space-y-3">
-              <div className="flex items-center gap-2 font-bold text-[#9E1A24] text-sm">
-                <SvgIcons.FileText className="w-5 h-5" />
-                <span>نص الإقرار الرسمي (مطاعم BOB WICH):</span>
-              </div>
-              <p className="font-medium text-justify">
-                "أقر أنا الموقع أدناه بأن جميع البيانات والمستندات المدونة في هذا الطلب صحيحة ودقيقة تماماً ومطابقة للواقع، وأتحمل كامل المسؤولية القانونية والإدارية في حال ثبوت عدم صحة أي بيان منها، كما أوافق على الالتزام بلوائح وسياسات العمل المعتمدة بمطاعم BOB WICH وأن هذا الطلب لا يعد تعييناً نهائياً إلا بعد اجتياز المقابلة والفترة التجريبية وتوقيع عقد العمل الرسمي."
-              </p>
-            </div>
+            {/* كل الإقرارات التي ضبطها مدير النظام — نص كل إقرار + موافقة مستقلة */}
+            <div className="space-y-5">
+              {declarationFields(fieldConfig).map((decl, idx) => {
+                const isPrimary = decl.key === PRIMARY_DECLARATION_KEY;
+                const accepted = isDeclarationAccepted(decl, formData.declaration_accepted, customData);
+                const setAccepted = (val: boolean) => {
+                  if (isPrimary) {
+                    setFormData(prev => ({ ...prev, declaration_accepted: val }));
+                  } else {
+                    handleCustomChange(decl.key, val);
+                  }
+                };
+                const paragraphs = declarationText(decl)
+                  .split('\n')
+                  .map(t => t.trim())
+                  .filter(Boolean);
 
-            {/* Checkbox */}
-            <label className="flex items-start gap-3 p-4 rounded-2xl border-2 border-stone-300 bg-stone-50 cursor-pointer text-xs sm:text-sm font-bold text-stone-900 hover:border-[#9E1A24] transition-colors">
-              <input
-                type="checkbox"
-                required
-                checked={formData.declaration_accepted ?? false}
-                onChange={e => setFormData(prev => ({ ...prev, declaration_accepted: e.target.checked }))}
-                className="accent-[#9E1A24] w-5 h-5 rounded mt-0.5"
-              />
-              <span>قرأت الإقرار أعلاه وأوافق عليه وأتعهد بصحة كافة البيانات الواردة في الطلب <span className="text-red-500">*</span></span>
-            </label>
+                return (
+                  <div key={decl.key} className="space-y-3">
+                    <div className="p-5 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs sm:text-sm text-stone-800 leading-relaxed space-y-3">
+                      <div className="flex items-center gap-2 font-bold text-[#9E1A24] text-sm">
+                        <SvgIcons.FileText className="w-5 h-5" />
+                        <span>
+                          {idx + 1}. {decl.label}
+                        </span>
+                      </div>
+                      {paragraphs.map((para, i) => (
+                        <p key={i} className="font-medium text-justify">
+                          {para}
+                        </p>
+                      ))}
+                    </div>
+
+                    <label
+                      className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer text-xs sm:text-sm font-bold text-stone-900 transition-colors ${
+                        accepted ? 'border-[#9E1A24] bg-red-50/40' : 'border-stone-300 bg-stone-50 hover:border-[#9E1A24]'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={accepted}
+                        onChange={e => setAccepted(e.target.checked)}
+                        className="accent-[#9E1A24] w-5 h-5 rounded mt-0.5"
+                      />
+                      <span>
+                        قرأت "{decl.label}" أعلاه وفهمت مضمونه وأوافق عليه بإرادتي الكاملة{' '}
+                        {decl.required && <span className="text-red-500">*</span>}
+                      </span>
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
 
             {/* Signature fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">

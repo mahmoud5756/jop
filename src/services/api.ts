@@ -570,6 +570,33 @@ export class ApiService {
     return json.data;
   }
 
+  /**
+   * تعديل بيانات موظف حالي (الفرع / الوظيفة / الراتب / تاريخ بداية العمل...)
+   * يُستخدم لتصحيح أي بيانات أُدخلت بالخطأ عند التحويل إلى موظف.
+   */
+  static async updateEmployee(
+    id: string,
+    updates: {
+      branch_name?: string;
+      position_name?: string;
+      salary?: number | string;
+      hire_date?: string;
+      phone?: string;
+      status?: string;
+    }
+  ): Promise<Employee> {
+    const res = await fetch(`/api/employees/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+      body: JSON.stringify(updates),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error || 'فشل تحديث بيانات الموظف');
+    }
+    return json.data;
+  }
+
   static async deleteEmployee(id: string): Promise<void> {
     const res = await fetch(`/api/employees/${id}`, {
       method: 'DELETE',

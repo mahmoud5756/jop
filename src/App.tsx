@@ -15,6 +15,7 @@ import { PrintApplicationView } from './components/PrintApplicationView';
 import { CashierContractView } from './components/CashierContractView';
 import { ResignationClearanceView } from './components/ResignationClearanceView';
 import { PayslipView } from './components/PayslipView';
+import { EmployeeCardView } from './components/EmployeeCardView';
 import { EmployeesView } from './components/EmployeesView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
@@ -66,6 +67,7 @@ export function App() {
   const [printingContractEmployee, setPrintingContractEmployee] = useState<Employee | null>(null);
   const [printingResignationEmployee, setPrintingResignationEmployee] = useState<Employee | null>(null);
   const [printingPayslipEmployee, setPrintingPayslipEmployee] = useState<Employee | null>(null);
+  const [printingCardEmployee, setPrintingCardEmployee] = useState<Employee | null>(null);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -151,6 +153,7 @@ export function App() {
     setSelectedApplicant(null);
     setEditingApplicant(null);
     setPrintingApplicant(null);
+    setPrintingCardEmployee(null);
     showToast('تم تسجيل الخروج بنجاح');
   };
 
@@ -185,6 +188,36 @@ export function App() {
 
   const handlePrintPayslip = (employee: Employee) => {
     setPrintingPayslipEmployee(employee);
+  };
+
+  const handlePrintEmployeeCard = (employee: Employee) => {
+    setPrintingCardEmployee(employee);
+  };
+
+  /**
+   * صورة كارت الموظف: لو ملف الموظف نفسه مفيهوش صورة، نجيبها من ملف
+   * التقديم الأصلي (الصورة الشخصية أو المرفق "صور شخصية").
+   */
+  const getEmployeeCardPhoto = (employee: Employee): string | undefined => {
+    if (employee.photo_url) return employee.photo_url;
+    const linked = applicants.find(a => a.id === employee.applicant_id);
+    if (!linked) return undefined;
+    if (linked.photo_url) return linked.photo_url;
+    const personalDoc = linked.documents?.find(d => d.document_type === 'صور شخصية');
+    return personalDoc?.file_url;
+  };
+
+  // إغلاق معاينة الطباعة والرجوع لشاشة الطلبات — مع تنظيف حالة الطباعة
+  // بالكامل حتى يمكن طباعة استمارة أخرى مباشرة بدون تحديث الصفحة.
+  const handleClosePrintView = () => {
+    setPrintingApplicant(null);
+    setCurrentView('applicants');
+  };
+
+  const handleEmployeeUpdated = (updated: Employee) => {
+    setEmployees(prev => prev.map(e => (e.id === updated.id ? updated : e)));
+    showToast(`تم تحديث بيانات الموظف "${updated.full_name}" بنجاح`);
+    fetchData();
   };
 
   const handleSaveSuccess = (savedApplicant: Applicant) => {
@@ -366,11 +399,20 @@ export function App() {
         />
       )}
 
+      {/* Official Employee ID Card (كارت الموظف) — card-sized PDF */}
+      {printingCardEmployee && (
+        <EmployeeCardView
+          employee={printingCardEmployee}
+          fallbackPhotoUrl={getEmployeeCardPhoto(printingCardEmployee)}
+          onBack={() => setPrintingCardEmployee(null)}
+        />
+      )}
+
       {/* When in Print View: Render Print Layout */}
       {currentView === 'print' && printingApplicant ? (
         <PrintApplicationView
           applicant={printingApplicant}
-          onBack={() => setCurrentView('applicants')}
+          onBack={handleClosePrintView}
         />
       ) : (
         <div className="print:hidden">
@@ -442,13 +484,17 @@ export function App() {
                   <EmployeesView
                     employees={employees}
                     applicants={applicants}
+                    branches={branches}
+                    positions={positions}
                     currentUser={currentUser}
                     onViewApplicant={handleViewApplicant}
                     onPrintApplicant={handlePrintApplicant}
                     onPrintContract={handlePrintCashierContract}
                     onPrintResignation={handlePrintResignation}
                     onPrintPayslip={handlePrintPayslip}
+                    onPrintCard={handlePrintEmployeeCard}
                     onUpdateStatus={handleUpdateEmployeeStatus}
+                    onEmployeeUpdated={handleEmployeeUpdated}
                     onDelete={handleDeleteEmployee}
                   />
                 )}

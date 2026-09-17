@@ -35,6 +35,7 @@ export const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
   select: 'قائمة اختيار',
   checkbox: 'نعم / لا',
   phone: 'رقم هاتف',
+  declaration: 'إقرار / تعهد',
 };
 
 /**
@@ -66,6 +67,21 @@ export const DEFAULT_FIELD_OPTIONS: Record<string, string[]> = {
   ],
 };
 
+/**
+ * نصوص الإقرارات الافتراضية.
+ * مدير النظام يقدر يعدّل أي نص منها — أو يضيف إقرارات جديدة بالكامل —
+ * من شاشة "إعدادات نموذج التقديم" › قسم "الإقرار والتوقيع"،
+ * وتظهر فورًا للمتقدم في البوابة العامة وفي الورقة المطبوعة.
+ */
+export const DEFAULT_DECLARATION_TEXT =
+  'أقر أنا الموقع أدناه بأن جميع البيانات والمستندات المدونة في هذا الطلب صحيحة ودقيقة تماماً ومطابقة للواقع، وأتحمل كامل المسؤولية القانونية والإدارية في حال ثبوت عدم صحة أي بيان منها، كما أوافق على الالتزام بلوائح وسياسات العمل المعتمدة بمطاعم BOB WICH وأن هذا الطلب لا يعد تعييناً نهائياً إلا بعد اجتياز المقابلة والفترة التجريبية وتوقيع عقد العمل الرسمي.';
+
+export const DEFAULT_TRAINING_DECLARATION_TEXT =
+  'أقر أنا الموقع أدناه، بأنني تقدمت للعمل لدى BOB WICH، وأوافق على قضاء فترة تدريب وتقييم مدتها ثلاثة أيام تدريبية، وذلك للتعرف على طبيعة العمل وإثبات مدى قدرتي على أداء المهام المطلوبة والالتزام بتعليمات العمل.\n' +
+  'وأقر بأن استمراري في العمل بعد انتهاء فترة التدريب والتقييم يكون وفقًا لنتيجة التقييم واحتياجات العمل.\n' +
+  'كما ألتزم بعد انتهاء فترة التدريب بالرجوع إلى مكتب الإدارة لاستكمال إجراءات العمل، وتسليم الشهادة الصحية والمستندات المطلوبة، ومعرفة الراتب المقرر وبيان المستحقات ونظام العمل.\n' +
+  'وقد قرأت هذا الإقرار وفهمت مضمونه ووافقت عليه، وأوقع عليه بإرادتي الكاملة.';
+
 export interface BuiltInFieldDef {
   key: string;
   label: string;
@@ -79,6 +95,8 @@ export interface BuiltInFieldDef {
   hasOptions?: boolean;
   /** اختيار متعدد (زي المهارات) */
   multi?: boolean;
+  /** نص الإقرار الافتراضي (للحقول من نوع declaration) */
+  defaultContent?: string;
 }
 
 export const BUILT_IN_FIELDS: BuiltInFieldDef[] = [
@@ -121,8 +139,27 @@ export const BUILT_IN_FIELDS: BuiltInFieldDef[] = [
   { key: 'doc_id_back', label: 'صورة بطاقة الرقم القومي - الظهر', section: 'attachments', type: 'text', defaultRequired: false },
   { key: 'doc_health', label: 'الشهادة الصحية', section: 'attachments', type: 'text', defaultRequired: false },
 
-  // ---------------- الإقرار ----------------
-  { key: 'declaration', label: 'الإقرار بصحة البيانات وتوقيع المتقدم', section: 'declaration', type: 'text', locked: true, requiredLocked: true, defaultRequired: true },
+  // ---------------- الإقرارات ----------------
+  {
+    key: 'declaration',
+    label: 'إقرار صحة البيانات والالتزام بلوائح العمل',
+    section: 'declaration',
+    type: 'declaration',
+    locked: true,
+    requiredLocked: true,
+    defaultRequired: true,
+    defaultContent: DEFAULT_DECLARATION_TEXT,
+    hint: 'الإقرار الأساسي — يظهر دائمًا للمتقدم ويمكنك تعديل نصه',
+  },
+  {
+    key: 'declaration_training',
+    label: 'إقرار فترة تدريب وتقييم',
+    section: 'declaration',
+    type: 'declaration',
+    defaultRequired: true,
+    defaultContent: DEFAULT_TRAINING_DECLARATION_TEXT,
+    hint: 'إقرار فترة التدريب والتقييم (3 أيام) — يمكنك تعديل نصه أو إخفاؤه',
+  },
 ];
 
 /** الإعداد الافتراضي الكامل (كل الحقول ظاهرة) */
@@ -139,6 +176,7 @@ export function defaultFieldConfig(): FormFieldConfig[] {
     options: DEFAULT_FIELD_OPTIONS[f.key] ? [...DEFAULT_FIELD_OPTIONS[f.key]] : [],
     placeholder: '',
     show_in_print: true,
+    content: f.defaultContent || '',
   }));
 }
 
@@ -170,6 +208,10 @@ export function mergeFieldConfig(saved: FormFieldConfig[] | null | undefined): F
         : [],
       placeholder: s?.placeholder || '',
       show_in_print: s?.show_in_print ?? true,
+      content:
+        def.type === 'declaration'
+          ? ((s?.content || '').trim() || def.defaultContent || '')
+          : undefined,
     };
   });
 
@@ -187,6 +229,7 @@ export function mergeFieldConfig(saved: FormFieldConfig[] | null | undefined): F
       options: Array.isArray(f.options) ? f.options : [],
       placeholder: f.placeholder || '',
       show_in_print: f.show_in_print !== false,
+      content: f.type === 'declaration' ? (f.content || '') : undefined,
     }));
 
   return [...builtIns, ...customs];
@@ -237,14 +280,14 @@ export function fieldOptions(config: FormFieldConfig[], key: string): string[] {
 /** الحقول المخصصة الظاهرة داخل قسم معيّن، مرتبة */
 export function customFieldsOf(config: FormFieldConfig[], section: FormSectionKey): FormFieldConfig[] {
   return config
-    .filter(f => f.is_custom && f.section === section && f.visible !== false)
+    .filter(f => f.is_custom && f.section === section && f.visible !== false && f.type !== 'declaration')
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 /** كل الحقول المخصصة الظاهرة (للطباعة وشاشة التفاصيل) */
 export function allVisibleCustomFields(config: FormFieldConfig[]): FormFieldConfig[] {
   return config
-    .filter(f => f.is_custom && f.visible !== false)
+    .filter(f => f.is_custom && f.visible !== false && f.type !== 'declaration')
     .sort((a, b) => {
       const sa = FORM_SECTIONS.findIndex(s => s.key === a.section);
       const sb = FORM_SECTIONS.findIndex(s => s.key === b.section);
@@ -255,6 +298,7 @@ export function allVisibleCustomFields(config: FormFieldConfig[]): FormFieldConf
 
 /** تحويل قيمة حقل مخصص إلى نص للعرض / الطباعة */
 export function formatCustomValue(field: FormFieldConfig, value: any): string {
+  if (field.type === 'declaration') return value ? 'موافق ✓' : 'لم يوافق';
   if (field.type === 'checkbox') return value ? 'نعم' : 'لا';
   if (value === undefined || value === null || value === '') return '—';
   return String(value);
@@ -292,4 +336,74 @@ export function generateCustomFieldKey(label: string): string {
     .replace(/[^\w\u0600-\u06FF_]/g, '')
     .slice(0, 24) || 'field';
   return `cf_${slug}_${Date.now().toString(36)}`;
+}
+
+// ============================ الإقرارات (Declarations) ============================
+
+/** مفتاح الإقرار الأساسي المخزّن في عمود declaration_accepted */
+export const PRIMARY_DECLARATION_KEY = 'declaration';
+
+/**
+ * كل الإقرارات الظاهرة (الأساسي + أي إقرار أضافه أو عدّله مدير النظام)،
+ * مرتبة بنفس الترتيب في البوابة العامة وشاشة التفاصيل والورقة المطبوعة.
+ */
+export function declarationFields(config: FormFieldConfig[]): FormFieldConfig[] {
+  return config
+    .filter(f => f.type === 'declaration' && f.visible !== false)
+    .sort((a, b) => {
+      // الإقرار الأساسي دائمًا أولًا
+      if (a.key === PRIMARY_DECLARATION_KEY) return -1;
+      if (b.key === PRIMARY_DECLARATION_KEY) return 1;
+      if (a.is_custom !== b.is_custom) return a.is_custom ? 1 : -1;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+}
+
+/**
+ * هل وافق المتقدم على إقرار معيّن؟
+ * الإقرار الأساسي محفوظ في العمود declaration_accepted، وباقي الإقرارات
+ * محفوظة داخل custom_data بمفتاح الإقرار.
+ */
+export function isDeclarationAccepted(
+  field: FormFieldConfig,
+  primaryAccepted: boolean | undefined,
+  customData: Record<string, any> | undefined
+): boolean {
+  if (field.key === PRIMARY_DECLARATION_KEY) return !!primaryAccepted;
+  return !!customData?.[field.key];
+}
+
+/** نص الإقرار كما ضبطه مدير النظام (أو الافتراضي) */
+export function declarationText(field: FormFieldConfig): string {
+  if (field.content && field.content.trim()) return field.content;
+  const def = BUILT_IN_FIELDS.find(b => b.key === field.key);
+  return def?.defaultContent || '';
+}
+
+/**
+ * التحقق من الموافقة على كل الإقرارات الإلزامية الظاهرة.
+ * ترجع رسالة الخطأ أو null.
+ */
+export function validateDeclarations(
+  config: FormFieldConfig[],
+  primaryAccepted: boolean | undefined,
+  customData: Record<string, any> | undefined
+): string | null {
+  for (const f of declarationFields(config)) {
+    if (!f.required) continue;
+    if (!isDeclarationAccepted(f, primaryAccepted, customData)) {
+      return `يجب قراءة والموافقة على: ${f.label}`;
+    }
+  }
+  return null;
+}
+
+/** مفتاح فريد لإقرار جديد */
+export function generateDeclarationKey(label: string): string {
+  const slug = label
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^\w\u0600-\u06FF_]/g, '')
+    .slice(0, 24) || 'declaration';
+  return `decl_${slug}_${Date.now().toString(36)}`;
 }

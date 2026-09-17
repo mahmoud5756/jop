@@ -218,6 +218,11 @@ class SupabaseDataAccessLayer {
           : [],
         placeholder: String(f.placeholder || '').slice(0, 160),
         show_in_print: f.show_in_print !== false,
+        // نص الإقرار الكامل (للحقول من نوع declaration فقط)
+        content:
+          f.type === 'declaration'
+            ? String((f as any).content || '').slice(0, 4000)
+            : undefined,
       }));
 
     const { error } = await supabase
@@ -1347,6 +1352,97 @@ class SupabaseDataAccessLayer {
     );
 
     return { success: true };
+  }
+
+  /**
+   * تعديل بيانات موظف حالي (الفرع / الوظيفة / الراتب / تاريخ المباشرة / الهاتف).
+   * يُستخدم لتصحيح البيانات المُدخلة بالخطأ، وكل تغيير يُسجَّل في سجل العمليات.
+   */
+  public async updateEmployee(
+    id: string,
+    updates: {
+      branch_name?: string;
+      position_name?: string;
+      salary?: number | string;
+      hire_date?: string;
+      phone?: string;
+      status?: string;
+    },
+    performedBy: string,
+    userRole: UserRole
+  ): Promise<{ success: boolean; employee?: Employee; error?: string }> {
+    const supabase = getSupabase();
+    const { data: emp, error: fetchErr } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchErr || !emp) {
+      return { success: false, error: 'الموظف غير موجود' };
+    }
+
+    const patch: Record<string, any> = {};
+    const changes: string[] = [];
+
+    const track = (field: string, label: string, rawValue: any, formatted?: string) => {
+      if (rawValue === undefined) return;
+      const oldVal = (emp as any)[field];
+      if (String(oldVal ?? '') === String(rawValue ?? '')) return;
+      patch[field] = rawValue;
+      changes.push(`${label}: "${oldVal || '—'}" ← "${formatted ?? rawValue ?? '—'}"`);
+    };
+
+    if (updates.branch_name !== undefined) {
+      const v = String(updates.branch_name).trim();
+      if (!v) return { success: false, error: 'اسم الفرع لا يمكن أن يكون فارغاً' };
+      track('branch_name', 'الفرع', v);
+    }
+    if (updates.position_name !== undefined) {
+      const v = String(updates.position_name).trim();
+      if (!v) return { success: false, error: 'المسمى الوظيفي لا يمكن أن يكون فارغاً' };
+      track('position_name', 'الوظيفة', v);
+    }
+    if (updates.salary !== undefined) {
+      const num = Number(updates.salary);
+      if (updates.salary !== '' && (isNaN(num) || num < 0)) {
+        return { success: false, error: 'الراتب يجب أن يكون رقماً صحيحاً' };
+      }
+      track('salary', 'الراتب الشهري', updates.salary === '' ? null : num);
+    }
+    if (updates.hire_date !== undefined) {
+      track('hire_date', 'تاريخ بداية العمل', String(updates.hire_date).trim() || null);
+    }
+    if (updates.phone !== undefined) {
+      track('phone', 'رقم الهاتف', String(updates.phone).replace(/\D/g, ''));
+    }
+    if (updates.status !== undefined) {
+      track('status', 'الحالة', String(updates.status).trim());
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return { success: true, employee: emp as Employee };
+    }
+
+    patch.updated_at = new Date().toISOString();
+
+    const { error: updateErr } = await supabase.from('employees').update(patch).eq('id', id);
+    if (updateErr) {
+      return { success: false, error: `فشل تحديث بيانات الموظف: ${updateErr.message}` };
+    }
+
+    await this.addAuditLog(
+      'employee',
+      id,
+      'تعديل بيانات موظف',
+      performedBy,
+      userRole,
+      `تم تعديل بيانات الموظف ${emp.full_name} (${emp.employee_code}) — ${changes.join(' | ')}`,
+      { entity_code: emp.employee_code, entity_name: emp.full_name }
+    );
+
+    const { data: updatedEmp } = await supabase.from('employees').select('*').eq('id', id).single();
+    return { success: true, employee: (updatedEmp as Employee) || undefined };
   }
 
   public async updateEmployeeStatus(

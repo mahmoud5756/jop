@@ -1,34 +1,45 @@
 import React, { useState, useMemo } from 'react';
-import { Employee, Applicant, CurrentUser } from '../types';
+import { Employee, Applicant, CurrentUser, Branch, JobPosition } from '../types';
 import { SvgIcons } from './BobWichLogo';
+import { EditEmployeeModal } from './EditEmployeeModal';
 
 interface EmployeesViewProps {
   employees: Employee[];
   applicants: Applicant[];
+  branches?: Branch[];
+  positions?: JobPosition[];
   currentUser: CurrentUser;
   onViewApplicant: (applicant: Applicant) => void;
   onPrintApplicant: (applicant: Applicant) => void;
   onPrintContract?: (employee: Employee) => void;
   onPrintResignation?: (employee: Employee) => void;
   onPrintPayslip?: (employee: Employee) => void;
+  onPrintCard?: (employee: Employee) => void;
   onUpdateStatus?: (employeeId: string, newStatus: string) => void;
+  onEmployeeUpdated?: (updated: Employee) => void;
   onDelete?: (employeeId: string) => void;
 }
 
 export const EmployeesView: React.FC<EmployeesViewProps> = ({
   employees,
   applicants,
+  branches = [],
+  positions = [],
   currentUser,
   onViewApplicant,
   onPrintApplicant,
   onPrintContract,
   onPrintResignation,
   onPrintPayslip,
+  onPrintCard,
   onUpdateStatus,
+  onEmployeeUpdated,
   onDelete,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const canManage = currentUser.role === 'admin' || currentUser.role === 'hr';
 
   const safeEmployees = useMemo(() => Array.isArray(employees) ? employees : [], [employees]);
   const safeApplicants = useMemo(() => Array.isArray(applicants) ? applicants : [], [applicants]);
@@ -247,6 +258,26 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                               <span>مفردات مرتب</span>
                             </button>
                           )}
+                          {onPrintCard && (
+                            <button
+                              onClick={() => onPrintCard(emp)}
+                              className="bg-[#9E1A24]/10 hover:bg-[#9E1A24] hover:text-white text-[#9E1A24] px-2 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 text-[11px]"
+                              title="كارت الموظف الرسمي — تحميل PDF بمقاس كارت جاهز للطباعة"
+                            >
+                              <SvgIcons.UserCheck className="w-3.5 h-3.5" />
+                              <span>كارت الموظف</span>
+                            </button>
+                          )}
+                          {canManage && (
+                            <button
+                              onClick={() => setEditingEmployee(emp)}
+                              className="bg-sky-50 hover:bg-sky-600 hover:text-white text-sky-700 px-2 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 text-[11px]"
+                              title="تعديل الفرع أو الوظيفة أو الراتب أو تاريخ بداية العمل"
+                            >
+                              <SvgIcons.Edit className="w-3.5 h-3.5" />
+                              <span>تعديل البيانات</span>
+                            </button>
+                          )}
                           {onDelete && (currentUser.role === 'admin' || currentUser.role === 'hr') && (
                             <button
                               onClick={() => onDelete(emp.id)}
@@ -267,6 +298,20 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* تعديل بيانات موظف حالي */}
+      {editingEmployee && (
+        <EditEmployeeModal
+          employee={editingEmployee}
+          branches={branches}
+          positions={positions}
+          onClose={() => setEditingEmployee(null)}
+          onSaved={updated => {
+            setEditingEmployee(null);
+            if (onEmployeeUpdated) onEmployeeUpdated(updated);
+          }}
+        />
+      )}
     </div>
   );
 };

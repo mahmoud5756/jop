@@ -492,6 +492,41 @@ export function createApp() {
     }
   });
 
+  // تعديل بيانات موظف حالي (الفرع / الوظيفة / الراتب / تاريخ المباشرة)
+  // مخصص لتصحيح أي بيانات أُدخلت بالخطأ — كل تعديل يُسجّل في سجل العمليات.
+  app.patch('/api/employees/:id', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
+    const performedBy = req.user?.name || 'مدير الموارد البشرية';
+    const userRole = req.user?.role || 'hr';
+    const { branch_name, position_name, salary, hire_date, phone, status } = req.body || {};
+
+    if (
+      branch_name === undefined &&
+      position_name === undefined &&
+      salary === undefined &&
+      hire_date === undefined &&
+      phone === undefined &&
+      status === undefined
+    ) {
+      return res.status(400).json({ error: 'لا توجد بيانات لتحديثها' });
+    }
+
+    try {
+      const result = await db.updateEmployee(
+        req.params.id,
+        { branch_name, position_name, salary, hire_date, phone, status },
+        performedBy,
+        userRole
+      );
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+      res.json({ success: true, data: result.employee, message: 'تم تحديث بيانات الموظف بنجاح' });
+    } catch (err: any) {
+      console.error('API PATCH /api/employees/:id error:', err);
+      res.status(500).json({ error: err.message || 'فشل تحديث بيانات الموظف' });
+    }
+  });
+
   // Delete Employee (Admin and HR only)
   app.delete('/api/employees/:id', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     const performedBy = req.user?.name || 'مدير الموارد البشرية';

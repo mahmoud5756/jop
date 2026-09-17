@@ -247,7 +247,8 @@ export type FormFieldType =
   | 'date'
   | 'select'
   | 'checkbox'
-  | 'phone';
+  | 'phone'
+  | 'declaration';   // إقرار / تعهد له نص كامل + خانة موافقة
 
 export type FormSectionKey =
   | 'personal'
@@ -270,6 +271,8 @@ export interface FormFieldConfig {
   options?: string[];       // لقوائم الاختيار
   placeholder?: string;
   show_in_print?: boolean;
+  /** نص الإقرار الكامل (يُستخدم فقط مع النوع 'declaration') */
+  content?: string;
 }
 
 export interface FormFieldSettings {

@@ -3,7 +3,14 @@ import { Applicant, CurrentUser, Employee, FormFieldConfig } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
 import { CustomFieldsReadOnly } from './CustomFieldsRenderer';
-import { defaultFieldConfig, mergeFieldConfig, isVisible, fieldLabel } from '../formFields';
+import {
+  defaultFieldConfig,
+  mergeFieldConfig,
+  isVisible,
+  fieldLabel,
+  declarationFields,
+  isDeclarationAccepted,
+} from '../formFields';
 
 interface ApplicantDetailsModalProps {
   applicant: Applicant;
@@ -413,12 +420,6 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                 </h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                   <div className="bg-white p-2 rounded-xl border border-stone-200">
-                    <span className="text-stone-500 block text-[11px]">حالة الإقرار:</span>
-                    <span className={`font-bold ${applicant.declaration_accepted ? 'text-emerald-700' : 'text-red-700'}`}>
-                      {applicant.declaration_accepted ? '✓ تم الإقرار والموافقة' : '✗ لم يوافق'}
-                    </span>
-                  </div>
-                  <div className="bg-white p-2 rounded-xl border border-stone-200">
                     <span className="text-stone-500 block text-[11px]">اسم الموقّع:</span>
                     <span className="font-bold">{applicant.applicant_signature_name || applicant.full_name || '—'}</span>
                   </div>
@@ -426,6 +427,27 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                     <span className="text-stone-500 block text-[11px]">تاريخ الإقرار:</span>
                     <span className="font-bold font-mono">{applicant.declaration_date || '—'}</span>
                   </div>
+                </div>
+                {/* كل الإقرارات المفعّلة وحالة موافقة المتقدم على كل واحد منها */}
+                <div className="space-y-1.5">
+                  {declarationFields(fieldConfig).map(decl => {
+                    const accepted = isDeclarationAccepted(
+                      decl,
+                      applicant.declaration_accepted,
+                      customValues
+                    );
+                    return (
+                      <div
+                        key={decl.key}
+                        className="bg-white p-2 rounded-xl border border-stone-200 flex items-center justify-between gap-3 text-xs"
+                      >
+                        <span className="font-bold text-stone-700">{decl.label}</span>
+                        <span className={`font-bold whitespace-nowrap ${accepted ? 'text-emerald-700' : 'text-red-700'}`}>
+                          {accepted ? '✓ تمت الموافقة' : '✗ لم يوافق'}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
                 <CustomFieldsReadOnly config={fieldConfig} section="declaration" values={customValues} />
               </div>

@@ -68,35 +68,36 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
     emergency_phone: initialData?.emergency_phone || '',
     emergency_contact_name: initialData?.emergency_contact_name || '',
     address: initialData?.address || '',
-    marital_status: initialData?.marital_status || 'أعزب',
-    military_status: initialData?.military_status || 'أدى الخدمة',
+    // لا يوجد أي اختيار افتراضي — الموظف/المتقدم هو الذي يملأ كل خانة بنفسه
+    marital_status: initialData?.marital_status || ('' as any),
+    military_status: initialData?.military_status || ('' as any),
     photo_url: initialData?.photo_url || '',
 
     branch_id: initialData?.branch_id || '',
     branch_name: initialData?.branch_name || '',
     position_id: initialData?.position_id || '',
     position_name: initialData?.position_name || '',
-    experience_years: initialData?.experience_years ?? 1,
-    restaurant_experience: initialData?.restaurant_experience ?? true,
+    experience_years: initialData?.experience_years ?? '',
+    restaurant_experience: initialData?.restaurant_experience,
     last_job: initialData?.last_job || '',
     leaving_reason: initialData?.leaving_reason || '',
 
-    qualification: initialData?.qualification || 'مؤهل عالي',
+    qualification: initialData?.qualification || '',
     specialization: initialData?.specialization || '',
     graduation_year: initialData?.graduation_year || '',
-    still_studying: initialData?.still_studying ?? false,
+    still_studying: initialData?.still_studying,
 
-    shift_morning: initialData?.shift_morning ?? true,
-    shift_night: initialData?.shift_night ?? true,
-    can_work_shifts: initialData?.can_work_shifts ?? true,
-    can_work_overtime: initialData?.can_work_overtime ?? true,
-    can_work_holidays: initialData?.can_work_holidays ?? true,
+    shift_morning: initialData?.shift_morning ?? false,
+    shift_night: initialData?.shift_night ?? false,
+    can_work_shifts: initialData?.can_work_shifts ?? false,
+    can_work_overtime: initialData?.can_work_overtime ?? false,
+    can_work_holidays: initialData?.can_work_holidays ?? false,
 
-    skills: initialData?.skills || ['خدمة العملاء', 'العمل ضمن فريق'],
+    skills: initialData?.skills || [],
     custom_skill: initialData?.custom_skill || '',
 
-    declaration_accepted: initialData?.declaration_accepted ?? true,
-    applicant_signature_name: initialData?.applicant_signature_name || initialData?.full_name || '',
+    declaration_accepted: initialData?.declaration_accepted ?? false,
+    applicant_signature_name: initialData?.applicant_signature_name || '',
     declaration_date: initialData?.declaration_date || new Date().toISOString().split('T')[0],
 
     status: initialData?.status || 'طلب جديد',
@@ -118,39 +119,8 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
         ]
   );
 
-  const [assets, setAssets] = useState<ApplicantAsset[]>(
-    initialData?.assets && initialData.assets.length > 0
-      ? initialData.assets
-      : [
-          {
-            id: 'ast_1',
-            applicant_id: initialData?.id || '',
-            item_number: 1,
-            asset_name: 'يونيفورم BOB WICH (قميص + مريلة)',
-            quantity: 2,
-            condition: 'جديد',
-            notes: 'تم التسليم عند التعيين',
-          },
-          {
-            id: 'ast_2',
-            applicant_id: initialData?.id || '',
-            item_number: 2,
-            asset_name: 'كاب BOB WICH الرسمي',
-            quantity: 1,
-            condition: 'جديد',
-            notes: 'سليم',
-          },
-          {
-            id: 'ast_3',
-            applicant_id: initialData?.id || '',
-            item_number: 3,
-            asset_name: 'كارت تعريف ومغناطيس اسم (Name Tag)',
-            quantity: 1,
-            condition: 'جديد',
-            notes: 'سليم',
-          },
-        ]
-  );
+  // العهدة تبدأ فارغة — يُضيف الموظف المسؤول ما تم تسليمه فعليًا فقط
+  const [assets, setAssets] = useState<ApplicantAsset[]>(initialData?.assets || []);
 
   const [documents, setDocuments] = useState<ApplicantDocument[]>(initialData?.documents || []);
 
@@ -161,32 +131,17 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
       proposed_salary: '',
       branch_name: initialData?.branch_name || '',
       application_date: initialData?.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-      first_interview_status: 'مقبول',
-      second_interview_status: 'حضر',
+      first_interview_status: '',
+      second_interview_status: '',
       joining_date: '',
       hr_notes: '',
       recruiter_name: currentUser.name,
-      hiring_decision: 'قبول',
+      hiring_decision: '',
     }
   );
 
-  const [interviews, setInterviews] = useState<Interview[]>(
-    initialData?.interviews && initialData.interviews.length > 0
-      ? initialData.interviews
-      : [
-          {
-            id: 'int_1',
-            applicant_id: initialData?.id || '',
-            interview_number: 1,
-            interview_date: new Date().toISOString().split('T')[0],
-            interviewer_name: currentUser.name,
-            status: 'مقبول',
-            evaluation: 5,
-            notes: 'مظهر ممتاز ولباقة وخبرة سابقة في مطاعم الوجبات السريعة',
-            created_at: new Date().toISOString(),
-          },
-        ]
-  );
+  // لا توجد مقابلة مسجلة تلقائيًا — تُضاف يدويًا بعد إجرائها فعليًا
+  const [interviews, setInterviews] = useState<Interview[]>(initialData?.interviews || []);
 
   // Load master branches & positions
   useEffect(() => {

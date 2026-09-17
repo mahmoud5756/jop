@@ -3,17 +3,34 @@ import { Applicant, FormFieldConfig } from '../types';
 import { SvgIcons } from './BobWichLogo';
 import { ApiService } from '../services/api';
 import { CustomFieldsPrint } from './CustomFieldsRenderer';
-import { defaultFieldConfig, mergeFieldConfig, isVisible, fieldLabel, fieldOptions } from '../formFields';
+import {
+  defaultFieldConfig,
+  mergeFieldConfig,
+  isVisible,
+  fieldLabel,
+  fieldOptions,
+  declarationFields,
+  declarationText,
+  isDeclarationAccepted,
+} from '../formFields';
 
 interface PrintApplicationViewProps {
   applicant: Applicant;
-  onClose: () => void;
+  /** الرجوع للشاشة السابقة (يُمرَّر من App باسم onBack) */
+  onBack?: () => void;
+  /** اسم بديل مدعوم للتوافق مع أي استدعاء قديم */
+  onClose?: () => void;
 }
 
 export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
   applicant,
+  onBack,
   onClose,
 }) => {
+  // كان زر "إغلاق المعاينة" مربوطًا بخاصية اسمها onClose بينما App تمرر
+  // onBack — فكان الزر لا يفعل شيئًا والمستخدم مضطر لعمل تحديث للصفحة بعد
+  // كل طباعة. هنا ندعم الاسمين معًا حتى لا تتكرر المشكلة.
+  const handleBack = onBack || onClose || (() => {});
   // نفس إعدادات نموذج التقديم المستخدمة في البوابة العامة وشاشة الأدمن،
   // حتى تكون الورقة المطبوعة مطابقة تمامًا لما ملأه المتقدم وما يراه الأدمن.
   const [fieldConfig, setFieldConfig] = useState<FormFieldConfig[]>(() => defaultFieldConfig());
@@ -26,8 +43,19 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
   const lbl = (key: string, fallback?: string) => fieldLabel(fieldConfig, key, fallback);
   const opts = (key: string) => fieldOptions(fieldConfig, key);
 
+  // إغلاق المعاينة تلقائيًا بمفتاح Escape أيضًا
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleBack();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onBack, onClose]);
+
   const handlePrint = () => {
-    window.print();
+    // نعطي المتصفح لحظة لإنهاء أي رسم قبل فتح نافذة الطباعة، حتى لا تظهر
+    // الاستمارة فارغة أو تتعلق الشاشة عند الطباعة المتكررة.
+    setTimeout(() => window.print(), 50);
   };
 
   const skillsList = applicant.skills || [];
@@ -80,7 +108,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
         </button>
 
         <button
-          onClick={onClose}
+          onClick={handleBack}
           className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-1.5 transition-all"
         >
           <SvgIcons.XMark className="w-4 h-4" />
@@ -534,17 +562,69 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
               </div>
             </div>
 
-            {/* Section 9: إقرار المتقدم والعهدة */}
+            {/* Section 9: إقرارات المتقدم (ديناميكية بالكامل من إعدادات النموذج) */}
+            {declarationFields(fieldConfig)
+              .filter(d => d.show_in_print !== false)
+              .map((decl, idx) => {
+                const accepted = isDeclarationAccepted(
+                  decl,
+                  applicant.declaration_accepted,
+                  applicant.custom_data
+                );
+                const paragraphs = declarationText(decl)
+                  .split('\n')
+                  .map(t => t.trim())
+                  .filter(Boolean);
+
+                return (
+                  <div key={decl.key} className="print-avoid-break mb-3">
+                    <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t flex justify-between items-center">
+                      <span>
+                        {9 + idx}. {decl.label}
+                      </span>
+                      <span className="flex items-center gap-1 text-[10px]">
+                        <span className="w-3 h-3 border border-white rounded-xs flex items-center justify-center text-[9px] bg-white text-[#9E1A24] font-bold">
+                          {accepted ? '\u2713' : ''}
+                        </span>
+                        <span>{accepted ? 'تمت الموافقة' : 'لم تتم الموافقة'}</span>
+                      </span>
+                    </div>
+                    <div className="border border-stone-300 border-t-0 p-3 text-[11px] text-stone-800 leading-relaxed bg-white space-y-1.5 text-justify">
+                      {paragraphs.map((para, i) => (
+                        <p key={i}>{para}</p>
+                      ))}
+
+                      <div className="grid grid-cols-3 gap-3 pt-2 mt-1 border-t border-dashed border-stone-300 text-[10px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-stone-700">الاسم:</span>
+                          <span className="border-b border-stone-400 flex-1 font-semibold">
+                            {applicant.applicant_signature_name || applicant.full_name || '______________'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-stone-700">التوقيع:</span>
+                          <span className="border-b border-stone-400 flex-1">______________</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-stone-700">التاريخ:</span>
+                          <span className="border-b border-stone-400 flex-1 font-mono">
+                            {applicant.declaration_date || '____ / ____ / ______'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+            {/* إقرار استلام العهدة */}
             <div className="print-avoid-break mb-3">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">
-                9. إقرار المتقدم والعهدة
+                إقرار استلام العهدة
               </div>
               <div className="border border-stone-300 border-t-0 p-3 text-[11px] text-stone-800 leading-relaxed bg-white space-y-1.5 text-justify">
                 <p>
-                  أقر أنا الموقع أدناه بأن جميع البيانات والمعلومات المذكورة في هذه الاستمارة صحيحة، وأتحمل كامل المسؤولية عن صحة البيانات المقدمة، وأوافق على قيام إدارة <span className="font-bold">BOB WICH</span> بمراجعة البيانات والخبرات المذكورة واتخاذ ما تراه مناسبًا بشأن طلب التوظيف.
-                </p>
-                <p>
-                  كما أقر باستلامي للعهدة الموضحة أدناه، وأتعهد بالمحافظة عليها وعدم إتالفها أو إساءة استخدامها، وتسليمها عند ترك العمل أو انتهاء علاقة العمل بنفس الحالة التي استلمتها بها، مع مراعاة الاستهلاك الطبيعي.
+                  أقر باستلامي للعهدة الموضحة أدناه، وأتعهد بالمحافظة عليها وعدم إتلافها أو إساءة استخدامها، وتسليمها عند ترك العمل أو انتهاء علاقة العمل بنفس الحالة التي استلمتها بها، مع مراعاة الاستهلاك الطبيعي.
                 </p>
                 <p>
                   وفي حالة عدم تسليم العهدة المستلمة أو وجود تلف بها بسبب الإهمال أو سوء الاستخدام، يتم تسوية قيمة العهدة أو التلف من المستحقات المالية وفقًا للوائح الشركة والقانون.
