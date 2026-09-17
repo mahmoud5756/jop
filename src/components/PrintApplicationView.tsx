@@ -3,7 +3,7 @@ import { Applicant, FormFieldConfig } from '../types';
 import { SvgIcons } from './BobWichLogo';
 import { ApiService } from '../services/api';
 import { CustomFieldsPrint } from './CustomFieldsRenderer';
-import { defaultFieldConfig, mergeFieldConfig, isVisible, fieldLabel } from '../formFields';
+import { defaultFieldConfig, mergeFieldConfig, isVisible, fieldLabel, fieldOptions } from '../formFields';
 
 interface PrintApplicationViewProps {
   applicant: Applicant;
@@ -24,6 +24,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
   }, []);
   const show = (key: string) => isVisible(fieldConfig, key);
   const lbl = (key: string, fallback?: string) => fieldLabel(fieldConfig, key, fallback);
+  const opts = (key: string) => fieldOptions(fieldConfig, key);
 
   const handlePrint = () => {
     window.print();
@@ -188,66 +189,28 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                   {show('marital_status') && (
                   <div className="flex items-center gap-2.5">
                     <span className="font-bold text-stone-700">{lbl('marital_status')}:</span>
-                    <label className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.marital_status === 'أعزب' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.marital_status === 'أعزب' ? '✓' : ''}
-                      </span>
-                      <span>أعزب</span>
-                    </label>
-                    <label className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.marital_status === 'متزوج' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.marital_status === 'متزوج' ? '✓' : ''}
-                      </span>
-                      <span>متزوج</span>
-                    </label>
-                    <label className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.marital_status === 'مطلق' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.marital_status === 'مطلق' ? '✓' : ''}
-                      </span>
-                      <span>مطلق</span>
-                    </label>
-                    <label className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.marital_status === 'أرمل' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.marital_status === 'أرمل' ? '✓' : ''}
-                      </span>
-                      <span>أرمل</span>
-                    </label>
+                    {opts('marital_status').map(opt => (
+                      <label key={opt} className="flex items-center gap-1">
+                        <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.marital_status === opt ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
+                          {applicant.marital_status === opt ? '✓' : ''}
+                        </span>
+                        <span>{opt}</span>
+                      </label>
+                    ))}
                   </div>
                   )}
 
                   {show('military_status') && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-stone-700">{lbl('military_status')}:</span>
-                    <span className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'أدى الخدمة' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.military_status === 'أدى الخدمة' ? '✓' : ''}
+                    {opts('military_status').map(opt => (
+                      <span key={opt} className="flex items-center gap-1">
+                        <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === opt ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
+                          {applicant.military_status === opt ? '✓' : ''}
+                        </span>
+                        <span>{opt}</span>
                       </span>
-                      <span>أدى الخدمة</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'إعفاء نهائي' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.military_status === 'إعفاء نهائي' ? '✓' : ''}
-                      </span>
-                      <span>إعفاء نهائي</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'إعفاء مؤقت' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.military_status === 'إعفاء مؤقت' ? '✓' : ''}
-                      </span>
-                      <span>إعفاء مؤقت</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'تأجيل' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.military_status === 'تأجيل' ? '✓' : ''}
-                      </span>
-                      <span>تأجيل</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'غير مطلوب (إناث)' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.military_status === 'غير مطلوب (إناث)' ? '✓' : ''}
-                      </span>
-                      <span>غير مطلوب (إناث)</span>
-                    </span>
+                    ))}
                   </div>
                   )}
                 </div>
@@ -361,21 +324,11 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
               {/* Section 5: المهارات */}
               <div className="col-span-7">
                 <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">
-                  5. المهارات
+                  5. {lbl('skills', 'المهارات')}
                 </div>
                 <div className="border border-stone-300 border-t-0 p-2 text-xs bg-white h-[calc(100%-24px)]">
                   <div className="grid grid-cols-3 gap-y-1.5 gap-x-1.5 text-[11px]">
-                    {[
-                      'المطبخ',
-                      'تجهيز الطعام',
-                      'الكاشير',
-                      'خدمة العملاء',
-                      'إدارة المخزون',
-                      'النظافة',
-                      'تحت ضغط',
-                      'ضمن فريق',
-                      'الكمبيوتر',
-                    ].map(skill => {
+                    {opts('skills').map(skill => {
                       const isChecked = skillsList.includes(skill);
                       return (
                         <div key={skill} className="flex items-center gap-1">

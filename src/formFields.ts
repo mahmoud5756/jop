@@ -42,6 +42,30 @@ export const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
  * `locked: true` يعني الحقل لا يمكن إخفاؤه (النظام نفسه مبني عليه:
  * الاسم، الرقم القومي، الهاتف، الفرع، الوظيفة، الإقرار).
  */
+/**
+ * قوائم الاختيارات الافتراضية للحقول الأساسية.
+ * مدير النظام يقدر يعدّلها بالكامل (يضيف/يحذف/يعيد التسمية) من شاشة
+ * "إعدادات نموذج التقديم"، وتتغيّر في البوابة العامة وشاشة الأدمن والطباعة معًا.
+ */
+export const DEFAULT_FIELD_OPTIONS: Record<string, string[]> = {
+  marital_status: ['أعزب', 'متزوج', 'مطلق', 'أرمل'],
+  military_status: ['أدى الخدمة', 'إعفاء نهائي', 'إعفاء مؤقت', 'تأجيل', 'غير مطلوب (إناث)'],
+  qualification: ['مؤهل عالي', 'فوق متوسط', 'مؤهل متوسط', 'طالب جامعي', 'إعدادية', 'بدون مؤهل'],
+  skills: [
+    'خدمة العملاء',
+    'العمل ضمن فريق',
+    'الالتزام بالنظافة',
+    'مهارات المطبخ والطهي',
+    'تجهيز السندوتشات',
+    'استخدام الكاشير ونقاط البيع',
+    'إدارة المخزون والتوريدات',
+    'تحمل ضغط العمل',
+    'اللباقة وحسن المظهر',
+    'استخدام الحاسب الآلي',
+    'سرعة البديهة والتعلم السريع',
+  ],
+};
+
 export interface BuiltInFieldDef {
   key: string;
   label: string;
@@ -51,6 +75,10 @@ export interface BuiltInFieldDef {
   requiredLocked?: boolean;  // لا يمكن جعله اختياريًا
   defaultRequired: boolean;
   hint?: string;
+  /** الحقل له قائمة اختيارات يمكن لمدير النظام تعديلها */
+  hasOptions?: boolean;
+  /** اختيار متعدد (زي المهارات) */
+  multi?: boolean;
 }
 
 export const BUILT_IN_FIELDS: BuiltInFieldDef[] = [
@@ -63,8 +91,8 @@ export const BUILT_IN_FIELDS: BuiltInFieldDef[] = [
   { key: 'address', label: 'محل الإقامة الحالي بالتفصيل', section: 'personal', type: 'text', defaultRequired: true },
   { key: 'emergency_contact_name', label: 'اسم صاحب هاتف الطوارئ وصلة القرابة', section: 'personal', type: 'text', defaultRequired: false },
   { key: 'emergency_phone', label: 'هاتف الطوارئ', section: 'personal', type: 'phone', defaultRequired: false },
-  { key: 'marital_status', label: 'الحالة الاجتماعية', section: 'personal', type: 'select', defaultRequired: true },
-  { key: 'military_status', label: 'الموقف من التجنيد', section: 'personal', type: 'select', defaultRequired: true },
+  { key: 'marital_status', label: 'الحالة الاجتماعية', section: 'personal', type: 'select', defaultRequired: true, hasOptions: true },
+  { key: 'military_status', label: 'الموقف من التجنيد', section: 'personal', type: 'select', defaultRequired: true, hasOptions: true },
 
   // ---------------- الوظيفة المطلوبة ----------------
   { key: 'branch_name', label: 'الفرع المطلوب التقديم عليه', section: 'job', type: 'select', locked: true, requiredLocked: true, defaultRequired: true },
@@ -75,14 +103,14 @@ export const BUILT_IN_FIELDS: BuiltInFieldDef[] = [
   { key: 'leaving_reason', label: 'سبب ترك العمل السابق', section: 'job', type: 'text', defaultRequired: false },
 
   // ---------------- المؤهل الدراسي ----------------
-  { key: 'qualification', label: 'المؤهل الدراسي', section: 'education', type: 'select', defaultRequired: true },
+  { key: 'qualification', label: 'المؤهل الدراسي', section: 'education', type: 'select', defaultRequired: true, hasOptions: true },
   { key: 'specialization', label: 'التخصص الدراسي', section: 'education', type: 'text', defaultRequired: true },
   { key: 'graduation_year', label: 'سنة التخرج / السنة الدراسية الحالية', section: 'education', type: 'text', defaultRequired: true },
   { key: 'still_studying', label: 'ما زال طالبًا / يدرس حاليًا', section: 'education', type: 'checkbox', defaultRequired: false },
 
   // ---------------- الخبرات والمهارات ----------------
   { key: 'experiences', label: 'جدول الخبرات السابقة', section: 'experience', type: 'text', defaultRequired: false, hint: 'جدول (مكان العمل / المسمى / من / إلى / سبب الترك)' },
-  { key: 'skills', label: 'المهارات الشخصية والمهنية', section: 'experience', type: 'text', defaultRequired: true, hint: 'قائمة المهارات المتعددة + خانة "مهارة أخرى"' },
+  { key: 'skills', label: 'المهارات الشخصية والمهنية', section: 'experience', type: 'select', defaultRequired: true, hasOptions: true, multi: true, hint: 'قائمة المهارات المتعددة + خانة "مهارة أخرى"' },
 
   // ---------------- أوقات العمل ----------------
   { key: 'shifts_preference', label: 'الورديات المفضلة (صباحي / ليلي)', section: 'shifts', type: 'text', defaultRequired: true },
@@ -108,7 +136,7 @@ export function defaultFieldConfig(): FormFieldConfig[] {
     visible: true,
     is_custom: false,
     order: idx,
-    options: [],
+    options: DEFAULT_FIELD_OPTIONS[f.key] ? [...DEFAULT_FIELD_OPTIONS[f.key]] : [],
     placeholder: '',
     show_in_print: true,
   }));
@@ -135,7 +163,11 @@ export function mergeFieldConfig(saved: FormFieldConfig[] | null | undefined): F
       visible: def.locked ? true : (s?.visible ?? true),
       is_custom: false,
       order: s?.order ?? idx,
-      options: [],
+      options: def.hasOptions
+        ? (Array.isArray(s?.options) && s!.options!.length > 0
+            ? s!.options!.map(o => String(o))
+            : [...(DEFAULT_FIELD_OPTIONS[def.key] || [])])
+        : [],
       placeholder: s?.placeholder || '',
       show_in_print: s?.show_in_print ?? true,
     };
@@ -190,6 +222,16 @@ export function fieldLabel(config: FormFieldConfig[], key: string, fallback?: st
   if (f && f.label) return f.label;
   const def = BUILT_IN_FIELDS.find(b => b.key === key);
   return fallback || def?.label || key;
+}
+
+/**
+ * قائمة اختيارات الحقل كما ضبطها مدير النظام (أو الافتراضية).
+ * تُستخدم في البوابة العامة وشاشة الأدمن وصفحة الطباعة معًا.
+ */
+export function fieldOptions(config: FormFieldConfig[], key: string): string[] {
+  const f = findField(config, key);
+  if (f && Array.isArray(f.options) && f.options.length > 0) return f.options;
+  return DEFAULT_FIELD_OPTIONS[key] || [];
 }
 
 /** الحقول المخصصة الظاهرة داخل قسم معيّن، مرتبة */

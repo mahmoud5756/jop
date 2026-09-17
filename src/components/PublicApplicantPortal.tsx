@@ -18,6 +18,7 @@ import {
   isRequired,
   fieldLabel,
   validateCustomFields,
+  fieldOptions,
 } from '../formFields';
 
 interface PublicApplicantPortalProps {
@@ -37,6 +38,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   const show = (key: string) => isVisible(fieldConfig, key);
   const req = (key: string) => isRequired(fieldConfig, key);
   const lbl = (key: string, fallback?: string) => fieldLabel(fieldConfig, key, fallback);
+  const opts = (key: string) => fieldOptions(fieldConfig, key);
   const handleCustomChange = (key: string, value: any) =>
     setCustomData(prev => ({ ...prev, [key]: value }));
   const Req: React.FC<{ k: string }> = ({ k }) =>
@@ -314,20 +316,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
     });
   };
 
-  // Skills toggle
-  const availableSkills = [
-    'خدمة العملاء',
-    'العمل ضمن فريق',
-    'الالتزام بالنظافة',
-    'مهارات المطبخ والطهي',
-    'تجهيز السندوتشات',
-    'استخدام الكاشير ونقاط البيع',
-    'إدارة المخزون والتوريدات',
-    'تحمل ضغط العمل',
-    'اللباقة وحسن المظهر',
-    'استخدام الحاسب الآلي',
-    'سرعة البديهة والتعلم السريع',
-  ];
+  // قائمة المهارات كما ضبطها مدير النظام من "إعدادات نموذج التقديم"
+  const availableSkills = opts('skills');
 
   const handleToggleSkill = (skill: string) => {
     const currentSkills = formData.skills || [];
@@ -990,10 +980,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-medium bg-white"
                 >
                   <option value="" disabled>اختر من القائمة</option>
-                  <option value="أعزب">أعزب</option>
-                  <option value="متزوج">متزوج</option>
-                  <option value="مطلق">مطلق</option>
-                  <option value="أرمل">أرمل</option>
+                  {opts('marital_status').map(o => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
                 </select>
               </div>
               )}
@@ -1008,11 +997,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-medium bg-white"
                 >
                   <option value="" disabled>اختر من القائمة</option>
-                  <option value="أدى الخدمة">أدى الخدمة العسكرية</option>
-                  <option value="إعفاء نهائي">إعفاء نهائي</option>
-                  <option value="إعفاء مؤقت">إعفاء مؤقت</option>
-                  <option value="تأجيل">تأجيل دراسي</option>
-                  <option value="غير مطلوب (إناث)">غير مطلوب (إناث)</option>
+                  {opts('military_status').map(o => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
                 </select>
               </div>
               )}
@@ -1185,12 +1172,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-medium bg-white"
                   >
                     <option value="" disabled>اختر من القائمة</option>
-                    <option value="مؤهل عالي">مؤهل عالي (بكالوريوس / ليسانس)</option>
-                    <option value="فوق متوسط">مؤهل فوق متوسط (معهد سنتين)</option>
-                    <option value="مؤهل متوسط">مؤهل متوسط (دبلوم / ثانوية)</option>
-                    <option value="طالب جامعي">طالب جامعي</option>
-                    <option value="إعدادية">شهادة إعدادية</option>
-                    <option value="بدون مؤهل">بدون مؤهل</option>
+                    {opts('qualification').map(o => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
                   </select>
                 </div>
                 )}

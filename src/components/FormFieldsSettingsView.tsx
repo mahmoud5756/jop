@@ -8,6 +8,7 @@ import {
   mergeFieldConfig,
   defaultFieldConfig,
   generateCustomFieldKey,
+  DEFAULT_FIELD_OPTIONS,
 } from '../formFields';
 import {
   ListChecks,
@@ -20,6 +21,8 @@ import {
   RotateCcw,
   Lock,
   Printer,
+  List,
+  X,
 } from 'lucide-react';
 
 interface Props {
@@ -77,6 +80,35 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
 
   const builtInDef = (key: string) => BUILT_IN_FIELDS.find(b => b.key === key);
 
+  // ---- تعديل قوائم الاختيارات (الحالة الاجتماعية، التجنيد، المؤهل، المهارات...) ----
+  const [openOptionsFor, setOpenOptionsFor] = useState<string | null>(null);
+
+  const supportsOptions = (field: FormFieldConfig) =>
+    field.is_custom ? field.type === 'select' : !!builtInDef(field.key)?.hasOptions;
+
+  const setOptions = (key: string, options: string[]) => updateField(key, { options });
+
+  const updateOption = (field: FormFieldConfig, idx: number, value: string) => {
+    const next = [...(field.options || [])];
+    next[idx] = value;
+    setOptions(field.key, next);
+  };
+
+  const removeOption = (field: FormFieldConfig, idx: number) => {
+    const next = (field.options || []).filter((_, i) => i !== idx);
+    setOptions(field.key, next);
+  };
+
+  const addOption = (field: FormFieldConfig) => {
+    setOptions(field.key, [...(field.options || []), '']);
+  };
+
+  const restoreDefaultOptions = (field: FormFieldConfig) => {
+    const defaults = DEFAULT_FIELD_OPTIONS[field.key];
+    if (!defaults) return;
+    setOptions(field.key, [...defaults]);
+  };
+
   const resetAddForm = () => {
     setNewLabel('');
     setNewType('text');
@@ -132,7 +164,12 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
     if (!canEdit) return;
     try {
       setIsSaving(true);
-      const saved = await ApiService.updateFormFields(config);
+      // تنظيف الاختيارات الفارغة قبل الحفظ
+      const cleaned = config.map(f => ({
+        ...f,
+        options: (f.options || []).map(o => o.trim()).filter(Boolean),
+      }));
+      const saved = await ApiService.updateFormFields(cleaned);
       setConfig(mergeFieldConfig(saved));
       setIsDirty(false);
       showToast('تم حفظ نموذج التقديم — التعديلات ظهرت فورًا للمتقدمين وفي شاشة الطلب والطباعة');
@@ -437,6 +474,20 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                             {field.show_in_print === false ? 'لا يُطبع' : 'يُطبع'}
                           </button>
 
+                          {supportsOptions(field) && (
+                            <button
+                              type="button"
+                              onClick={() => setOpenOptionsFor(openOptionsFor === field.key ? null : field.key)}
+                              className={`px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all ${
+                                openOptionsFor === field.key
+                                  ? 'bg-amber-700 text-white border-amber-700'
+                                  : 'bg-white text-amber-800 border-amber-300 hover:bg-amber-50'
+                              }`}
+                            >
+                              <List className="w-4 h-4" /> الاختيارات ({(field.options || []).length})
+                            </button>
+                          )}
+
                           {field.is_custom && canEdit && (
                             <button
                               type="button"
@@ -447,6 +498,66 @@ export function FormFieldsSettingsView({ currentUser, showToast }: Props) {
                             </button>
                           )}
                         </div>
+
+                        {/* محرر قائمة الاختيارات */}
+                        {supportsOptions(field) && openOptionsFor === field.key && (
+                          <div className="w-full md:w-auto md:min-w-[320px] bg-amber-50/70 border border-amber-200 rounded-2xl p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-stone-700">
+                                الاختيارات التي ستظهر للمتقدم
+                                {builtInDef(field.key)?.multi ? ' (اختيار متعدد)' : ''}
+                              </span>
+                              {DEFAULT_FIELD_OPTIONS[field.key] && canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => restoreDefaultOptions(field)}
+                                  className="text-[11px] font-bold text-stone-500 hover:text-stone-800 flex items-center gap-1"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" /> الافتراضية
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="space-y-2">
+                              {(field.options || []).map((opt, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <span className="text-[11px] font-bold text-stone-400 w-4">{idx + 1}</span>
+                                  <input
+                                    type="text"
+                                    value={opt}
+                                    disabled={!canEdit}
+                                    onChange={e => updateOption(field, idx, e.target.value)}
+                                    placeholder="اكتب نص الاختيار"
+                                    className="flex-1 px-3 py-1.5 rounded-lg border border-stone-300 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                  />
+                                  {canEdit && (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeOption(field, idx)}
+                                      title="حذف الاختيار"
+                                      className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              {(field.options || []).length === 0 && (
+                                <p className="text-[11px] text-stone-500">لا توجد اختيارات — أضف اختيارًا واحدًا على الأقل.</p>
+                              )}
+                            </div>
+
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => addOption(field)}
+                                className="w-full px-3 py-2 rounded-xl bg-white border border-amber-300 text-amber-800 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-amber-100"
+                              >
+                                <Plus className="w-4 h-4" /> إضافة اختيار
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

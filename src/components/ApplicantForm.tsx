@@ -15,7 +15,7 @@ import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
 import { uploadFileDirectToStorage } from '../utils/imageCompression';
 import { CustomFieldsInputs } from './CustomFieldsRenderer';
-import { defaultFieldConfig, mergeFieldConfig, isVisible, fieldLabel, validateCustomFields } from '../formFields';
+import { defaultFieldConfig, mergeFieldConfig, isVisible, fieldLabel, validateCustomFields, fieldOptions } from '../formFields';
 
 interface ApplicantFormProps {
   initialData?: Applicant | null;
@@ -48,6 +48,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
   );
   const show = (key: string) => isVisible(fieldConfig, key);
   const lbl = (key: string, fallback?: string) => fieldLabel(fieldConfig, key, fallback);
+  const opts = (key: string) => fieldOptions(fieldConfig, key);
   const handleCustomChange = (key: string, value: any) =>
     setCustomData(prev => ({ ...prev, [key]: value }));
 
@@ -313,18 +314,8 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
     setDocuments(prev => prev.filter(d => d.id !== docId));
   };
 
-  // Skills toggle
-  const availableSkills = [
-    'المطبخ',
-    'تجهيز الطعام',
-    'الكاشير',
-    'خدمة العملاء',
-    'إدارة المخزون',
-    'النظافة',
-    'العمل تحت ضغط',
-    'العمل ضمن فريق',
-    'استخدام الكمبيوتر',
-  ];
+  // قائمة المهارات كما ضبطها مدير النظام (نفس القائمة التي يراها المتقدم)
+  const availableSkills = opts('skills');
 
   const toggleSkill = (skill: string) => {
     const currentSkills = formData.skills || [];
@@ -761,9 +752,9 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 {/* Marital Status */}
                 {show('marital_status') && (
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-2">الحالة الاجتماعية</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-2">{lbl('marital_status')}</label>
                   <div className="flex items-center gap-4">
-                    {(['أعزب', 'متزوج', 'مطلق', 'أرمل'] as const).map(item => (
+                    {opts('marital_status').map(item => (
                       <label
                         key={item}
                         className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
@@ -777,7 +768,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                           name="marital_status"
                           value={item}
                           checked={formData.marital_status === item}
-                          onChange={() => setFormData(prev => ({ ...prev, marital_status: item }))}
+                          onChange={() => setFormData(prev => ({ ...prev, marital_status: item as any }))}
                           className="text-[#9E1A24] focus:ring-[#9E1A24]"
                         />
                         <span>{item}</span>
@@ -790,9 +781,9 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 {/* Military Status */}
                 {show('military_status') && (
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-2">الموقف من التجنيد</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-2">{lbl('military_status')}</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['أدى الخدمة', 'إعفاء نهائي', 'إعفاء مؤقت', 'تأجيل', 'غير مطلوب (إناث)'] as const).map(item => (
+                    {opts('military_status').map(item => (
                       <label
                         key={item}
                         className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
@@ -806,7 +797,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                           name="military_status"
                           value={item}
                           checked={formData.military_status === item}
-                          onChange={() => setFormData(prev => ({ ...prev, military_status: item }))}
+                          onChange={() => setFormData(prev => ({ ...prev, military_status: item as any }))}
                           className="text-[#9E1A24] focus:ring-[#9E1A24]"
                         />
                         <span>{item}</span>
@@ -1028,13 +1019,20 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('qualification')}</label>
-                    <input
-                      type="text"
-                      value={formData.qualification}
+                    <select
+                      value={formData.qualification || ''}
                       onChange={e => setFormData(prev => ({ ...prev, qualification: e.target.value }))}
-                      placeholder="مثال: بكالوريوس تجارة / دبلوم سياحة وفنادق / ثانوية عامة"
                       className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
-                    />
+                    >
+                      <option value="">اختر من القائمة</option>
+                      {opts('qualification').map(o => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                      {/* لو المؤهل المحفوظ قديم وغير موجود في القائمة الحالية نعرضه كما هو */}
+                      {formData.qualification && !opts('qualification').includes(formData.qualification) && (
+                        <option value={formData.qualification}>{formData.qualification}</option>
+                      )}
+                    </select>
                   </div>
 
                   <div>
