@@ -8,11 +8,14 @@ import {
   HRDecision,
   Branch,
   JobPosition,
-  CurrentUser
+  CurrentUser,
+  FormFieldConfig
 } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
 import { uploadFileDirectToStorage } from '../utils/imageCompression';
+import { CustomFieldsInputs } from './CustomFieldsRenderer';
+import { defaultFieldConfig, mergeFieldConfig, isVisible, fieldLabel, validateCustomFields } from '../formFields';
 
 interface ApplicantFormProps {
   initialData?: Applicant | null;
@@ -36,6 +39,23 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [nationalIdDuplicateWarning, setNationalIdDuplicateWarning] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  // نفس إعدادات نموذج التقديم المستخدمة في البوابة العامة — بحيث تكون
+  // الحقول التي يراها الأدمن هنا مطابقة تمامًا لما يملأه المتقدم ولما يُطبع.
+  const [fieldConfig, setFieldConfig] = useState<FormFieldConfig[]>(() => defaultFieldConfig());
+  const [customData, setCustomData] = useState<Record<string, any>>(
+    () => (initialData?.custom_data && typeof initialData.custom_data === 'object' ? { ...initialData.custom_data } : {})
+  );
+  const show = (key: string) => isVisible(fieldConfig, key);
+  const lbl = (key: string, fallback?: string) => fieldLabel(fieldConfig, key, fallback);
+  const handleCustomChange = (key: string, value: any) =>
+    setCustomData(prev => ({ ...prev, [key]: value }));
+
+  useEffect(() => {
+    ApiService.getFormFields()
+      .then(cfg => setFieldConfig(mergeFieldConfig(cfg)))
+      .catch(() => setFieldConfig(defaultFieldConfig()));
+  }, []);
   const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
 
   // Form State
@@ -105,10 +125,28 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
             id: 'ast_1',
             applicant_id: initialData?.id || '',
             item_number: 1,
-            asset_name: '',
+            asset_name: 'يونيفورم BOB WICH (قميص + مريلة)',
+            quantity: 2,
+            condition: 'جديد',
+            notes: 'تم التسليم عند التعيين',
+          },
+          {
+            id: 'ast_2',
+            applicant_id: initialData?.id || '',
+            item_number: 2,
+            asset_name: 'كاب BOB WICH الرسمي',
             quantity: 1,
-            condition: '',
-            notes: '',
+            condition: 'جديد',
+            notes: 'سليم',
+          },
+          {
+            id: 'ast_3',
+            applicant_id: initialData?.id || '',
+            item_number: 3,
+            asset_name: 'كارت تعريف ومغناطيس اسم (Name Tag)',
+            quantity: 1,
+            condition: 'جديد',
+            notes: 'سليم',
           },
         ]
   );
@@ -122,12 +160,12 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
       proposed_salary: '',
       branch_name: initialData?.branch_name || '',
       application_date: initialData?.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-      first_interview_status: '',
-      second_interview_status: '',
+      first_interview_status: 'مقبول',
+      second_interview_status: 'حضر',
       joining_date: '',
       hr_notes: '',
-      recruiter_name: '',
-      hiring_decision: '',
+      recruiter_name: currentUser.name,
+      hiring_decision: 'قبول',
     }
   );
 
@@ -139,11 +177,11 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
             id: 'int_1',
             applicant_id: initialData?.id || '',
             interview_number: 1,
-            interview_date: '',
-            interviewer_name: '',
-            status: '',
-            evaluation: 0,
-            notes: '',
+            interview_date: new Date().toISOString().split('T')[0],
+            interviewer_name: currentUser.name,
+            status: 'مقبول',
+            evaluation: 5,
+            notes: 'مظهر ممتاز ولباقة وخبرة سابقة في مطاعم الوجبات السريعة',
             created_at: new Date().toISOString(),
           },
         ]
@@ -361,10 +399,10 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
         id: 'int_' + Date.now(),
         applicant_id: initialData?.id || '',
         interview_number: (prev.length + 1) as any,
-        interview_date: '',
-        interviewer_name: '',
-        status: '',
-        evaluation: 0,
+        interview_date: new Date().toISOString().split('T')[0],
+        interviewer_name: currentUser.name,
+        status: 'مقبول',
+        evaluation: 5,
         notes: '',
         created_at: new Date().toISOString(),
       },
@@ -400,11 +438,25 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
       return;
     }
 
+    // نفس الحقول الإضافية الإلزامية التي يراها المتقدم مطلوبة هنا أيضًا
+    const sectionTab: Record<string, number> = {
+      personal: 1, job: 2, education: 3, experience: 4, shifts: 5, attachments: 5, declaration: 6,
+    };
+    for (const sec of ['personal', 'job', 'education', 'experience', 'shifts', 'attachments', 'declaration'] as const) {
+      const customErr = validateCustomFields(fieldConfig, sec, customData);
+      if (customErr) {
+        setErrorMessage(customErr);
+        setActiveTab(sectionTab[sec]);
+        return;
+      }
+    }
+
     setIsSaving(true);
 
     try {
       const payload: Partial<Applicant> = {
         ...formData,
+        custom_data: customData,
         experiences: experiences.filter(exp => exp.workplace || exp.position),
         assets: assets.filter(a => a.asset_name),
         documents,
@@ -552,6 +604,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
               </div>
 
               {/* Photo Upload & Preview 4x6 */}
+              {show('photo_url') && (
               <div className="flex flex-col sm:flex-row items-center gap-6 bg-stone-50 p-4 rounded-2xl border border-stone-200">
                 <div className="w-28 h-36 border-2 border-dashed border-[#9E1A24] rounded-xl bg-white flex flex-col items-center justify-center overflow-hidden relative shadow-inner">
                   {formData.photo_url ? (
@@ -590,6 +643,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   )}
                 </div>
               </div>
+              )}
 
               {/* Personal Fields Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -650,8 +704,9 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 </div>
 
                 {/* Birth Date */}
+                {show('birth_date') && (
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">تاريخ الميلاد</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('birth_date')}</label>
                   <input
                     type="date"
                     value={formData.birth_date}
@@ -659,10 +714,12 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
                   />
                 </div>
+                )}
 
                 {/* Emergency Phone */}
+                {show('emergency_phone') && (
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">رقم هاتف طوارئ</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('emergency_phone')}</label>
                   <input
                     type="tel"
                     value={formData.emergency_phone}
@@ -671,10 +728,12 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm font-mono"
                   />
                 </div>
+                )}
 
                 {/* Emergency Contact Name */}
+                {show('emergency_contact_name') && (
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">صاحب رقم هاتف الطوارئ</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('emergency_contact_name')}</label>
                   <input
                     type="text"
                     value={formData.emergency_contact_name}
@@ -683,10 +742,12 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
                   />
                 </div>
+                )}
 
                 {/* Address */}
+                {show('address') && (
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">محل الإقامة بالتفصيل</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('address')}</label>
                   <input
                     type="text"
                     value={formData.address}
@@ -695,8 +756,10 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
                   />
                 </div>
+                )}
 
                 {/* Marital Status */}
+                {show('marital_status') && (
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-2">الحالة الاجتماعية</label>
                   <div className="flex items-center gap-4">
@@ -722,8 +785,10 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     ))}
                   </div>
                 </div>
+                )}
 
                 {/* Military Status */}
+                {show('military_status') && (
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-2">الموقف من التجنيد</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -749,6 +814,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     ))}
                   </div>
                 </div>
+                )}
               </div>
 
               <div className="flex justify-end pt-4 border-t border-stone-100">
@@ -826,8 +892,9 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 </div>
 
                 {/* Experience Years */}
+                {show('experience_years') && (
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">عدد سنوات الخبرة</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('experience_years')}</label>
                   <input
                     type="number"
                     min="0"
@@ -837,10 +904,12 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
                   />
                 </div>
+                )}
 
                 {/* Restaurant Experience Yes/No */}
+                {show('restaurant_experience') && (
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">هل لديك خبرة سابقة في المطاعم؟</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('restaurant_experience')}</label>
                   <div className="flex gap-4 mt-2">
                     <label
                       className={`flex-1 py-2 px-4 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
@@ -876,10 +945,12 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     </label>
                   </div>
                 </div>
+                )}
 
                 {/* Last Job */}
+                {show('last_job') && (
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">آخر وظيفة عملت بها</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('last_job')}</label>
                   <input
                     type="text"
                     value={formData.last_job}
@@ -888,10 +959,12 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
                   />
                 </div>
+                )}
 
                 {/* Leaving Reason */}
+                {show('leaving_reason') && (
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">سبب ترك العمل السابق</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('leaving_reason')}</label>
                   <input
                     type="text"
                     value={formData.leaving_reason}
@@ -900,8 +973,25 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
                   />
                 </div>
+                )}
               </div>
 
+              {/* الحقول الإضافية التي أضافها مدير النظام — personal */}
+              <CustomFieldsInputs
+                config={fieldConfig}
+                section="personal"
+                values={customData}
+                onChange={handleCustomChange}
+                columns={2}
+              />
+              {/* الحقول الإضافية التي أضافها مدير النظام — job */}
+              <CustomFieldsInputs
+                config={fieldConfig}
+                section="job"
+                values={customData}
+                onChange={handleCustomChange}
+                columns={2}
+              />
               <div className="flex justify-between pt-4 border-t border-stone-100">
                 <button
                   type="button"
@@ -937,7 +1027,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">المؤهل</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('qualification')}</label>
                     <input
                       type="text"
                       value={formData.qualification}
@@ -948,7 +1038,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">التخصص</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('specialization')}</label>
                     <input
                       type="text"
                       value={formData.specialization}
@@ -959,7 +1049,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">سنة التخرج</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('graduation_year')}</label>
                     <input
                       type="text"
                       value={formData.graduation_year}
@@ -970,7 +1060,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">هل ما زلت تدرس؟</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('still_studying')}</label>
                     <div className="flex gap-4 mt-2">
                       <label
                         className={`flex-1 py-2 px-4 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
@@ -1006,6 +1096,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
               </div>
 
               {/* Section 5: المهارات */}
+              {show('skills') && (
               <div>
                 <div className="border-b border-stone-100 pb-3 mb-4">
                   <h3 className="text-lg font-bold text-[#9E1A24] flex items-center gap-2">
@@ -1053,7 +1144,16 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   />
                 </div>
               </div>
+              )}
 
+              {/* الحقول الإضافية التي أضافها مدير النظام — education */}
+              <CustomFieldsInputs
+                config={fieldConfig}
+                section="education"
+                values={customData}
+                onChange={handleCustomChange}
+                columns={2}
+              />
               <div className="flex justify-between pt-4 border-t border-stone-100">
                 <button
                   type="button"
@@ -1189,6 +1289,14 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 </div>
               )}
 
+              {/* الحقول الإضافية التي أضافها مدير النظام — experience */}
+              <CustomFieldsInputs
+                config={fieldConfig}
+                section="experience"
+                values={customData}
+                onChange={handleCustomChange}
+                columns={2}
+              />
               <div className="flex justify-between pt-4 border-t border-stone-100">
                 <button
                   type="button"
@@ -1344,18 +1452,35 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 </div>
 
                 {/* Upload Buttons Box */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                  {/* National ID Scan */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  {/* National ID Front */}
                   <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 text-center space-y-2">
-                    <div className="font-bold text-xs text-stone-800">بطاقة الرقم القومي</div>
-                    <p className="text-[11px] text-stone-500">وجه أو ظهر البطاقة</p>
-                    <label className={`inline-flex items-center gap-1.5 border px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${uploadingDocType === 'صورة بطاقة الرقم القومي' ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-[#9E1A24] border-[#9E1A24] cursor-pointer'}`}>
+                    <div className="font-bold text-xs text-stone-800">بطاقة الرقم القومي (وش)</div>
+                    <p className="text-[11px] text-stone-500">الوجه الأمامي</p>
+                    <label className={`inline-flex items-center gap-1.5 border px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${uploadingDocType === 'صورة بطاقة الرقم القومي - الوجه' ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-[#9E1A24] border-[#9E1A24] cursor-pointer'}`}>
                       <SvgIcons.Upload className="w-3.5 h-3.5" />
-                      <span>{uploadingDocType === 'صورة بطاقة الرقم القومي' ? 'جاري الرفع...' : 'رفع صورة البطاقة'}</span>
+                      <span>{uploadingDocType === 'صورة بطاقة الرقم القومي - الوجه' ? 'جاري الرفع...' : 'رفع وش البطاقة'}</span>
                       <input
                         type="file"
                         accept="image/*,.pdf"
-                        onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي')}
+                        onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي - الوجه')}
+                        disabled={uploadingDocType !== null}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {/* National ID Back */}
+                  <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 text-center space-y-2">
+                    <div className="font-bold text-xs text-stone-800">بطاقة الرقم القومي (ظهر)</div>
+                    <p className="text-[11px] text-stone-500">الوجه الخلفي</p>
+                    <label className={`inline-flex items-center gap-1.5 border px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${uploadingDocType === 'صورة بطاقة الرقم القومي - الظهر' ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-[#9E1A24] border-[#9E1A24] cursor-pointer'}`}>
+                      <SvgIcons.Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingDocType === 'صورة بطاقة الرقم القومي - الظهر' ? 'جاري الرفع...' : 'رفع ظهر البطاقة'}</span>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي - الظهر')}
                         disabled={uploadingDocType !== null}
                         className="hidden"
                       />
@@ -1443,6 +1568,23 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 )}
               </div>
 
+              {/* الحقول الإضافية التي أضافها مدير النظام — shifts */}
+              <CustomFieldsInputs
+                config={fieldConfig}
+                section="shifts"
+                values={customData}
+                onChange={handleCustomChange}
+                columns={2}
+              />
+
+              {/* الحقول الإضافية التي أضافها مدير النظام — attachments */}
+              <CustomFieldsInputs
+                config={fieldConfig}
+                section="attachments"
+                values={customData}
+                onChange={handleCustomChange}
+                columns={2}
+              />
               <div className="flex justify-between pt-4 border-t border-stone-100">
                 <button
                   type="button"
@@ -1603,6 +1745,14 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 </div>
               </div>
 
+              {/* الحقول الإضافية التي أضافها مدير النظام — declaration */}
+              <CustomFieldsInputs
+                config={fieldConfig}
+                section="declaration"
+                values={customData}
+                onChange={handleCustomChange}
+                columns={2}
+              />
               <div className="flex justify-between pt-4 border-t border-stone-100">
                 <button
                   type="button"

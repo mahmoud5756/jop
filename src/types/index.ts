@@ -33,7 +33,7 @@ export interface ApplicantSkill {
 export interface ApplicantDocument {
   id: string;
   applicant_id: string;
-  document_type: 'صورة بطاقة الرقم القومي' | 'صور شخصية' | 'شهادة صحية' | 'أخرى';
+  document_type: 'صورة بطاقة الرقم القومي - الوجه' | 'صورة بطاقة الرقم القومي - الظهر' | 'صورة بطاقة الرقم القومي' | 'صور شخصية' | 'شهادة صحية' | 'أخرى';
   file_name: string;
   file_url: string; // base64 or storage url
   file_size?: string;
@@ -130,6 +130,10 @@ export interface Applicant {
   is_converted_to_employee: boolean;
   employee_id?: string;
   employee_code?: string;
+
+  // Custom (admin-defined) fields — القيم التي أدخلها المتقدم في الحقول
+  // الإضافية التي أنشأها مدير النظام من شاشة "إعدادات نموذج التقديم"
+  custom_data?: Record<string, any>;
 
   // Sub-records
   experiences?: ApplicantExperience[];
@@ -230,4 +234,46 @@ export interface CompanySettings {
 export interface AuthResponse {
   token: string;
   user: CurrentUser;
+}
+
+// ============================================================================
+// Dynamic Application Form Fields (نموذج التقديم القابل للتعديل)
+// ============================================================================
+
+export type FormFieldType =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'date'
+  | 'select'
+  | 'checkbox'
+  | 'phone';
+
+export type FormSectionKey =
+  | 'personal'
+  | 'job'
+  | 'education'
+  | 'experience'
+  | 'shifts'
+  | 'attachments'
+  | 'declaration';
+
+export interface FormFieldConfig {
+  key: string;              // مفتاح الحقل (مطابق لاسم العمود للحقول المدمجة)
+  label: string;            // الاسم الظاهر للمتقدم وللأدمن وفي الطباعة
+  section: FormSectionKey;  // القسم الذي يظهر فيه
+  type: FormFieldType;
+  required: boolean;
+  visible: boolean;
+  is_custom: boolean;       // true = حقل أضافه مدير النظام
+  order: number;
+  options?: string[];       // لقوائم الاختيار
+  placeholder?: string;
+  show_in_print?: boolean;
+}
+
+export interface FormFieldSettings {
+  config: FormFieldConfig[];
+  updated_at?: string;
+  updated_by?: string;
 }

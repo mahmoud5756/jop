@@ -354,6 +354,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>بيانات الشركة (السجل التجاري والضريبي)</span>
             </button>
           )}
+
+          {(currentUser.role === 'admin' || currentUser.role === 'hr') && (
+            <button
+              onClick={() => onNavigate('form_fields')}
+              className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${
+                currentActive === 'form_fields'
+                  ? 'bg-red-50 text-[#9E1A24] border-b-2 border-[#9E1A24]'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              }`}
+            >
+              <span className="text-base">📝</span>
+              <span>إعدادات نموذج التقديم</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

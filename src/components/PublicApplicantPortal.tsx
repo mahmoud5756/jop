@@ -4,11 +4,21 @@ import {
   ApplicantExperience,
   ApplicantDocument,
   Branch,
-  JobPosition
+  JobPosition,
+  FormFieldConfig
 } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons, BobWichHeaderLogo } from './BobWichLogo';
 import { uploadFileDirectToStorage } from '../utils/imageCompression';
+import { CustomFieldsInputs } from './CustomFieldsRenderer';
+import {
+  defaultFieldConfig,
+  mergeFieldConfig,
+  isVisible,
+  isRequired,
+  fieldLabel,
+  validateCustomFields,
+} from '../formFields';
 
 interface PublicApplicantPortalProps {
   onGoToAdmin?: () => void;
@@ -19,6 +29,30 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   onGoToAdmin,
   onApplicationSubmitted,
 }) => {
+  // إعدادات نموذج التقديم كما ضبطها مدير النظام (أي حقل يظهر، إلزامي، اسمه،
+  // بالإضافة إلى الحقول الإضافية). نفس الإعداد يُستخدم في شاشة الأدمن والطباعة.
+  const [fieldConfig, setFieldConfig] = useState<FormFieldConfig[]>(() => defaultFieldConfig());
+  const [customData, setCustomData] = useState<Record<string, any>>({});
+
+  const show = (key: string) => isVisible(fieldConfig, key);
+  const req = (key: string) => isRequired(fieldConfig, key);
+  const lbl = (key: string, fallback?: string) => fieldLabel(fieldConfig, key, fallback);
+  const handleCustomChange = (key: string, value: any) =>
+    setCustomData(prev => ({ ...prev, [key]: value }));
+  const Req: React.FC<{ k: string }> = ({ k }) =>
+    req(k) ? <span className="text-red-500">*</span> : null;
+
+  const showEducation =
+    isVisible(fieldConfig, 'qualification') ||
+    isVisible(fieldConfig, 'specialization') ||
+    isVisible(fieldConfig, 'graduation_year') ||
+    isVisible(fieldConfig, 'still_studying') ||
+    fieldConfig.some(f => f.is_custom && f.section === 'education' && f.visible !== false);
+  const showShifts =
+    isVisible(fieldConfig, 'shifts_preference') ||
+    isVisible(fieldConfig, 'availability') ||
+    fieldConfig.some(f => f.is_custom && f.section === 'shifts' && f.visible !== false);
+
   const [branches, setBranches] = useState<Branch[]>([]);
   const [positions, setPositions] = useState<JobPosition[]>([]);
   const [isLoadingMaster, setIsLoadingMaster] = useState(true);
@@ -96,10 +130,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   // applicants to scroll back years one month at a time to reach their
   // birth year. Derived straight from formData.birth_date ('YYYY-MM-DD')
   // so it stays in sync without extra state.
-  // formData.birth_date is stored as 'YYYY-MM-DD', so the split parts are
-  // [year, month, day] in that order — the destructured names must match
-  // that order, or the year/day values end up swapped between variables.
-  const [birthYear, birthMonth, birthDay] = useMemo(() => {
+  const [birthDay, birthMonth, birthYear] = useMemo(() => {
     const parts = (formData.birth_date || '').split('-');
     return parts.length === 3 ? parts : ['', '', ''];
   }, [formData.birth_date]);
@@ -125,13 +156,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
       }));
     } else {
       // Keep partial selections around (e.g. only year picked so far) by
-      // stashing them in a still-incomplete, non-ISO string. Positions must
-      // stay fixed (year-month-day) even when a part is empty — filtering
-      // out empty parts here would shift the remaining values into the
-      // wrong slot on the next parse and silently drop whatever was
-      // already picked (e.g. picking the year after the day would wipe
-      // the day out again).
-      setFormData(prev => ({ ...prev, birth_date: `${year}-${month}-${day}` }));
+      // stashing them in a still-incomplete, non-ISO string; the required
+      // field validation on step submit catches anything left incomplete.
+      setFormData(prev => ({ ...prev, birth_date: [year, month, day].filter(Boolean).join('-') }));
     }
   };
 
@@ -141,10 +168,12 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
     async function loadMaster() {
       try {
         setIsLoadingMaster(true);
-        const [bList, pList] = await Promise.all([
+        const [bList, pList, cfg] = await Promise.all([
           ApiService.getBranches(),
           ApiService.getPositions(),
+          ApiService.getPublicFormFields(),
         ]);
+        setFieldConfig(mergeFieldConfig(cfg));
         setBranches(bList.filter(b => b.is_active));
         setPositions(pList.filter(p => p.is_active));
       } catch (err) {
@@ -340,25 +369,45 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         setErrorMessage('يرجى إدخال رقم هاتف محمول مصري صحيح مكون من 11 رقم (يبدأ بـ 010, 011, 012, 015)');
         return false;
       }
-      if (!formData.birth_date || !/^\d{4}-\d{2}-\d{2}$/.test(formData.birth_date)) {
-        setErrorMessage('يرجى اختيار تاريخ الميلاد كاملاً (اليوم والشهر والسنة)');
+      if (show('birth_date')) {
+        if (req('birth_date') && !formData.birth_date) {
+          setErrorMessage(`يرجى اختيار ${lbl('birth_date')} كاملاً (اليوم والشهر والسنة)`);
+          return false;
+        }
+        if (formData.birth_date) {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(formData.birth_date)) {
+            setErrorMessage(`يرجى اختيار ${lbl('birth_date')} كاملاً (اليوم والشهر والسنة)`);
+            return false;
+          }
+          if (new Date(formData.birth_date) > new Date()) {
+            setErrorMessage('تاريخ الميلاد لا يمكن أن يكون في المستقبل');
+            return false;
+          }
+        }
+      }
+      if (req('address') && !formData.address?.trim()) {
+        setErrorMessage(`يرجى إدخال ${lbl('address')}`);
         return false;
       }
-      const bDate = new Date(formData.birth_date);
-      if (bDate > new Date()) {
-        setErrorMessage('تاريخ الميلاد لا يمكن أن يكون في المستقبل');
+      if (req('emergency_contact_name') && !formData.emergency_contact_name?.trim()) {
+        setErrorMessage(`يرجى إدخال ${lbl('emergency_contact_name')}`);
         return false;
       }
-      if (!formData.address?.trim()) {
-        setErrorMessage('يرجى إدخال محل الإقامة بالتفصيل');
+      if (req('emergency_phone') && !formData.emergency_phone?.trim()) {
+        setErrorMessage(`يرجى إدخال ${lbl('emergency_phone')}`);
         return false;
       }
-      if (!formData.marital_status) {
-        setErrorMessage('يرجى اختيار الحالة الاجتماعية');
+      if (req('marital_status') && !formData.marital_status) {
+        setErrorMessage(`يرجى اختيار ${lbl('marital_status')}`);
         return false;
       }
-      if (!formData.military_status) {
-        setErrorMessage('يرجى اختيار الحالة العسكرية');
+      if (req('military_status') && !formData.military_status) {
+        setErrorMessage(`يرجى اختيار ${lbl('military_status')}`);
+        return false;
+      }
+      const err1 = validateCustomFields(fieldConfig, 'personal', customData);
+      if (err1) {
+        setErrorMessage(err1);
         return false;
       }
     } else if (step === 2) {
@@ -370,20 +419,34 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         setErrorMessage('يرجى اختيار الوظيفة المتقدم إليها');
         return false;
       }
-      if (!formData.qualification) {
-        setErrorMessage('يرجى تحديد المؤهل الدراسي');
+      if (req('last_job') && !formData.last_job?.trim()) {
+        setErrorMessage(`يرجى إدخال ${lbl('last_job')}`);
         return false;
       }
-      if (!formData.specialization?.trim()) {
-        setErrorMessage('يرجى إدخال التخصص الدراسي');
+      if (req('leaving_reason') && !formData.leaving_reason?.trim()) {
+        setErrorMessage(`يرجى إدخال ${lbl('leaving_reason')}`);
         return false;
       }
-      if (!formData.graduation_year?.trim()) {
-        setErrorMessage('يرجى إدخال سنة التخرج أو السنة الدراسية الحالية');
+      if (req('qualification') && !formData.qualification) {
+        setErrorMessage(`يرجى تحديد ${lbl('qualification')}`);
+        return false;
+      }
+      if (req('specialization') && !formData.specialization?.trim()) {
+        setErrorMessage(`يرجى إدخال ${lbl('specialization')}`);
+        return false;
+      }
+      if (req('graduation_year') && !formData.graduation_year?.trim()) {
+        setErrorMessage(`يرجى إدخال ${lbl('graduation_year')}`);
+        return false;
+      }
+      const err2 = validateCustomFields(fieldConfig, 'job', customData) ||
+        validateCustomFields(fieldConfig, 'education', customData);
+      if (err2) {
+        setErrorMessage(err2);
         return false;
       }
     } else if (step === 3) {
-      if (formData.restaurant_experience) {
+      if (show('experiences') && formData.restaurant_experience) {
         for (const exp of experiences) {
           if (exp.workplace.trim() || exp.position.trim()) {
             if (!exp.workplace.trim() || !exp.position.trim() || !exp.date_from || !exp.date_to || !exp.leaving_reason.trim()) {
@@ -394,18 +457,37 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         }
       }
       const currentSkills = formData.skills || [];
-      if (currentSkills.length === 0 && !formData.custom_skill?.trim()) {
-        setErrorMessage('يرجى اختيار مهارة واحدة على الأقل أو كتابة مهارة أخرى');
+      if (req('skills') && currentSkills.length === 0 && !formData.custom_skill?.trim()) {
+        setErrorMessage(`يرجى اختيار عنصر واحد على الأقل من ${lbl('skills')}`);
         return false;
       }
-      if (!formData.shift_morning && !formData.shift_night) {
+      if (req('shifts_preference') && !formData.shift_morning && !formData.shift_night) {
         setErrorMessage('يرجى اختيار وردية عمل واحدة على الأقل (صباحية أو ليلية)');
         return false;
       }
+      const err3 = validateCustomFields(fieldConfig, 'experience', customData) ||
+        validateCustomFields(fieldConfig, 'shifts', customData);
+      if (err3) {
+        setErrorMessage(err3);
+        return false;
+      }
     } else if (step === 4) {
-      const hasIdDoc = documents.some(d => d.document_type === 'national_id_front' || d.document_type === 'national_id' || d.document_type === 'بطاقة الرقم القومي');
-      if (!hasIdDoc && documents.length === 0) {
-        setErrorMessage('يرجى رفع صورة بطاقة الرقم القومي (وجه أول على الأقل) للمتابعة');
+      const hasIdFront = documents.some(d => d.document_type === 'صورة بطاقة الرقم القومي - الوجه' || d.document_type === 'صورة بطاقة الرقم القومي');
+      if (show('doc_id_front') && req('doc_id_front') && !hasIdFront) {
+        setErrorMessage('يرجى رفع صورة وش بطاقة الرقم القومي على الأقل للمتابعة');
+        return false;
+      }
+      if (show('doc_id_back') && req('doc_id_back') && !documents.some(d => d.document_type === 'صورة بطاقة الرقم القومي - الظهر')) {
+        setErrorMessage(`يرجى رفع ${lbl('doc_id_back')}`);
+        return false;
+      }
+      if (show('doc_health') && req('doc_health') && !documents.some(d => d.document_type === 'شهادة صحية')) {
+        setErrorMessage(`يرجى رفع ${lbl('doc_health')}`);
+        return false;
+      }
+      const err4 = validateCustomFields(fieldConfig, 'attachments', customData);
+      if (err4) {
+        setErrorMessage(err4);
         return false;
       }
     } else if (step === 5) {
@@ -415,6 +497,11 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
       }
       if (!formData.applicant_signature_name?.trim()) {
         setErrorMessage('يرجى كتابة اسمك في خانة توقيع المتقدم كإقرار رسمي');
+        return false;
+      }
+      const err5 = validateCustomFields(fieldConfig, 'declaration', customData);
+      if (err5) {
+        setErrorMessage(err5);
         return false;
       }
     }
@@ -473,6 +560,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
       const payload: Partial<Applicant> = {
         ...formData,
+        custom_data: customData,
         experiences: validExperiences,
         documents: documents,
         status: 'طلب جديد',
@@ -683,10 +771,11 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <span className="w-8 h-8 rounded-full bg-[#9E1A24] text-white flex items-center justify-center text-sm font-black">1</span>
                 البيانات الشخصية والصورة
               </h2>
-              <span className="text-xs text-stone-500 font-bold">* جميع الحقول إلزامية</span>
+              <span className="text-xs text-stone-500 font-bold">الحقول التي بجانبها <span className="text-red-500">*</span> إلزامية</span>
             </div>
 
             {/* Photo Upload Box */}
+            {show('photo_url') && (
             <div className="flex flex-col sm:flex-row items-center gap-6 p-4 rounded-2xl bg-stone-50 border border-stone-200">
               <div className="relative w-32 h-40 rounded-2xl border-2 border-dashed border-stone-300 bg-white flex flex-col items-center justify-center overflow-hidden flex-shrink-0 shadow-inner group">
                 {formData.photo_url ? (
@@ -733,13 +822,14 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 </label>
               </div>
             </div>
+            )}
 
             {/* Inputs Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Full Name */}
               <div className="sm:col-span-2 space-y-1">
                 <label className="block text-xs font-bold text-stone-700">
-                  الاسم الرباعي كما هو مدون في البطاقة <span className="text-red-500">*</span>
+                  {lbl('full_name')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -754,7 +844,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               {/* National ID */}
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">
-                  الرقم القومي (14 رقم) <span className="text-red-500">*</span>
+                  {lbl('national_id')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -782,7 +872,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               {/* Phone */}
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">
-                  رقم الهاتف الشخصي (متاح واتساب) <span className="text-red-500">*</span>
+                  {lbl('phone')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="tel"
@@ -801,9 +891,10 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               {/* Birth Date — day/month/year selects (easier to use on
                   mobile than the native calendar widget, which forces
                   scrolling back month-by-month to reach a birth year). */}
+              {show('birth_date') && (
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">
-                  تاريخ الميلاد <span className="text-red-500">*</span>
+                  {lbl('birth_date')} <Req k="birth_date" />
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <select
@@ -838,11 +929,13 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   </select>
                 </div>
               </div>
+              )}
 
               {/* Address */}
+              {show('address') && (
               <div className="sm:col-span-2 space-y-1">
                 <label className="block text-xs font-bold text-stone-700">
-                  محل الإقامة الحالي بالتفصيل <span className="text-red-500">*</span>
+                  {lbl('address')} <Req k="address" />
                 </label>
                 <input
                   type="text"
@@ -853,10 +946,12 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
                 />
               </div>
+              )}
 
               {/* Emergency Contact Name */}
+              {show('emergency_contact_name') && (
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">اسم صاحب هاتف الطوارئ وصلة القرابة</label>
+                <label className="block text-xs font-bold text-stone-700">{lbl('emergency_contact_name')} <Req k="emergency_contact_name" /></label>
                 <input
                   type="text"
                   placeholder="مثال: أحمد محمد (الوالد)"
@@ -865,10 +960,12 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
                 />
               </div>
+              )}
 
               {/* Emergency Phone */}
+              {show('emergency_phone') && (
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">هاتف الطوارئ</label>
+                <label className="block text-xs font-bold text-stone-700">{lbl('emergency_phone')} <Req k="emergency_phone" /></label>
                 <input
                   type="tel"
                   maxLength={11}
@@ -881,10 +978,12 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono"
                 />
               </div>
+              )}
 
               {/* Marital Status */}
+              {show('marital_status') && (
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">الحالة الاجتماعية</label>
+                <label className="block text-xs font-bold text-stone-700">{lbl('marital_status')} <Req k="marital_status" /></label>
                 <select
                   value={formData.marital_status || ''}
                   onChange={e => setFormData(prev => ({ ...prev, marital_status: e.target.value as any }))}
@@ -897,10 +996,12 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   <option value="أرمل">أرمل</option>
                 </select>
               </div>
+              )}
 
               {/* Military Status */}
+              {show('military_status') && (
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">الموقف من التجنيد</label>
+                <label className="block text-xs font-bold text-stone-700">{lbl('military_status')} <Req k="military_status" /></label>
                 <select
                   value={formData.military_status || ''}
                   onChange={e => setFormData(prev => ({ ...prev, military_status: e.target.value as any }))}
@@ -914,7 +1015,16 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   <option value="غير مطلوب (إناث)">غير مطلوب (إناث)</option>
                 </select>
               </div>
+              )}
             </div>
+            {/* الحقول الإضافية التي أضافها مدير النظام — قسم personal */}
+            <CustomFieldsInputs
+              config={fieldConfig}
+              section="personal"
+              values={customData}
+              onChange={handleCustomChange}
+              columns={2}
+            />
           </div>
         )}
 
@@ -932,7 +1042,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               {/* Branch */}
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">
-                  الفرع المفضل للعمل به <span className="text-red-500">*</span>
+                  {lbl('branch_name', 'الفرع المفضل للعمل به')} <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.branch_name || ''}
@@ -956,7 +1066,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               {/* Position */}
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">
-                  الوظيفة المتقدم إليها <span className="text-red-500">*</span>
+                  {lbl('position_name')} <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.position_name || ''}
@@ -978,9 +1088,10 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               </div>
 
               {/* Restaurant experience checkbox */}
+              {show('restaurant_experience') && (
               <div className="sm:col-span-2 p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between">
                 <div>
-                  <h4 className="text-sm font-bold text-stone-900">هل لديك خبرة سابقة في مجال المطاعم والأغذية؟</h4>
+                  <h4 className="text-sm font-bold text-stone-900">{lbl('restaurant_experience', 'هل لديك خبرة سابقة في مجال المطاعم والأغذية؟')}</h4>
                   <p className="text-xs text-stone-600">مطاعم الوجبات السريعة، الكافيهات، الفنادق، أو المطابخ</p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -1006,10 +1117,12 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   </label>
                 </div>
               </div>
+              )}
 
               {/* Total years */}
+              {show('experience_years') && (
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">إجمالي سنوات الخبرة العامة</label>
+                <label className="block text-xs font-bold text-stone-700">{lbl('experience_years')} <Req k="experience_years" /></label>
                 <input
                   type="number"
                   min={0}
@@ -1019,10 +1132,12 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
                 />
               </div>
+              )}
 
               {/* Last job */}
+              {show('last_job') && (
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">آخر وظيفة شغلتها</label>
+                <label className="block text-xs font-bold text-stone-700">{lbl('last_job')} <Req k="last_job" /></label>
                 <input
                   type="text"
                   placeholder="مثال: كاشير في مطعم كذا"
@@ -1031,10 +1146,12 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
                 />
               </div>
+              )}
 
               {/* Leaving reason */}
+              {show('leaving_reason') && (
               <div className="sm:col-span-2 space-y-1">
-                <label className="block text-xs font-bold text-stone-700">سبب ترك العمل السابق</label>
+                <label className="block text-xs font-bold text-stone-700">{lbl('leaving_reason')} <Req k="leaving_reason" /></label>
                 <input
                   type="text"
                   placeholder="مثال: البحث عن فرصة أفضل للتطوير، بعد المسافة..."
@@ -1043,14 +1160,25 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
                 />
               </div>
+              )}
             </div>
 
+            {/* الحقول الإضافية التي أضافها مدير النظام — قسم job */}
+            <CustomFieldsInputs
+              config={fieldConfig}
+              section="job"
+              values={customData}
+              onChange={handleCustomChange}
+              columns={2}
+            />
             {/* Education Sub-section */}
+            {showEducation && (
             <div className="pt-4 border-t border-stone-200">
               <h3 className="text-md font-black text-stone-900 mb-3">المؤهل والتعليم:</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {show('qualification') && (
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-stone-700">المؤهل الدراسي</label>
+                  <label className="block text-xs font-bold text-stone-700">{lbl('qualification')} <Req k="qualification" /></label>
                   <select
                     value={formData.qualification || ''}
                     onChange={e => setFormData(prev => ({ ...prev, qualification: e.target.value as any }))}
@@ -1065,9 +1193,11 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     <option value="بدون مؤهل">بدون مؤهل</option>
                   </select>
                 </div>
+                )}
 
+                {show('specialization') && (
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-stone-700">التخصص / الكلية</label>
+                  <label className="block text-xs font-bold text-stone-700">{lbl('specialization', 'التخصص / الكلية')} <Req k="specialization" /></label>
                   <input
                     type="text"
                     placeholder="مثال: تجارة / سياحة وفنادق / دبلوم صنايع"
@@ -1076,9 +1206,11 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
                   />
                 </div>
+                )}
 
+                {show('graduation_year') && (
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-stone-700">سنة التخرج</label>
+                  <label className="block text-xs font-bold text-stone-700">{lbl('graduation_year')} <Req k="graduation_year" /></label>
                   <input
                     type="text"
                     placeholder="مثال: 2023"
@@ -1087,9 +1219,11 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono"
                   />
                 </div>
+                )}
 
+                {show('still_studying') && (
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-stone-700">هل ما زلت تدرس؟</label>
+                  <label className="block text-xs font-bold text-stone-700">{lbl('still_studying', 'هل ما زلت تدرس؟')}</label>
                   <div className="flex gap-4 pt-1">
                     <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-stone-800">
                       <input
@@ -1113,8 +1247,18 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     </label>
                   </div>
                 </div>
+                )}
               </div>
             </div>
+            )}
+            {/* الحقول الإضافية التي أضافها مدير النظام — قسم education */}
+            <CustomFieldsInputs
+              config={fieldConfig}
+              section="education"
+              values={customData}
+              onChange={handleCustomChange}
+              columns={2}
+            />
           </div>
         )}
 
@@ -1129,9 +1273,10 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
             </div>
 
             {/* Experience Table */}
+            {show('experiences') && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-black text-stone-900">سجل أماكن العمل السابقة:</h4>
+                <h4 className="text-sm font-black text-stone-900">{lbl('experiences', 'سجل أماكن العمل السابقة')}:</h4>
                 <button
                   type="button"
                   onClick={handleAddExperience}
@@ -1210,10 +1355,12 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 ))}
               </div>
             </div>
+            )}
 
             {/* Skills selection */}
+            {show('skills') && (
             <div className="pt-4 border-t border-stone-200">
-              <h4 className="text-sm font-black text-stone-900 mb-2">المهارات التي تجيدها (اختر كل ما ينطبق):</h4>
+              <h4 className="text-sm font-black text-stone-900 mb-2">{lbl('skills', 'المهارات التي تجيدها')} <Req k="skills" /> <span className="font-bold text-stone-500 text-xs">(اختر كل ما ينطبق)</span></h4>
               <div className="flex flex-wrap gap-2">
                 {availableSkills.map(skill => {
                   const isSelected = (formData.skills || []).includes(skill);
@@ -1235,11 +1382,22 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 })}
               </div>
             </div>
+            )}
+            {/* الحقول الإضافية التي أضافها مدير النظام — قسم experience */}
+            <CustomFieldsInputs
+              config={fieldConfig}
+              section="experience"
+              values={customData}
+              onChange={handleCustomChange}
+              columns={2}
+            />
 
             {/* Shifts & Availability */}
+            {showShifts && (
             <div className="pt-4 border-t border-stone-200 space-y-3">
               <h4 className="text-sm font-black text-stone-900">أوقات العمل والورديات:</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {show('shifts_preference') && (
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
                   <input
                     type="checkbox"
@@ -1249,7 +1407,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   />
                   <span>الاستعداد للعمل بالوردية الصباحية</span>
                 </label>
+                )}
 
+                {show('shifts_preference') && (
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
                   <input
                     type="checkbox"
@@ -1259,7 +1419,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   />
                   <span>الاستعداد للعمل بالوردية المسائية / السهرة</span>
                 </label>
+                )}
 
+                {show('availability') && (
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
                   <input
                     type="checkbox"
@@ -1269,7 +1431,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   />
                   <span>الاستعداد للعمل بساعات إضافية (أوفر تايم بأجر)</span>
                 </label>
+                )}
 
+                {show('availability') && (
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
                   <input
                     type="checkbox"
@@ -1279,7 +1443,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   />
                   <span>الاستعداد للعمل في العطلات الرسمية والمواسم والأعياد</span>
                 </label>
+                )}
 
+                {show('availability') && (
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
                   <input
                     type="checkbox"
@@ -1289,8 +1455,18 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   />
                   <span>أمتلك وسيلة مواصلات خاصة (موتوسيكل/عربية)</span>
                 </label>
+                )}
               </div>
             </div>
+            )}
+            {/* الحقول الإضافية التي أضافها مدير النظام — قسم shifts */}
+            <CustomFieldsInputs
+              config={fieldConfig}
+              section="shifts"
+              values={customData}
+              onChange={handleCustomChange}
+              columns={2}
+            />
           </div>
         )}
 
@@ -1312,30 +1488,30 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               {/* National ID Front */}
               <div className="p-4 rounded-2xl border border-stone-200 bg-stone-50 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-stone-900">صورة بطاقة الرقم القومي</h4>
+                  <h4 className="text-xs font-bold text-stone-900">{lbl('doc_id_front', 'صورة بطاقة الرقم القومي (وش)')} <Req k="doc_id_front" /></h4>
                   <span className="text-[10px] text-stone-500">سارية</span>
                 </div>
-                {documents.find(d => d.document_type === 'صورة بطاقة الرقم القومي') ? (
+                {documents.find(d => d.document_type === 'صورة بطاقة الرقم القومي - الوجه') ? (
                   <div className="flex items-center justify-between bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 text-xs text-emerald-800 font-bold">
-                    <span className="truncate">✓ تم رفع صورة البطاقة</span>
+                    <span className="truncate">✓ تم رفع وش البطاقة</span>
                     <button
                       type="button"
-                      onClick={() => setDocuments(prev => prev.filter(d => d.document_type !== 'صورة بطاقة الرقم القومي'))}
+                      onClick={() => setDocuments(prev => prev.filter(d => d.document_type !== 'صورة بطاقة الرقم القومي - الوجه'))}
                       className="text-red-600 hover:text-red-800 text-[11px] mr-2"
                     >
                       حذف
                     </button>
                   </div>
                 ) : (
-                  <label className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-all ${uploadingDocType === 'صورة بطاقة الرقم القومي' ? 'border-stone-200 bg-stone-100 cursor-wait' : 'border-stone-300 bg-white hover:bg-stone-50 cursor-pointer'}`}>
+                  <label className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-all ${uploadingDocType === 'صورة بطاقة الرقم القومي - الوجه' ? 'border-stone-200 bg-stone-100 cursor-wait' : 'border-stone-300 bg-white hover:bg-stone-50 cursor-pointer'}`}>
                     <SvgIcons.Upload className="w-6 h-6 text-stone-400 mb-1" />
                     <span className="text-xs font-bold text-stone-700">
-                      {uploadingDocType === 'صورة بطاقة الرقم القومي' ? 'جاري الرفع...' : 'اضغط لرفع صورة البطاقة'}
+                      {uploadingDocType === 'صورة بطاقة الرقم القومي - الوجه' ? 'جاري الرفع...' : 'اضغط لرفع وش البطاقة'}
                     </span>
                     <input
                       type="file"
                       accept="image/*,.pdf"
-                      onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي')}
+                      onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي - الوجه')}
                       disabled={uploadingDocType !== null}
                       className="hidden"
                     />
@@ -1343,10 +1519,47 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 )}
               </div>
 
-              {/* Health Certificate */}
+              {/* National ID Back */}
+              {show('doc_id_back') && (
               <div className="p-4 rounded-2xl border border-stone-200 bg-stone-50 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-stone-900">الشهادة الصحية لمجال الأغذية</h4>
+                  <h4 className="text-xs font-bold text-stone-900">{lbl('doc_id_back', 'صورة بطاقة الرقم القومي (ظهر)')} <Req k="doc_id_back" /></h4>
+                  <span className="text-[10px] text-stone-500">سارية</span>
+                </div>
+                {documents.find(d => d.document_type === 'صورة بطاقة الرقم القومي - الظهر') ? (
+                  <div className="flex items-center justify-between bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 text-xs text-emerald-800 font-bold">
+                    <span className="truncate">✓ تم رفع ظهر البطاقة</span>
+                    <button
+                      type="button"
+                      onClick={() => setDocuments(prev => prev.filter(d => d.document_type !== 'صورة بطاقة الرقم القومي - الظهر'))}
+                      className="text-red-600 hover:text-red-800 text-[11px] mr-2"
+                    >
+                      حذف
+                    </button>
+                  </div>
+                ) : (
+                  <label className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-all ${uploadingDocType === 'صورة بطاقة الرقم القومي - الظهر' ? 'border-stone-200 bg-stone-100 cursor-wait' : 'border-stone-300 bg-white hover:bg-stone-50 cursor-pointer'}`}>
+                    <SvgIcons.Upload className="w-6 h-6 text-stone-400 mb-1" />
+                    <span className="text-xs font-bold text-stone-700">
+                      {uploadingDocType === 'صورة بطاقة الرقم القومي - الظهر' ? 'جاري الرفع...' : 'اضغط لرفع ظهر البطاقة'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي - الظهر')}
+                      disabled={uploadingDocType !== null}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+              )}
+
+              {/* Health Certificate */}
+              {show('doc_health') && (
+              <div className="p-4 rounded-2xl border border-stone-200 bg-stone-50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-stone-900">{lbl('doc_health', 'الشهادة الصحية لمجال الأغذية')} <Req k="doc_health" /></h4>
                   <span className="text-[10px] text-stone-500">إن وجدت</span>
                 </div>
                 {documents.find(d => d.document_type === 'شهادة صحية') ? (
@@ -1376,7 +1589,17 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   </label>
                 )}
               </div>
+              )}
             </div>
+
+            {/* الحقول الإضافية التي أضافها مدير النظام — قسم attachments */}
+            <CustomFieldsInputs
+              config={fieldConfig}
+              section="attachments"
+              values={customData}
+              onChange={handleCustomChange}
+              columns={2}
+            />
           </div>
         )}
 
@@ -1440,6 +1663,14 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               </div>
             </div>
 
+            {/* الحقول الإضافية التي أضافها مدير النظام — قسم declaration */}
+            <CustomFieldsInputs
+              config={fieldConfig}
+              section="declaration"
+              values={customData}
+              onChange={handleCustomChange}
+              columns={1}
+            />
             {/* Submit Button */}
             <div className="pt-4">
               <button

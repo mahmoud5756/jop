@@ -19,6 +19,7 @@ import { EmployeesView } from './components/EmployeesView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
 import { CompanySettingsView } from './components/CompanySettingsView';
+import { FormFieldsSettingsView } from './components/FormFieldsSettingsView';
 import { PublicApplicantPortal } from './components/PublicApplicantPortal';
 import { SharePortalModal } from './components/SharePortalModal';
 import { LoginView } from './components/LoginView';
@@ -45,7 +46,7 @@ export function App() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Navigation & View State
-  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'print'>('applicants');
+  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'print'>('applicants');
 
   // Share & QR Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -463,6 +464,11 @@ export function App() {
                 {/* VIEW: COMPANY SETTINGS (السجل التجاري / البطاقة الضريبية) */}
                 {currentView === 'company_settings' && currentUser && (
                   <CompanySettingsView currentUser={currentUser} showToast={showToast} />
+                )}
+
+                {/* VIEW: FORM FIELDS SETTINGS (إعدادات نموذج التقديم) */}
+                {currentView === 'form_fields' && currentUser && (
+                  <FormFieldsSettingsView currentUser={currentUser} showToast={showToast} />
                 )}
               </>
             )}

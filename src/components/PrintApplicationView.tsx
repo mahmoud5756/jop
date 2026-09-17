@@ -1,6 +1,9 @@
-import React from 'react';
-import { Applicant } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Applicant, FormFieldConfig } from '../types';
 import { SvgIcons } from './BobWichLogo';
+import { ApiService } from '../services/api';
+import { CustomFieldsPrint } from './CustomFieldsRenderer';
+import { defaultFieldConfig, mergeFieldConfig, isVisible, fieldLabel } from '../formFields';
 
 interface PrintApplicationViewProps {
   applicant: Applicant;
@@ -11,6 +14,17 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
   applicant,
   onClose,
 }) => {
+  // نفس إعدادات نموذج التقديم المستخدمة في البوابة العامة وشاشة الأدمن،
+  // حتى تكون الورقة المطبوعة مطابقة تمامًا لما ملأه المتقدم وما يراه الأدمن.
+  const [fieldConfig, setFieldConfig] = useState<FormFieldConfig[]>(() => defaultFieldConfig());
+  useEffect(() => {
+    ApiService.getFormFields()
+      .then(cfg => setFieldConfig(mergeFieldConfig(cfg)))
+      .catch(() => setFieldConfig(defaultFieldConfig()));
+  }, []);
+  const show = (key: string) => isVisible(fieldConfig, key);
+  const lbl = (key: string, fallback?: string) => fieldLabel(fieldConfig, key, fallback);
+
   const handlePrint = () => {
     window.print();
   };
@@ -135,14 +149,18 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
+                  {show('birth_date') && (
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-stone-700 min-w-18">تاريخ الميلاد:</span>
+                    <span className="font-bold text-stone-700 min-w-18">{lbl('birth_date')}:</span>
                     <span className="border-b border-stone-400 flex-1 font-mono text-stone-900 pb-0.5">{applicant.birth_date || '____ / ____ / ______'}</span>
                   </div>
+                  )}
+                  {show('emergency_phone') && (
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-stone-700 min-w-18">رقم هاتف طوارئ:</span>
+                    <span className="font-bold text-stone-700 min-w-18">{lbl('emergency_phone')}:</span>
                     <span className="border-b border-stone-400 flex-1 font-mono text-stone-900 pb-0.5">{applicant.emergency_phone || '—'}</span>
                   </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -150,21 +168,26 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <span className="font-bold text-stone-700 min-w-18">الرقم القومي:</span>
                     <span className="border-b border-stone-400 flex-1 font-mono font-bold text-stone-900 pb-0.5">{applicant.national_id || '—'}</span>
                   </div>
+                  {show('emergency_contact_name') && (
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-stone-700 min-w-18">صاحب هاتف الطوارئ:</span>
+                    <span className="font-bold text-stone-700 min-w-18">{lbl('emergency_contact_name')}:</span>
                     <span className="border-b border-stone-400 flex-1 text-stone-900 pb-0.5">{applicant.emergency_contact_name || '—'}</span>
                   </div>
+                  )}
                 </div>
 
+                {show('address') && (
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-stone-700 min-w-18">محل الإقامة:</span>
+                  <span className="font-bold text-stone-700 min-w-18">{lbl('address')}:</span>
                   <span className="border-b border-stone-400 flex-1 text-stone-900 pb-0.5">{applicant.address || '—'}</span>
                 </div>
+                )}
 
                 {/* Marital & Military checkboxes */}
                 <div className="grid grid-cols-2 gap-3 pt-1 border-t border-stone-200">
+                  {show('marital_status') && (
                   <div className="flex items-center gap-2.5">
-                    <span className="font-bold text-stone-700">الحالة الاجتماعية:</span>
+                    <span className="font-bold text-stone-700">{lbl('marital_status')}:</span>
                     <label className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.marital_status === 'أعزب' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
                         {applicant.marital_status === 'أعزب' ? '✓' : ''}
@@ -190,9 +213,11 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span>أرمل</span>
                     </label>
                   </div>
+                  )}
 
+                  {show('military_status') && (
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-stone-700">الموقف من التجنيد:</span>
+                    <span className="font-bold text-stone-700">{lbl('military_status')}:</span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === 'أدى الخدمة' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
                         {applicant.military_status === 'أدى الخدمة' ? '✓' : ''}
@@ -224,6 +249,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span>غير مطلوب (إناث)</span>
                     </span>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -246,10 +272,12 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
+                  {show('experience_years') && (
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-stone-700 min-w-26">عدد سنوات الخبرة:</span>
+                    <span className="font-bold text-stone-700 min-w-26">{lbl('experience_years')}:</span>
                     <span className="border-b border-stone-400 flex-1 text-stone-900 pb-0.5">{applicant.experience_years} سنة</span>
                   </div>
+                  )}
                   <div className="flex items-center gap-2.5">
                     <span className="font-bold text-stone-700">خبرة سابقة بمطاعم:</span>
                     <span className="flex items-center gap-1">
@@ -268,14 +296,18 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
+                  {show('last_job') && (
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-stone-700 min-w-26">آخر وظيفة عملت بها:</span>
+                    <span className="font-bold text-stone-700 min-w-26">{lbl('last_job')}:</span>
                     <span className="border-b border-stone-400 flex-1 text-stone-900 pb-0.5">{applicant.last_job || '—'}</span>
                   </div>
+                  )}
+                  {show('leaving_reason') && (
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-stone-700 min-w-26">سبب ترك العمل:</span>
+                    <span className="font-bold text-stone-700 min-w-26">{lbl('leaving_reason')}:</span>
                     <span className="border-b border-stone-400 flex-1 text-stone-900 pb-0.5">{applicant.leaving_reason || '—'}</span>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -288,18 +320,25 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                   3. المؤهل الدراسي
                 </div>
                 <div className="border border-stone-300 border-t-0 p-2.5 text-xs space-y-1.5 bg-white h-[calc(100%-24px)]">
+                  {show('qualification') && (
                   <div className="flex items-center gap-1.5">
                     <span className="font-bold text-stone-700 min-w-14">المؤهل:</span>
                     <span className="border-b border-stone-400 flex-1 text-stone-900 pb-0.5">{applicant.qualification || '—'}</span>
                   </div>
+                  )}
+                  {show('specialization') && (
                   <div className="flex items-center gap-1.5">
                     <span className="font-bold text-stone-700 min-w-14">التخصص:</span>
                     <span className="border-b border-stone-400 flex-1 text-stone-900 pb-0.5">{applicant.specialization || '—'}</span>
                   </div>
+                  )}
+                  {show('graduation_year') && (
                   <div className="flex items-center gap-1.5">
                     <span className="font-bold text-stone-700 min-w-14">التخرج:</span>
                     <span className="border-b border-stone-400 flex-1 text-stone-900 pb-0.5">{applicant.graduation_year || '—'}</span>
                   </div>
+                  )}
+                  {show('still_studying') && (
                   <div className="flex items-center gap-1.5 pt-0.5">
                     <span className="font-bold text-stone-700">ما زلت تدرس؟</span>
                     <span className="flex items-center gap-1">
@@ -315,6 +354,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span>لا</span>
                     </span>
                   </div>
+                  )}
                 </div>
               </div>
 
@@ -398,6 +438,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
               </div>
               <div className="border border-stone-300 border-t-0 p-2.5 text-xs space-y-1.5 bg-white">
                 <div className="grid grid-cols-2 gap-3">
+                  {show('shifts_preference') && (
                   <div className="flex items-center gap-2.5">
                     <span className="font-bold text-stone-700">الورديات المتاحة:</span>
                     <span className="flex items-center gap-1">
@@ -413,7 +454,9 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span>ليلية</span>
                     </span>
                   </div>
+                  )}
 
+                  {show('availability') && (
                   <div className="flex items-center gap-2.5">
                     <span className="font-bold text-stone-700">وسيلة مواصلات خاصة؟</span>
                     <span className="flex items-center gap-1">
@@ -429,9 +472,11 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span>لا</span>
                     </span>
                   </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-1 border-t border-stone-200">
+                  {show('availability') && (
                   <div className="flex items-center gap-2.5">
                     <span className="font-bold text-stone-700">ساعات إضافية عند الحاجة؟</span>
                     <span className="flex items-center gap-1">
@@ -447,7 +492,9 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span>لا</span>
                     </span>
                   </div>
+                  )}
 
+                  {show('availability') && (
                   <div className="flex items-center gap-2.5">
                     <span className="font-bold text-stone-700">العمل في العطلات الرسمية؟</span>
                     <span className="flex items-center gap-1">
@@ -463,6 +510,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span>لا</span>
                     </span>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -474,10 +522,16 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
               </div>
               <div className="border border-stone-300 border-t-0 p-2.5 text-xs bg-white flex items-center justify-around">
                 <span className="flex items-center gap-1.5">
-                  <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${hasDocumentType('بطاقة') || hasDocumentType('قومي') ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                    {hasDocumentType('بطاقة') || hasDocumentType('قومي') ? '✓' : ''}
+                  <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${hasDocumentType('الوجه') || (hasDocumentType('قومي') && !hasDocumentType('الظهر')) ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
+                    {hasDocumentType('الوجه') || (hasDocumentType('قومي') && !hasDocumentType('الظهر')) ? '✓' : ''}
                   </span>
-                  <span>صورة بطاقة الرقم القومي</span>
+                  <span>صورة البطاقة (وش)</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${hasDocumentType('الظهر') ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
+                    {hasDocumentType('الظهر') ? '✓' : ''}
+                  </span>
+                  <span>صورة البطاقة (ظهر)</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${hasDocumentType('شخصية') || Boolean(applicant.photo_url) ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
@@ -492,6 +546,11 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                   <span>شهادة صحية – إن وجدت</span>
                 </span>
               </div>
+            </div>
+
+            {/* الحقول الإضافية التي أنشأها مدير النظام */}
+            <div className="print-avoid-break mt-3">
+              <CustomFieldsPrint config={fieldConfig} values={applicant.custom_data} />
             </div>
           </div>
         </div>

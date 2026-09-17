@@ -7,7 +7,8 @@ import {
   Branch,
   JobPosition,
   CurrentUser,
-  AuthResponse
+  AuthResponse,
+  FormFieldConfig
 } from '../types';
 
 const TOKEN_STORAGE_KEY = 'bobwich_auth_token';
@@ -249,6 +250,46 @@ export class ApiService {
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || 'فشل تحديث بيانات الشركة');
+    return json.data;
+  }
+
+  // =========================================================================
+  // Application Form Fields (إعدادات نموذج التقديم)
+  // نفس الإعداد يُستخدم في البوابة العامة وشاشة الأدمن وصفحة الطباعة.
+  // =========================================================================
+
+  /** يُستخدم من البوابة العامة (بدون تسجيل دخول) */
+  static async getPublicFormFields(): Promise<FormFieldConfig[]> {
+    try {
+      const res = await fetch('/api/form-fields-public');
+      if (!res.ok) return [];
+      const json = await res.json();
+      return Array.isArray(json.data) ? json.data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** يُستخدم داخل النظام بعد تسجيل الدخول */
+  static async getFormFields(): Promise<FormFieldConfig[]> {
+    try {
+      const res = await fetch('/api/form-fields', { headers: this.getAuthHeaders() });
+      if (!res.ok) return [];
+      const json = await res.json();
+      return Array.isArray(json.data) ? json.data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  static async updateFormFields(config: FormFieldConfig[]): Promise<FormFieldConfig[]> {
+    const res = await fetch('/api/admin/form-fields', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+      body: JSON.stringify({ config }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'فشل حفظ إعدادات نموذج التقديم');
     return json.data;
   }
 

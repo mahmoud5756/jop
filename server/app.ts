@@ -121,6 +121,18 @@ export function createApp() {
     }
   });
 
+  // Public: application form field settings (which fields the candidate sees).
+  // Read-only and public on purpose — the candidate portal needs it before login.
+  app.get('/api/form-fields-public', async (req: Request, res: Response) => {
+    try {
+      const config = await db.getFormFieldConfig();
+      res.json({ data: config });
+    } catch (err: any) {
+      console.error('API /api/form-fields-public error:', err);
+      res.json({ data: [] });
+    }
+  });
+
   // Public Application Submission (Candidate Portal)
   app.post('/api/applicants/public-apply', publicApplyLimiter, async (req: Request, res: Response) => {
     const body = req.body;
@@ -642,6 +654,44 @@ export function createApp() {
       res.json({ data: settings });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'فشل استرجاع بيانات الشركة' });
+    }
+  });
+
+  // =========================================================================
+  // Application Form Fields (إعدادات نموذج التقديم)
+  // مدير النظام يتحكم من هنا في الحقول التي تظهر للمتقدم، وأسمائها،
+  // وأيها إلزامي، ويضيف حقول جديدة. نفس الإعداد يستخدم في شاشة الأدمن
+  // وفي صفحة الطباعة حتى لا يحدث أي اختلاف بينهم.
+  // =========================================================================
+  app.get('/api/form-fields', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const config = await db.getFormFieldConfig();
+      res.json({ data: config });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'فشل استرجاع إعدادات نموذج التقديم' });
+    }
+  });
+
+  app.put('/api/admin/form-fields', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
+    const { config } = req.body;
+    if (!Array.isArray(config)) {
+      return res.status(400).json({ error: 'صيغة إعدادات الحقول غير صحيحة' });
+    }
+    try {
+      const saved = await db.updateFormFieldConfig(config, req.user?.name);
+      const hidden = saved.filter((f: any) => f.visible === false).length;
+      const customs = saved.filter((f: any) => f.is_custom).length;
+      await db.addAuditLog(
+        'company_settings',
+        'form_field_settings',
+        'تحديث إعدادات نموذج التقديم',
+        req.user?.name || 'مسؤول النظام',
+        req.user?.role || 'admin',
+        `تم تحديث حقول نموذج التقديم (حقول مخفية: ${hidden} — حقول إضافية: ${customs})`
+      );
+      res.json({ success: true, data: saved });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'فشل حفظ إعدادات نموذج التقديم' });
     }
   });
 

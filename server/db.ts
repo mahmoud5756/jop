@@ -11,7 +11,8 @@ import {
   JobPosition,
   UserRole,
   UserAccount,
-  CurrentUser
+  CurrentUser,
+  FormFieldConfig
 } from '../src/types';
 import { hashPassword, verifyPassword } from './auth.js';
 import { getSupabase, uploadToSupabaseStorage } from './supabase.js';
@@ -164,6 +165,78 @@ class SupabaseDataAccessLayer {
       throw new Error(`فشل تحديث بيانات الشركة: ${error.message}`);
     }
     return this.getCompanySettings();
+  }
+
+  // =========================================================================
+  // Application Form Field Settings (إعدادات نموذج التقديم)
+  // سجل واحد ثابت يحدد أي الحقول تظهر للمتقدم، أيها إلزامي، أسماء الحقول،
+  // بالإضافة إلى أي حقول جديدة أضافها مدير النظام. البوابة العامة وشاشة
+  // الأدمن وصفحة الطباعة كلها تقرأ من هذا المصدر الواحد.
+  // =========================================================================
+
+  public async getFormFieldConfig(): Promise<FormFieldConfig[]> {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('form_field_settings')
+      .select('*')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching form field settings from Supabase:', error);
+      // إعداد فارغ = استخدام الإعداد الافتراضي في الواجهة (كل الحقول ظاهرة)
+      return [];
+    }
+
+    const cfg = (data as any)?.config;
+    return Array.isArray(cfg) ? (cfg as FormFieldConfig[]) : [];
+  }
+
+  public async updateFormFieldConfig(
+    config: FormFieldConfig[],
+    updatedBy?: string
+  ): Promise<FormFieldConfig[]> {
+    const supabase = getSupabase();
+    if (!Array.isArray(config)) {
+      throw new Error('صيغة إعدادات الحقول غير صحيحة');
+    }
+
+    // تنظيف وتطبيع البيانات القادمة من الواجهة قبل الحفظ
+    const clean = config
+      .filter(f => f && typeof f.key === 'string' && f.key.trim())
+      .map((f, idx) => ({
+        key: String(f.key).trim(),
+        label: String(f.label || '').trim().slice(0, 120),
+        section: f.section,
+        type: f.type,
+        required: !!f.required,
+        visible: f.visible !== false,
+        is_custom: !!f.is_custom,
+        order: typeof f.order === 'number' ? f.order : idx,
+        options: Array.isArray(f.options)
+          ? f.options.map(o => String(o).trim()).filter(Boolean).slice(0, 40)
+          : [],
+        placeholder: String(f.placeholder || '').slice(0, 160),
+        show_in_print: f.show_in_print !== false,
+      }));
+
+    const { error } = await supabase
+      .from('form_field_settings')
+      .upsert(
+        {
+          id: 'default',
+          config: clean,
+          updated_at: new Date().toISOString(),
+          updated_by: updatedBy || null,
+        },
+        { onConflict: 'id' }
+      );
+
+    if (error) {
+      throw new Error(`فشل حفظ إعدادات نموذج التقديم: ${error.message}`);
+    }
+
+    return clean as FormFieldConfig[];
   }
 
   public async createPosition(title: string, department?: string, is_active: boolean = true): Promise<JobPosition> {
@@ -577,6 +650,7 @@ class SupabaseDataAccessLayer {
 
       skills: payload.skills || [],
       custom_skill: payload.custom_skill || '',
+      custom_data: payload.custom_data && typeof payload.custom_data === 'object' ? payload.custom_data : {},
 
       shift_morning: payload.shift_morning ?? true,
       shift_night: payload.shift_night ?? true,
@@ -787,6 +861,7 @@ class SupabaseDataAccessLayer {
 
       skills: payload.skills !== undefined ? payload.skills : current.skills,
       custom_skill: payload.custom_skill !== undefined ? payload.custom_skill : current.custom_skill,
+      custom_data: payload.custom_data !== undefined ? payload.custom_data : (current.custom_data || {}),
 
       shift_morning: payload.shift_morning !== undefined ? payload.shift_morning : current.shift_morning,
       shift_night: payload.shift_night !== undefined ? payload.shift_night : current.shift_night,

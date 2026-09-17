@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Applicant, CurrentUser, Employee } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Applicant, CurrentUser, Employee, FormFieldConfig } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
+import { CustomFieldsReadOnly } from './CustomFieldsRenderer';
+import { defaultFieldConfig, mergeFieldConfig, isVisible, fieldLabel } from '../formFields';
 
 interface ApplicantDetailsModalProps {
   applicant: Applicant;
@@ -23,6 +25,18 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
   onDelete,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'interviews' | 'assets' | 'documents' | 'audit'>('overview');
+
+  // نفس إعدادات نموذج التقديم — الحقول المخفية لا تظهر هنا أيضًا،
+  // والحقول الإضافية التي أنشأها مدير النظام تظهر ببياناتها.
+  const [fieldConfig, setFieldConfig] = useState<FormFieldConfig[]>(() => defaultFieldConfig());
+  useEffect(() => {
+    ApiService.getFormFields()
+      .then(cfg => setFieldConfig(mergeFieldConfig(cfg)))
+      .catch(() => setFieldConfig(defaultFieldConfig()));
+  }, []);
+  const show = (key: string) => isVisible(fieldConfig, key);
+  const lbl = (key: string, fallback?: string) => fieldLabel(fieldConfig, key, fallback);
+  const customValues = applicant.custom_data || {};
   const [isConverting, setIsConverting] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [convertForm, setConvertForm] = useState({
@@ -228,27 +242,38 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                     1. البيانات الشخصية
                   </h4>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-stone-500 block">تاريخ الميلاد:</span>
-                      <span className="font-semibold">{applicant.birth_date || '—'}</span>
-                    </div>
-                    <div>
-                      <span className="text-stone-500 block">الحالة الاجتماعية:</span>
-                      <span className="font-semibold">{applicant.marital_status}</span>
-                    </div>
-                    <div>
-                      <span className="text-stone-500 block">الموقف من التجنيد:</span>
-                      <span className="font-semibold">{applicant.military_status}</span>
-                    </div>
-                    <div>
-                      <span className="text-stone-500 block">هاتف الطوارئ:</span>
-                      <span className="font-mono font-semibold">{applicant.emergency_phone || '—'} ({applicant.emergency_contact_name || 'طوارئ'})</span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-stone-500 block">محل الإقامة:</span>
-                      <span className="font-semibold">{applicant.address || '—'}</span>
-                    </div>
+                    {show('birth_date') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('birth_date')}:</span>
+                        <span className="font-semibold">{applicant.birth_date || '—'}</span>
+                      </div>
+                    )}
+                    {show('marital_status') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('marital_status')}:</span>
+                        <span className="font-semibold">{applicant.marital_status}</span>
+                      </div>
+                    )}
+                    {show('military_status') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('military_status')}:</span>
+                        <span className="font-semibold">{applicant.military_status}</span>
+                      </div>
+                    )}
+                    {(show('emergency_phone') || show('emergency_contact_name')) && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('emergency_phone')}:</span>
+                        <span className="font-mono font-semibold">{applicant.emergency_phone || '—'} ({applicant.emergency_contact_name || 'طوارئ'})</span>
+                      </div>
+                    )}
+                    {show('address') && (
+                      <div className="col-span-2">
+                        <span className="text-stone-500 block">{lbl('address')}:</span>
+                        <span className="font-semibold">{applicant.address || '—'}</span>
+                      </div>
+                    )}
                   </div>
+                  <CustomFieldsReadOnly config={fieldConfig} section="personal" values={customValues} />
                 </div>
 
                 {/* 2. الوظيفة المطلوبة */}
@@ -265,23 +290,32 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                       <span className="text-stone-500 block">الفرع المراد العمل به:</span>
                       <span className="font-bold">{applicant.branch_name}</span>
                     </div>
-                    <div>
-                      <span className="text-stone-500 block">سنوات الخبرة:</span>
-                      <span className="font-semibold">{applicant.experience_years} سنة</span>
-                    </div>
-                    <div>
-                      <span className="text-stone-500 block">خبرة مطاعم سابقة:</span>
-                      <span className="font-semibold">{applicant.restaurant_experience ? 'نعم' : 'لا'}</span>
-                    </div>
-                    <div>
-                      <span className="text-stone-500 block">آخر وظيفة:</span>
-                      <span className="font-semibold">{applicant.last_job || '—'}</span>
-                    </div>
-                    <div>
-                      <span className="text-stone-500 block">سبب ترك العمل:</span>
-                      <span className="font-semibold">{applicant.leaving_reason || '—'}</span>
-                    </div>
+                    {show('experience_years') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('experience_years')}:</span>
+                        <span className="font-semibold">{applicant.experience_years} سنة</span>
+                      </div>
+                    )}
+                    {show('restaurant_experience') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('restaurant_experience')}:</span>
+                        <span className="font-semibold">{applicant.restaurant_experience ? 'نعم' : 'لا'}</span>
+                      </div>
+                    )}
+                    {show('last_job') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('last_job')}:</span>
+                        <span className="font-semibold">{applicant.last_job || '—'}</span>
+                      </div>
+                    )}
+                    {show('leaving_reason') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('leaving_reason')}:</span>
+                        <span className="font-semibold">{applicant.leaving_reason || '—'}</span>
+                      </div>
+                    )}
                   </div>
+                  <CustomFieldsReadOnly config={fieldConfig} section="job" values={customValues} />
                 </div>
               </div>
 
@@ -293,23 +327,32 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                     3. المؤهل الدراسي
                   </h4>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-stone-500 block">المؤهل:</span>
-                      <span className="font-semibold">{applicant.qualification || '—'}</span>
-                    </div>
-                    <div>
-                      <span className="text-stone-500 block">التخصص:</span>
-                      <span className="font-semibold">{applicant.specialization || '—'}</span>
-                    </div>
-                    <div>
-                      <span className="text-stone-500 block">سنة التخرج:</span>
-                      <span className="font-semibold font-mono">{applicant.graduation_year || '—'}</span>
-                    </div>
-                    <div>
-                      <span className="text-stone-500 block">ما زال يدرس:</span>
-                      <span className="font-semibold">{applicant.still_studying ? 'نعم' : 'لا'}</span>
-                    </div>
+                    {show('qualification') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('qualification')}:</span>
+                        <span className="font-semibold">{applicant.qualification || '—'}</span>
+                      </div>
+                    )}
+                    {show('specialization') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('specialization')}:</span>
+                        <span className="font-semibold">{applicant.specialization || '—'}</span>
+                      </div>
+                    )}
+                    {show('graduation_year') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('graduation_year')}:</span>
+                        <span className="font-semibold font-mono">{applicant.graduation_year || '—'}</span>
+                      </div>
+                    )}
+                    {show('still_studying') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('still_studying')}:</span>
+                        <span className="font-semibold">{applicant.still_studying ? 'نعم' : 'لا'}</span>
+                      </div>
+                    )}
                   </div>
+                  <CustomFieldsReadOnly config={fieldConfig} section="education" values={customValues} />
                 </div>
 
                 {/* 5. المهارات */}
@@ -329,6 +372,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                       </span>
                     )}
                   </div>
+                  <CustomFieldsReadOnly config={fieldConfig} section="experience" values={customValues} />
                 </div>
               </div>
 
@@ -358,6 +402,8 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                     <span className="font-bold">{applicant.can_work_holidays ? 'موافق' : 'غير موافق'}</span>
                   </div>
                 </div>
+                <CustomFieldsReadOnly config={fieldConfig} section="shifts" values={customValues} />
+                <CustomFieldsReadOnly config={fieldConfig} section="attachments" values={customValues} />
               </div>
 
               {/* 9. إقرار المتقدم والعهدة */}
@@ -381,6 +427,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                     <span className="font-bold font-mono">{applicant.declaration_date || '—'}</span>
                   </div>
                 </div>
+                <CustomFieldsReadOnly config={fieldConfig} section="declaration" values={customValues} />
               </div>
 
               {/* HR Decision Preview */}
