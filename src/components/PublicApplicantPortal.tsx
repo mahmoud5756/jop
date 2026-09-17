@@ -135,12 +135,20 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   // Birth date picker (day/month/year selects) — mobile-friendly replacement
   // for the native <input type="date">, whose calendar widget forces
   // applicants to scroll back years one month at a time to reach their
-  // birth year. Derived straight from formData.birth_date ('YYYY-MM-DD')
-  // so it stays in sync without extra state.
-  const [birthDay, birthMonth, birthYear] = useMemo(() => {
-    const parts = (formData.birth_date || '').split('-');
-    return parts.length === 3 ? parts : ['', '', ''];
-  }, [formData.birth_date]);
+  // birth year.
+  //
+  // These three parts used to be *derived* from formData.birth_date by
+  // splitting it on '-' and requiring exactly 3 parts — so the moment the
+  // applicant picked only one part (e.g. the year), the string had just 1
+  // part, the derivation fell back to ['', '', ''], and all three selects
+  // visibly reset to blank on the very next render even though a value had
+  // been chosen. It looked like the picker was ignoring every selection.
+  // Keeping day/month/year as their own state fixes that: each select keeps
+  // whatever the applicant chose, independently of the other two, and we
+  // only ever write formData.birth_date once all three are present.
+  const [birthDay, setBirthDay] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthYear, setBirthYear] = useState('');
 
   const currentYear = new Date().getFullYear();
   const birthYearOptions = useMemo(
@@ -156,17 +164,18 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
     const day = part === 'day' ? value : birthDay;
     const month = part === 'month' ? value : birthMonth;
     const year = part === 'year' ? value : birthYear;
-    if (day && month && year) {
-      setFormData(prev => ({
-        ...prev,
-        birth_date: `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
-      }));
-    } else {
-      // Keep partial selections around (e.g. only year picked so far) by
-      // stashing them in a still-incomplete, non-ISO string; the required
-      // field validation on step submit catches anything left incomplete.
-      setFormData(prev => ({ ...prev, birth_date: [year, month, day].filter(Boolean).join('-') }));
-    }
+
+    if (part === 'day') setBirthDay(value);
+    if (part === 'month') setBirthMonth(value);
+    if (part === 'year') setBirthYear(value);
+
+    // نكتب في formData.birth_date كتاريخ كامل فقط لو الثلاثة اتحددوا،
+    // وإلا نسيبه فاضي حتى نتحقق إنه إلزامي عند إرسال الطلب — من غير ما
+    // نأثر على اختيارات اليوم/الشهر/السنة المعروضة في القوائم.
+    setFormData(prev => ({
+      ...prev,
+      birth_date: day && month && year ? `${year}-${month}-${day}` : '',
+    }));
   };
 
 
@@ -692,6 +701,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   });
                   setExperiences([{ id: 'exp_1', applicant_id: '', workplace: '', position: '', date_from: '', date_to: '', leaving_reason: '' }]);
                   setDocuments([]);
+                  setBirthDay('');
+                  setBirthMonth('');
+                  setBirthYear('');
                 }}
                 className="flex-1 py-3 px-4 rounded-xl bg-[#9E1A24] text-white font-bold hover:bg-[#80141D] transition-all text-sm"
               >
