@@ -53,6 +53,19 @@ function sanitizePostgrestEqValue(value: string): string {
  * Supabase Data Access Layer for BOB WICH HR System
  * All persistent data operations communicate exclusively with Supabase PostgreSQL and Supabase Storage.
  */
+/**
+ * توحيد قيم حالة المتقدم: زرار "قرار التوظيف" في الاستمارة كان بيبعت "رفض" / "قبول"
+ * بدل الحالات الرسمية "مرفوض" / "مقبول"، فالطلب المرفوض ما كانش بيظهر في فلتر
+ * المرفوضين ولا في الإحصائيات. هنا بنوحّدها قبل الحفظ.
+ */
+function normalizeApplicantStatus(status: any): any {
+  if (typeof status !== 'string') return status;
+  const s = status.trim();
+  if (s === 'رفض') return 'مرفوض';
+  if (s === 'قبول') return 'مقبول';
+  return s;
+}
+
 class SupabaseDataAccessLayer {
   // =========================================================================
   // Master Data (Branches & Positions)
@@ -686,7 +699,7 @@ class SupabaseDataAccessLayer {
       applicant_signature_name: payload.applicant_signature_name || payload.full_name || '',
       declaration_date: payload.declaration_date || now.split('T')[0],
 
-      status: payload.status || 'طلب جديد',
+      status: normalizeApplicantStatus(payload.status) || 'طلب جديد',
       applicant_category,
       is_converted_to_employee: false,
 
@@ -894,7 +907,7 @@ class SupabaseDataAccessLayer {
       can_work_overtime: payload.can_work_overtime !== undefined ? payload.can_work_overtime : current.can_work_overtime,
       can_work_holidays: payload.can_work_holidays !== undefined ? payload.can_work_holidays : current.can_work_holidays,
 
-      status: payload.status !== undefined ? payload.status : current.status,
+      status: payload.status !== undefined ? normalizeApplicantStatus(payload.status) : current.status,
       updated_at: now,
     };
 

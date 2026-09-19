@@ -1986,14 +1986,25 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     { val: 'قائمة انتظار', label: 'قائمة انتظار', bg: 'bg-amber-600 hover:bg-amber-700' },
                     { val: 'رفض', label: 'رفض الطلب', bg: 'bg-red-700 hover:bg-red-800' },
                   ].map(decision => {
-                    const isSelected = hrDecision.hiring_decision === decision.val || formData.status === decision.val;
+                    // القرار بيتحوّل لحالة الطلب الرسمية (رفض ← مرفوض) عشان الطلب المرفوض
+                    // يظهر في أرشيف المرفوضين ويتعدّ صح في الإحصائيات.
+                    const decisionToStatus: Record<string, string> = {
+                      'قبول': 'مقبول',
+                      'قائمة انتظار': 'قائمة انتظار',
+                      'رفض': 'مرفوض',
+                    };
+                    const currentDecision =
+                      hrDecision.hiring_decision ||
+                      Object.keys(decisionToStatus).find(k => decisionToStatus[k] === formData.status) ||
+                      '';
+                    const isSelected = currentDecision === decision.val;
                     return (
                       <button
                         key={decision.val}
                         type="button"
                         onClick={() => {
                           setHrDecision(prev => ({ ...prev, hiring_decision: decision.val as any }));
-                          setFormData(prev => ({ ...prev, status: decision.val as any }));
+                          setFormData(prev => ({ ...prev, status: decisionToStatus[decision.val] as any }));
                         }}
                         className={`py-3 px-4 rounded-xl text-xs sm:text-sm font-black transition-all ${
                           isSelected

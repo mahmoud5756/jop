@@ -13,6 +13,10 @@ interface ApplicantsListProps {
   onPrint: (applicant: Applicant) => void;
   onDelete: (applicantId: string) => void;
   onOpenShareModal?: () => void;
+  /** طباعة البطاقة (وش وضهر) والشهادة الصحية */
+  onPrintDocs?: (applicant: Applicant) => void;
+  /** رفض الطلب ونقله لأرشيف المرفوضين */
+  onReject?: (applicant: Applicant) => void;
   /** تخصيصات النصوص عند استخدام نفس الشاشة لأرشيف منفصل (مثل تسجيل الموظفين الحاليين) */
   title?: string;
   subtitle?: string;
@@ -32,6 +36,8 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
   onPrint,
   onDelete,
   onOpenShareModal,
+  onPrintDocs,
+  onReject,
   title = 'سجل طلبات التوظيف الإلكترونية',
   subtitle = 'إدارة ومتابعة طلبات التوظيف، فحص المستندات، وإجراء المقابلات لجميع فروع BOB WICH',
   shareButtonLabel = 'رابط التقديم والـ QR Code',
@@ -251,7 +257,6 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
               <option value="إعادة مقابلة">إعادة مقابلة</option>
               <option value="مقبول">مقبول</option>
               <option value="قائمة انتظار">قائمة انتظار</option>
-              <option value="مرفوض">مرفوض</option>
             </select>
           </div>
         </div>
@@ -413,6 +418,15 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
                         >
                           <SvgIcons.Print className="w-4 h-4" />
                         </button>
+                        {onPrintDocs && (
+                          <button
+                            onClick={() => onPrintDocs(app)}
+                            className="bg-sky-50 hover:bg-sky-600 hover:text-white text-sky-700 p-1.5 rounded-lg transition-all"
+                            title="طباعة البطاقة (وش وضهر) والشهادة الصحية"
+                          >
+                            <SvgIcons.Paperclip className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => onEdit(app)}
                           className="bg-stone-100 hover:bg-stone-200 text-stone-700 p-1.5 rounded-lg transition-all"
@@ -420,6 +434,17 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
                         >
                           <SvgIcons.Edit className="w-4 h-4" />
                         </button>
+                        {onReject &&
+                          (currentUser.role === 'admin' || currentUser.role === 'hr') &&
+                          !app.is_converted_to_employee && (
+                            <button
+                              onClick={() => onReject(app)}
+                              className="text-amber-700 hover:bg-amber-50 p-1.5 rounded-lg transition-all"
+                              title="رفض الطلب ونقله لأرشيف المرفوضين"
+                            >
+                              <SvgIcons.XMark className="w-4 h-4" />
+                            </button>
+                          )}
                         {currentUser.role === 'admin' && !app.is_converted_to_employee && (
                           <button
                             onClick={() => {

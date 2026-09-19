@@ -16,6 +16,8 @@ import { CashierContractView } from './components/CashierContractView';
 import { ResignationClearanceView } from './components/ResignationClearanceView';
 import { PayslipView } from './components/PayslipView';
 import { EmployeeCardView } from './components/EmployeeCardView';
+import { DocumentsPrintView } from './components/DocumentsPrintView';
+import { RejectedArchiveView } from './components/RejectedArchiveView';
 import { EmployeesView } from './components/EmployeesView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
@@ -26,6 +28,7 @@ import { SharePortalModal } from './components/SharePortalModal';
 import { LoginView } from './components/LoginView';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { SvgIcons } from './components/BobWichLogo';
+import { isRejectedApplicant, buildStatusChangePayload, REJECTED_STATUS } from './utils/applicantStatus';
 
 export function App() {
   // Check if URL has public apply parameter
@@ -59,7 +62,7 @@ export function App() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Navigation & View State
-  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'print'>('applicants');
+  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'rejected_archive' | 'print'>('applicants');
 
   // Share & QR Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -76,12 +79,19 @@ export function App() {
   // فصل أرشيف المتقدمين الجدد عن أرشيف الموظفين الحاليين اللي بيسجلوا
   // بياناتهم من اللينك المخصص لهم — بيانات المصدر الواحد applicants بس
   // بنعرضها في تابين منفصلين حسب التصنيف.
+  //
+  // المرفوضين بيتنقلوا تلقائيًا من التابين دول لتاب "أرشيف المرفوضين"
+  // (نفس البيانات ونفس الجدول، بس معروضين منفصلين).
   const externalApplicants = useMemo(
-    () => applicants.filter(a => a.applicant_category !== 'internal_staff'),
+    () => applicants.filter(a => a.applicant_category !== 'internal_staff' && !isRejectedApplicant(a)),
     [applicants]
   );
   const staffApplicants = useMemo(
-    () => applicants.filter(a => a.applicant_category === 'internal_staff'),
+    () => applicants.filter(a => a.applicant_category === 'internal_staff' && !isRejectedApplicant(a)),
+    [applicants]
+  );
+  const rejectedApplicants = useMemo(
+    () => applicants.filter(a => isRejectedApplicant(a)),
     [applicants]
   );
 
@@ -94,6 +104,8 @@ export function App() {
   const [printingResignationEmployee, setPrintingResignationEmployee] = useState<Employee | null>(null);
   const [printingPayslipEmployee, setPrintingPayslipEmployee] = useState<Employee | null>(null);
   const [printingCardEmployee, setPrintingCardEmployee] = useState<Employee | null>(null);
+  // طباعة البطاقة (وش وضهر) والشهادة الصحية
+  const [printingDocsApplicant, setPrintingDocsApplicant] = useState<Applicant | null>(null);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -180,6 +192,7 @@ export function App() {
     setEditingApplicant(null);
     setPrintingApplicant(null);
     setPrintingCardEmployee(null);
+    setPrintingDocsApplicant(null);
     showToast('تم تسجيل الخروج بنجاح');
   };
 
@@ -203,6 +216,54 @@ export function App() {
   const handlePrintApplicant = (applicant: Applicant) => {
     setPrintingApplicant(applicant);
     setCurrentView('print');
+  };
+
+  const handlePrintApplicantDocs = (applicant: Applicant) => {
+    setPrintingDocsApplicant(applicant);
+  };
+
+  const canManageHR = currentUser?.role === 'admin' || currentUser?.role === 'hr';
+
+  // رفض متقدم ونقله لأرشيف المرفوضين
+  const handleRejectApplicant = async (applicant: Applicant) => {
+    if (!canManageHR) {
+      alert('عذراً، رفض الطلبات مقتصر على مدير النظام والموارد البشرية');
+      return;
+    }
+    if (applicant.is_converted_to_employee) {
+      alert('لا يمكن رفض متقدم تم تحويله إلى موظف بالفعل.');
+      return;
+    }
+    if (!window.confirm(`هل تريد رفض طلب "${applicant.full_name}" ونقله إلى أرشيف المرفوضين؟\nتقدر ترجّعه من الأرشيف في أي وقت.`)) {
+      return;
+    }
+    try {
+      await ApiService.updateApplicant(applicant.id, buildStatusChangePayload(applicant, REJECTED_STATUS), currentUser || undefined);
+      setSelectedApplicant(null);
+      await fetchData();
+      showToast(`تم رفض طلب "${applicant.full_name}" ونقله إلى أرشيف المرفوضين`);
+    } catch (err: any) {
+      alert(err.message || 'فشل رفض الطلب');
+    }
+  };
+
+  // استرجاع طلب مرفوض من الأرشيف لقائمة المتقدمين (تحت المراجعة)
+  const handleRestoreApplicant = async (applicant: Applicant) => {
+    if (!canManageHR) {
+      alert('عذراً، استرجاع الطلبات مقتصر على مدير النظام والموارد البشرية');
+      return;
+    }
+    if (!window.confirm(`هل تريد إرجاع طلب "${applicant.full_name}" من الأرشيف إلى قائمة المتقدمين (تحت المراجعة)؟`)) {
+      return;
+    }
+    try {
+      await ApiService.updateApplicant(applicant.id, buildStatusChangePayload(applicant, 'تحت المراجعة'), currentUser || undefined);
+      setSelectedApplicant(null);
+      await fetchData();
+      showToast(`تم استرجاع طلب "${applicant.full_name}" إلى قائمة المتقدمين`);
+    } catch (err: any) {
+      alert(err.message || 'فشل استرجاع الطلب');
+    }
   };
 
   const handlePrintCashierContract = (employee: Employee) => {
@@ -444,6 +505,14 @@ export function App() {
         />
       )}
 
+      {/* طباعة مستندات المتقدم: بطاقة الرقم القومي (وش وضهر) + الشهادة الصحية */}
+      {printingDocsApplicant && (
+        <DocumentsPrintView
+          applicant={printingDocsApplicant}
+          onBack={() => setPrintingDocsApplicant(null)}
+        />
+      )}
+
       {/* When in Print View: Render Print Layout */}
       {currentView === 'print' && printingApplicant ? (
         <PrintApplicationView
@@ -461,6 +530,7 @@ export function App() {
             currentView={currentView}
             onNavigate={(view: any) => setCurrentView(view)}
             onOpenShareModal={() => setIsShareModalOpen(true)}
+            rejectedCount={rejectedApplicants.length}
           />
 
           {/* Main Content Area */}
@@ -482,7 +552,7 @@ export function App() {
             )}
 
             {/* Loading Indicator */}
-            {isLoading && (currentView === 'applicants' || currentView === 'internal_staff_applicants') && applicants.length === 0 ? (
+            {isLoading && (currentView === 'applicants' || currentView === 'internal_staff_applicants' || currentView === 'rejected_archive') && applicants.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 space-y-4">
                 <div className="w-12 h-12 border-4 border-[#9E1A24] border-t-transparent rounded-full animate-spin"></div>
                 <p className="text-sm font-bold text-stone-600">جاري الاتصال بنظام BOB WICH وقاعدة البيانات...</p>
@@ -502,6 +572,8 @@ export function App() {
                     onPrint={handlePrintApplicant}
                     onDelete={handleDeleteApplicant}
                     onOpenShareModal={() => setIsShareModalOpen(true)}
+                    onPrintDocs={handlePrintApplicantDocs}
+                    onReject={handleRejectApplicant}
                   />
                 )}
 
@@ -518,11 +590,28 @@ export function App() {
                     onPrint={handlePrintApplicant}
                     onDelete={handleDeleteApplicant}
                     onOpenShareModal={() => setIsStaffShareModalOpen(true)}
+                    onPrintDocs={handlePrintApplicantDocs}
+                    onReject={handleRejectApplicant}
                     title="تسجيل الموظفين الحاليين"
                     subtitle="أرشيف منفصل لتسجيلات الموظفين الحاليين في النظام الجديد — لا يتداخل مع المتقدمين الجدد"
                     shareButtonLabel="رابط تسجيل الموظفين الحاليين"
                     addNewLabel="تسجيل موظف يدوياً"
                     emptyStateLabel="لسه مفيش أي موظف سجّل بياناته من اللينك المخصص"
+                  />
+                )}
+
+                {/* VIEW: أرشيف المرفوضين */}
+                {currentView === 'rejected_archive' && canManageHR && (
+                  <RejectedArchiveView
+                    applicants={rejectedApplicants}
+                    branches={branches}
+                    positions={positions}
+                    currentUser={currentUser}
+                    onView={handleViewApplicant}
+                    onPrint={handlePrintApplicant}
+                    onPrintDocs={handlePrintApplicantDocs}
+                    onRestore={handleRestoreApplicant}
+                    onDelete={handleDeleteApplicant}
                   />
                 )}
 
@@ -551,6 +640,7 @@ export function App() {
                     currentUser={currentUser}
                     onViewApplicant={handleViewApplicant}
                     onPrintApplicant={handlePrintApplicant}
+                    onPrintDocs={handlePrintApplicantDocs}
                     onPrintContract={handlePrintCashierContract}
                     onPrintResignation={handlePrintResignation}
                     onPrintPayslip={handlePrintPayslip}
@@ -592,6 +682,9 @@ export function App() {
               onPrint={handlePrintApplicant}
               onConverted={handleConvertedToEmployee}
               onDelete={handleDeleteApplicant}
+              onPrintDocs={handlePrintApplicantDocs}
+              onReject={handleRejectApplicant}
+              onRestore={handleRestoreApplicant}
             />
           )}
         </div>

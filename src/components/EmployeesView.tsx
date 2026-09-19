@@ -11,6 +11,8 @@ interface EmployeesViewProps {
   currentUser: CurrentUser;
   onViewApplicant: (applicant: Applicant) => void;
   onPrintApplicant: (applicant: Applicant) => void;
+  /** طباعة البطاقة (وش وضهر) والشهادة الصحية من ملف التقديم المرتبط */
+  onPrintDocs?: (applicant: Applicant) => void;
   onPrintContract?: (employee: Employee) => void;
   onPrintResignation?: (employee: Employee) => void;
   onPrintPayslip?: (employee: Employee) => void;
@@ -28,6 +30,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   currentUser,
   onViewApplicant,
   onPrintApplicant,
+  onPrintDocs,
   onPrintContract,
   onPrintResignation,
   onPrintPayslip,
@@ -226,6 +229,16 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                               >
                                 <SvgIcons.Print className="w-3.5 h-3.5" />
                               </button>
+                              {onPrintDocs && (
+                                <button
+                                  onClick={() => onPrintDocs(linkedApplicant)}
+                                  className="bg-sky-50 hover:bg-sky-600 hover:text-white text-sky-700 px-2 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 text-[11px]"
+                                  title="طباعة البطاقة (وش وضهر) والشهادة الصحية"
+                                >
+                                  <SvgIcons.Paperclip className="w-3.5 h-3.5" />
+                                  <span>مستندات</span>
+                                </button>
+                              )}
                             </>
                           )}
                           {onPrintContract && emp.position_name?.includes('كاشير') && (

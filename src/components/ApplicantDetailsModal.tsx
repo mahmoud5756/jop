@@ -3,6 +3,7 @@ import { Applicant, CurrentUser, Employee, FormFieldConfig } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
 import { CustomFieldsReadOnly } from './CustomFieldsRenderer';
+import { isRejectedApplicant } from '../utils/applicantStatus';
 import {
   defaultFieldConfig,
   mergeFieldConfig,
@@ -20,6 +21,12 @@ interface ApplicantDetailsModalProps {
   onPrint: (applicant: Applicant) => void;
   onConverted: (employee: Employee) => void;
   onDelete: (applicantId: string) => void;
+  /** طباعة البطاقة (وش وضهر) والشهادة الصحية */
+  onPrintDocs?: (applicant: Applicant) => void;
+  /** رفض الطلب ونقله لأرشيف المرفوضين */
+  onReject?: (applicant: Applicant) => void;
+  /** استرجاع طلب مرفوض من الأرشيف */
+  onRestore?: (applicant: Applicant) => void;
 }
 
 export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
@@ -30,6 +37,9 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
   onPrint,
   onConverted,
   onDelete,
+  onPrintDocs,
+  onReject,
+  onRestore,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'interviews' | 'assets' | 'documents' | 'audit'>('overview');
 
@@ -57,6 +67,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
 
   const canManageHR = currentUser.role === 'admin' || currentUser.role === 'hr';
   const canDelete = currentUser.role === 'admin';
+  const isRejected = isRejectedApplicant(applicant);
 
   const handleConvertToEmployee = async () => {
     setIsConverting(true);
@@ -200,6 +211,17 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
               <span>طباعة الاستمارة (A4)</span>
             </button>
 
+            {onPrintDocs && (
+              <button
+                onClick={() => onPrintDocs(applicant)}
+                className="bg-sky-700 hover:bg-sky-800 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition-all"
+                title="طباعة البطاقة (وش وضهر) والشهادة الصحية"
+              >
+                <SvgIcons.Paperclip className="w-3.5 h-3.5" />
+                <span>طباعة البطاقة والشهادة</span>
+              </button>
+            )}
+
             {canManageHR && (
               <button
                 onClick={() => onEdit(applicant)}
@@ -210,7 +232,28 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
               </button>
             )}
 
-            {canManageHR && !applicant.is_converted_to_employee && (
+            {canManageHR && !applicant.is_converted_to_employee && isRejected && onRestore && (
+              <button
+                onClick={() => onRestore(applicant)}
+                className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                title="رجّع الطلب لقائمة المتقدمين (تحت المراجعة)"
+              >
+                <span>↩ استرجاع من الأرشيف</span>
+              </button>
+            )}
+
+            {canManageHR && !applicant.is_converted_to_employee && !isRejected && onReject && (
+              <button
+                onClick={() => onReject(applicant)}
+                className="bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 border border-amber-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                title="رفض الطلب ونقله لأرشيف المرفوضين"
+              >
+                <SvgIcons.XMark className="w-3.5 h-3.5" />
+                <span>رفض</span>
+              </button>
+            )}
+
+            {canManageHR && !applicant.is_converted_to_employee && !isRejected && (
               <button
                 onClick={() => setShowConvertDialog(true)}
                 className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all animate-pulse"
@@ -591,6 +634,16 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-stone-900 text-sm">المرفقات والوثائق الرسمية</h4>
+                {onPrintDocs && (
+                  <button
+                    onClick={() => onPrintDocs(applicant)}
+                    className="bg-sky-700 hover:bg-sky-800 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all"
+                    title="طباعة البطاقة (وش وضهر) والشهادة الصحية"
+                  >
+                    <SvgIcons.Print className="w-3.5 h-3.5" />
+                    <span>طباعة البطاقة والشهادة الصحية</span>
+                  </button>
+                )}
               </div>
 
               {!applicant.documents || applicant.documents.length === 0 ? (

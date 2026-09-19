@@ -13,6 +13,8 @@ interface NavbarProps {
   onSelectApplicant: (applicant: Applicant) => void;
   onSelectEmployee?: (employee: Employee) => void;
   onOpenShareModal?: () => void;
+  /** عدد الطلبات المرفوضة (بيظهر كعداد على تبويب الأرشيف) */
+  rejectedCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -25,6 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectApplicant,
   onSelectEmployee,
   onOpenShareModal,
+  rejectedCount = 0,
 }) => {
   const currentActive = currentView || activeView || 'applicants';
   const [searchQuery, setSearchQuery] = useState('');
@@ -326,6 +329,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <span className="text-base">🗂️</span>
               <span>تسجيل الموظفين الحاليين</span>
+            </button>
+          )}
+
+          {(currentUser.role === 'admin' || currentUser.role === 'hr') && (
+            <button
+              onClick={() => onNavigate('rejected_archive')}
+              className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${
+                currentActive === 'rejected_archive'
+                  ? 'bg-stone-200 text-stone-900 border-b-2 border-stone-700'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              }`}
+            >
+              <span className="text-base">🗄️</span>
+              <span>أرشيف المرفوضين</span>
+              {rejectedCount > 0 && (
+                <span className="bg-stone-700 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono">
+                  {rejectedCount}
+                </span>
+              )}
             </button>
           )}
 
