@@ -29,11 +29,19 @@ import {
 interface PublicApplicantPortalProps {
   onGoToAdmin?: () => void;
   onApplicationSubmitted?: (newApp: Applicant) => void;
+  /**
+   * 'external' = استمارة التقديم العادية للجمهور (الافتراضي).
+   * 'internal_staff' = لينك التسجيل المخصص للموظفين الحاليين اللي بيدخلوا
+   * بياناتهم في النظام الجديد — نفس الاستمارة بالضبط، لكن طلباتهم بتتحفظ
+   * في أرشيف منفصل عن المتقدمين الجدد.
+   */
+  category?: 'external' | 'internal_staff';
 }
 
 export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   onGoToAdmin,
   onApplicationSubmitted,
+  category = 'external' as 'external' | 'internal_staff',
 }) => {
   // إعدادات نموذج التقديم كما ضبطها مدير النظام (أي حقل يظهر، إلزامي، اسمه،
   // بالإضافة إلى الحقول الإضافية). نفس الإعداد يُستخدم في شاشة الأدمن والطباعة.
@@ -211,7 +219,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
     const timer = setTimeout(async () => {
       try {
-        const check = await ApiService.checkNationalIdPublic(id);
+        const check = await ApiService.checkNationalIdPublic(id, category);
         if (check.exists) {
           setNationalIdDuplicateWarning(
             'تنبيه: هذا الرقم القومي مسجل مسبقاً في النظام. يرجى التواصل مع إدارة التوظيف للمتابعة.'
@@ -225,7 +233,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [formData.national_id]);
+  }, [formData.national_id, category]);
 
   // Handle Photo upload — uploads directly to Supabase Storage from the
   // browser (compressing images on-device first) and stores only the
@@ -586,6 +594,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         experiences: validExperiences,
         documents: documents,
         status: 'طلب جديد',
+        applicant_category: category,
         is_converted_to_employee: false,
       };
 
@@ -729,11 +738,20 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
             <BobWichHeaderLogo size="md" />
           </div>
           
+          {category === 'internal_staff' && (
+            <span className="inline-block mb-3 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+              استمارة تسجيل الموظفين الحاليين في النظام الجديد
+            </span>
+          )}
           <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
             استمارة طلب التوظيف الرسمية
           </h1>
           <p className="text-sm text-stone-600 mt-2 max-w-xl mx-auto leading-relaxed">
-            انضم إلى فريق عمل مطاعم <strong>BOB WICH</strong>. يرجى ملء كافة البيانات بدقة وأمانة لاستكمال عملية الفحص وتحديد موعد المقابلة.
+            {category === 'internal_staff' ? (
+              <>مرحباً بك من فريق عمل مطاعم <strong>BOB WICH</strong>. برجاء ملء بياناتك بدقة لاستكمال تسجيلك في النظام الجديد.</>
+            ) : (
+              <>انضم إلى فريق عمل مطاعم <strong>BOB WICH</strong>. يرجى ملء كافة البيانات بدقة وأمانة لاستكمال عملية الفحص وتحديد موعد المقابلة.</>
+            )}
           </p>
         </div>
 

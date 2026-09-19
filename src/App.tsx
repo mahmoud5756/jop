@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Applicant,
   Employee,
@@ -39,7 +39,19 @@ export function App() {
     return false;
   };
 
+  // لينك التسجيل المخصص للموظفين الحاليين: ?mode=apply&type=staff
+  const checkInitialPortalCategory = (): 'external' | 'internal_staff' => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('type') === 'staff') {
+        return 'internal_staff';
+      }
+    }
+    return 'external';
+  };
+
   const [isPublicPortal, setIsPublicPortal] = useState<boolean>(checkInitialPortalMode);
+  const [portalCategory, setPortalCategory] = useState<'external' | 'internal_staff'>(checkInitialPortalCategory);
 
   // Authentication State
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => ApiService.getSavedUser());
@@ -47,10 +59,11 @@ export function App() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Navigation & View State
-  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'print'>('applicants');
+  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'print'>('applicants');
 
   // Share & QR Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isStaffShareModalOpen, setIsStaffShareModalOpen] = useState(false);
 
   // Data Collections
   const [applicants, setApplicants] = useState<Applicant[]>([]);
@@ -60,9 +73,22 @@ export function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // فصل أرشيف المتقدمين الجدد عن أرشيف الموظفين الحاليين اللي بيسجلوا
+  // بياناتهم من اللينك المخصص لهم — بيانات المصدر الواحد applicants بس
+  // بنعرضها في تابين منفصلين حسب التصنيف.
+  const externalApplicants = useMemo(
+    () => applicants.filter(a => a.applicant_category !== 'internal_staff'),
+    [applicants]
+  );
+  const staffApplicants = useMemo(
+    () => applicants.filter(a => a.applicant_category === 'internal_staff'),
+    [applicants]
+  );
+
   // Selected item states
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [editingApplicant, setEditingApplicant] = useState<Applicant | null>(null);
+  const [newApplicantCategory, setNewApplicantCategory] = useState<'external' | 'internal_staff'>('external');
   const [printingApplicant, setPrintingApplicant] = useState<Applicant | null>(null);
   const [printingContractEmployee, setPrintingContractEmployee] = useState<Employee | null>(null);
   const [printingResignationEmployee, setPrintingResignationEmployee] = useState<Employee | null>(null);
@@ -158,8 +184,9 @@ export function App() {
   };
 
   // Navigation Handlers
-  const handleAddNewApplicant = () => {
+  const handleAddNewApplicant = (category: 'external' | 'internal_staff' = 'external') => {
     setEditingApplicant(null);
+    setNewApplicantCategory(category);
     setCurrentView('new_applicant');
   };
 
@@ -222,7 +249,7 @@ export function App() {
 
   const handleSaveSuccess = (savedApplicant: Applicant) => {
     fetchData();
-    setCurrentView('applicants');
+    setCurrentView(savedApplicant.applicant_category === 'internal_staff' ? 'internal_staff_applicants' : 'applicants');
     showToast(`تم حفظ طلب التوظيف للمتقدم "${savedApplicant.full_name}" بنجاح.`);
   };
 
@@ -281,6 +308,7 @@ export function App() {
     return (
       <>
         <PublicApplicantPortal
+          category={portalCategory}
           onGoToAdmin={() => {
             setIsPublicPortal(false);
             if (window.history.pushState) {
@@ -326,6 +354,7 @@ export function App() {
         <LoginView
           onLoginSuccess={handleLoginSuccess}
           onGoToPublicPortal={() => {
+            setPortalCategory('external');
             setIsPublicPortal(true);
             if (window.history.pushState) {
               window.history.pushState({}, '', '?mode=apply');
@@ -369,10 +398,17 @@ export function App() {
         currentUser={currentUser}
       />
 
-      {/* Share Portal Modal */}
+      {/* Share Portal Modal — لينك المتقدمين الجدد */}
       <SharePortalModal
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
+      />
+
+      {/* Share Portal Modal — لينك تسجيل الموظفين الحاليين */}
+      <SharePortalModal
+        isOpen={isStaffShareModalOpen}
+        onClose={() => setIsStaffShareModalOpen(false)}
+        category="internal_staff"
       />
 
       {/* Cashier Contract Print Overlay */}
@@ -446,7 +482,7 @@ export function App() {
             )}
 
             {/* Loading Indicator */}
-            {isLoading && currentView === 'applicants' && applicants.length === 0 ? (
+            {isLoading && (currentView === 'applicants' || currentView === 'internal_staff_applicants') && applicants.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 space-y-4">
                 <div className="w-12 h-12 border-4 border-[#9E1A24] border-t-transparent rounded-full animate-spin"></div>
                 <p className="text-sm font-bold text-stone-600">جاري الاتصال بنظام BOB WICH وقاعدة البيانات...</p>
@@ -456,11 +492,11 @@ export function App() {
                 {/* VIEW: APPLICANTS LIST */}
                 {currentView === 'applicants' && (
                   <ApplicantsList
-                    applicants={applicants}
+                    applicants={externalApplicants}
                     branches={branches}
                     positions={positions}
                     currentUser={currentUser}
-                    onAddNew={handleAddNewApplicant}
+                    onAddNew={() => handleAddNewApplicant('external')}
                     onView={handleViewApplicant}
                     onEdit={handleEditApplicant}
                     onPrint={handlePrintApplicant}
@@ -469,13 +505,39 @@ export function App() {
                   />
                 )}
 
+                {/* VIEW: تسجيل الموظفين الحاليين — أرشيف منفصل تماماً */}
+                {currentView === 'internal_staff_applicants' && (
+                  <ApplicantsList
+                    applicants={staffApplicants}
+                    branches={branches}
+                    positions={positions}
+                    currentUser={currentUser}
+                    onAddNew={() => handleAddNewApplicant('internal_staff')}
+                    onView={handleViewApplicant}
+                    onEdit={handleEditApplicant}
+                    onPrint={handlePrintApplicant}
+                    onDelete={handleDeleteApplicant}
+                    onOpenShareModal={() => setIsStaffShareModalOpen(true)}
+                    title="تسجيل الموظفين الحاليين"
+                    subtitle="أرشيف منفصل لتسجيلات الموظفين الحاليين في النظام الجديد — لا يتداخل مع المتقدمين الجدد"
+                    shareButtonLabel="رابط تسجيل الموظفين الحاليين"
+                    addNewLabel="تسجيل موظف يدوياً"
+                    emptyStateLabel="لسه مفيش أي موظف سجّل بياناته من اللينك المخصص"
+                  />
+                )}
+
                 {/* VIEW: NEW / EDIT FORM */}
                 {(currentView === 'new_applicant' || currentView === 'edit_applicant') && (
                   <ApplicantForm
                     initialData={editingApplicant}
                     currentUser={currentUser}
+                    defaultCategory={newApplicantCategory}
                     onSaveSuccess={handleSaveSuccess}
-                    onCancel={() => setCurrentView('applicants')}
+                    onCancel={() => setCurrentView(
+                      (editingApplicant?.applicant_category || newApplicantCategory) === 'internal_staff'
+                        ? 'internal_staff_applicants'
+                        : 'applicants'
+                    )}
                   />
                 )}
 

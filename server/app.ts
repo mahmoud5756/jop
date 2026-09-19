@@ -108,12 +108,13 @@ export function createApp() {
 
   // Public duplicate check (Returns boolean only - NEVER leaks candidate personal info)
   app.post('/api/check-national-id-public', nationalIdCheckLimiter, async (req: Request, res: Response) => {
-    const { nationalId } = req.body;
+    const { nationalId, applicantCategory } = req.body;
     if (!nationalId || typeof nationalId !== 'string' || nationalId.length < 10) {
       return res.json({ exists: false });
     }
+    const category = applicantCategory === 'internal_staff' ? 'internal_staff' : 'external';
     try {
-      const existing = await db.getApplicantByNationalId(nationalId);
+      const existing = await db.getApplicantByNationalId(nationalId, undefined, category);
       res.json({ exists: !!existing });
     } catch (err: any) {
       console.error('API /api/check-national-id-public error:', err);
@@ -156,13 +157,19 @@ export function createApp() {
 
     try {
       // Force public application defaults
+      const applicant_category = body.applicant_category === 'internal_staff' ? 'internal_staff' : 'external';
       const candidateData = {
         ...body,
         status: 'طلب جديد',
+        applicant_category,
         is_converted_to_employee: false,
       };
 
-      const performedBy = body.full_name ? `المتقدم: ${body.full_name}` : 'البوابة العامة للتوظيف';
+      const performedBy = body.full_name
+        ? (applicant_category === 'internal_staff'
+            ? `تسجيل موظف حالي: ${body.full_name}`
+            : `المتقدم: ${body.full_name}`)
+        : 'البوابة العامة للتوظيف';
       const result = await db.createApplicant(candidateData, performedBy, 'employee');
 
       if (!result.success) {
@@ -262,8 +269,9 @@ export function createApp() {
   app.get('/api/check-national-id/:nationalId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const nationalId = req.params.nationalId;
     const excludeId = req.query.excludeId as string | undefined;
+    const category = req.query.category === 'internal_staff' ? 'internal_staff' : (req.query.category === 'external' ? 'external' : undefined);
     try {
-      const existing = await db.getApplicantByNationalId(nationalId, excludeId);
+      const existing = await db.getApplicantByNationalId(nationalId, excludeId, category);
       if (existing) {
         res.json({
           exists: true,

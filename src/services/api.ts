@@ -322,12 +322,15 @@ export class ApiService {
   }
 
   // Public duplicate check (Returns exists boolean only, zero info leakage)
-  static async checkNationalIdPublic(nationalId: string): Promise<{ exists: boolean }> {
+  static async checkNationalIdPublic(
+    nationalId: string,
+    applicantCategory: 'external' | 'internal_staff' = 'external'
+  ): Promise<{ exists: boolean }> {
     if (!nationalId || nationalId.length < 10) return { exists: false };
     const res = await fetch('/api/check-national-id-public', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nationalId }),
+      body: JSON.stringify({ nationalId, applicantCategory }),
     });
     try {
       return await this.parseResponse(res);
@@ -373,9 +376,17 @@ export class ApiService {
   }
 
   // Staff Check Duplicate National ID (with full details for warning)
-  static async checkNationalIdStaff(nationalId: string, excludeId?: string): Promise<{ exists: boolean; applicant?: any }> {
+  static async checkNationalIdStaff(
+    nationalId: string,
+    excludeId?: string,
+    category?: 'external' | 'internal_staff'
+  ): Promise<{ exists: boolean; applicant?: any }> {
     if (!nationalId || nationalId.length < 10) return { exists: false };
-    const url = `/api/check-national-id/${encodeURIComponent(nationalId)}${excludeId ? `?excludeId=${excludeId}` : ''}`;
+    const params = new URLSearchParams();
+    if (excludeId) params.set('excludeId', excludeId);
+    if (category) params.set('category', category);
+    const qs = params.toString();
+    const url = `/api/check-national-id/${encodeURIComponent(nationalId)}${qs ? `?${qs}` : ''}`;
     const res = await fetch(url, {
       headers: this.getAuthHeaders(),
     });
@@ -384,8 +395,12 @@ export class ApiService {
   }
 
   // Alias for backward compatibility
-  static async checkNationalId(nationalId: string, excludeId?: string): Promise<{ exists: boolean; applicant?: any }> {
-    return this.checkNationalIdStaff(nationalId, excludeId);
+  static async checkNationalId(
+    nationalId: string,
+    excludeId?: string,
+    category?: 'external' | 'internal_staff'
+  ): Promise<{ exists: boolean; applicant?: any }> {
+    return this.checkNationalIdStaff(nationalId, excludeId, category);
   }
 
   // Applicants CRUD

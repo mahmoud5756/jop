@@ -13,6 +13,10 @@ export type MilitaryStatus = 'أدى الخدمة' | 'إعفاء نهائي' | '
 
 export type UserRole = 'admin' | 'hr' | 'manager' | 'employee';
 
+// تصنيف مصدر طلب التوظيف: متقدم جديد من الجمهور، أو موظف حالي بيسجل بياناته
+// في النظام الجديد عن طريق لينك منفصل — عشان أرشيفه يفضل منفصل عن المتقدمين الجدد
+export type ApplicantCategory = 'external' | 'internal_staff';
+
 export interface ApplicantExperience {
   id: string;
   applicant_id: string;
@@ -127,6 +131,9 @@ export interface Applicant {
 
   // Status
   status: ApplicantStatus;
+  // مصدر الطلب: 'external' (متقدم جديد من الجمهور) أو 'internal_staff' (موظف
+  // حالي بيسجل بياناته من لينك التسجيل المخصص). الافتراضي 'external'.
+  applicant_category: ApplicantCategory;
   is_converted_to_employee: boolean;
   employee_id?: string;
   employee_code?: string;

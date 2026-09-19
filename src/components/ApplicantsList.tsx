@@ -13,6 +13,12 @@ interface ApplicantsListProps {
   onPrint: (applicant: Applicant) => void;
   onDelete: (applicantId: string) => void;
   onOpenShareModal?: () => void;
+  /** تخصيصات النصوص عند استخدام نفس الشاشة لأرشيف منفصل (مثل تسجيل الموظفين الحاليين) */
+  title?: string;
+  subtitle?: string;
+  shareButtonLabel?: string;
+  addNewLabel?: string;
+  emptyStateLabel?: string;
 }
 
 export const ApplicantsList: React.FC<ApplicantsListProps> = ({
@@ -26,6 +32,11 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
   onPrint,
   onDelete,
   onOpenShareModal,
+  title = 'سجل طلبات التوظيف الإلكترونية',
+  subtitle = 'إدارة ومتابعة طلبات التوظيف، فحص المستندات، وإجراء المقابلات لجميع فروع BOB WICH',
+  shareButtonLabel = 'رابط التقديم والـ QR Code',
+  addNewLabel = 'استمارة طلب توظيف جديدة',
+  emptyStateLabel,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('all');
@@ -98,10 +109,10 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl sm:text-3xl font-black text-stone-900 flex items-center gap-2">
-            <span>سجل طلبات التوظيف الإلكترونية</span>
+            <span>{title}</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            إدارة ومتابعة طلبات التوظيف، فحص المستندات، وإجراء المقابلات لجميع فروع BOB WICH
+            {subtitle}
           </p>
         </div>
 
@@ -112,7 +123,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
               className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold shadow-xs transition-all flex items-center gap-2 flex-shrink-0 cursor-pointer"
             >
               <SvgIcons.QrCode className="w-4 h-4 text-amber-700" />
-              <span>رابط التقديم والـ QR Code</span>
+              <span>{shareButtonLabel}</span>
             </button>
           )}
 
@@ -121,7 +132,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
             className="bg-[#9E1A24] hover:bg-[#85151e] text-white px-5 py-2.5 rounded-2xl text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 flex-shrink-0 cursor-pointer"
           >
             <SvgIcons.Plus className="w-5 h-5" />
-            <span>استمارة طلب توظيف جديدة</span>
+            <span>{addNewLabel}</span>
           </button>
         </div>
       </div>
@@ -295,7 +306,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
             <div>
               <h3 className="text-lg font-bold text-stone-800">لم يتم العثور على أي متقدمين</h3>
               <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
-                جرب تغيير خيارات البحث أو الفلترة، أو قم بتسجيل طلب توظيف جديد في النظام.
+                {emptyStateLabel || 'جرب تغيير خيارات البحث أو الفلترة، أو قم بتسجيل طلب توظيف جديد في النظام.'}
               </p>
             </div>
             <button

@@ -22,6 +22,8 @@ interface ApplicantFormProps {
   currentUser: CurrentUser;
   onSaveSuccess: (applicant: Applicant) => void;
   onCancel: () => void;
+  /** التصنيف الافتراضي عند إنشاء طلب جديد فقط (متقدم عادي أو موظف حالي) */
+  defaultCategory?: 'external' | 'internal_staff';
 }
 
 export const ApplicantForm: React.FC<ApplicantFormProps> = ({
@@ -29,6 +31,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
   currentUser,
   onSaveSuccess,
   onCancel,
+  defaultCategory = 'external',
 }) => {
   const isEditing = Boolean(initialData?.id);
   const [activeTab, setActiveTab] = useState<number>(1);
@@ -185,7 +188,8 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
     const timer = setTimeout(async () => {
       try {
-        const check = await ApiService.checkNationalId(id, initialData?.id);
+        const checkCategory = isEditing ? initialData?.applicant_category : defaultCategory;
+        const check = await ApiService.checkNationalId(id, initialData?.id, checkCategory);
         if (check.exists && check.applicant) {
           setNationalIdDuplicateWarning(
             `تنبيه: الرقم القومي مسجل مسبقًا باسم "${check.applicant.full_name}" بكود (${check.applicant.application_code})`
@@ -199,7 +203,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [formData.national_id, initialData?.id]);
+  }, [formData.national_id, initialData?.id, defaultCategory, isEditing]);
 
   // Handle Photo upload — uploads directly to Supabase Storage from the
   // browser (bypassing our own serverless function's ~4.5MB request-body
@@ -407,6 +411,10 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
         assets: assets.filter(a => a.asset_name),
         documents,
         interviews,
+        // في الإنشاء الجديد بس: التصنيف بيتحدد حسب التاب اللي المستخدم فاتحه
+        // (متقدمون عاديون أو تسجيل موظفين حاليين). في التعديل، التصنيف
+        // الأصلي للسجل بيفضل زي ما هو ومش بيتغيّر من هنا.
+        ...(isEditing ? {} : { applicant_category: defaultCategory }),
         hr_decision: {
           ...hrDecision,
           proposed_position: hrDecision.proposed_position || formData.position_name || '',

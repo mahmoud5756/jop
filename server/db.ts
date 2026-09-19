@@ -341,10 +341,13 @@ class SupabaseDataAccessLayer {
   // Generate Unique Codes (via Supabase queries)
   // =========================================================================
 
-  private async generateApplicationCode(): Promise<string> {
+  private async generateApplicationCode(category: string = 'external'): Promise<string> {
     const supabase = getSupabase();
     const year = new Date().getFullYear();
-    const prefix = `BW-APP-${year}-`;
+    // أرشيف منفصل بترقيم منفصل: طلبات المتقدمين الجدد BW-APP، وتسجيلات
+    // الموظفين الحاليين BW-STAFF — يسهّل التمييز بينهم بمجرد النظر للكود.
+    const codePrefix = category === 'internal_staff' ? 'BW-STAFF' : 'BW-APP';
+    const prefix = `${codePrefix}-${year}-`;
 
     try {
       // Find the highest existing application code for the current year
@@ -358,7 +361,7 @@ class SupabaseDataAccessLayer {
       let nextNumber = 1;
       if (data && data.length > 0 && data[0].application_code) {
         const lastCode = data[0].application_code;
-        const match = lastCode.match(/BW-APP-\d{4}-(\d+)/);
+        const match = lastCode.match(new RegExp(`${codePrefix}-\\d{4}-(\\d+)`));
         if (match && match[1]) {
           const parsed = parseInt(match[1], 10);
           if (!isNaN(parsed) && parsed >= nextNumber) {
@@ -389,7 +392,7 @@ class SupabaseDataAccessLayer {
       return `${prefix}${String(nextNumber).padStart(4, '0')}-${randomSuffix}`;
     } catch (err) {
       console.warn('Error computing next application code sequence, using timestamp fallback:', err);
-      return `BW-APP-${year}-${String(Date.now()).slice(-4)}`;
+      return `${prefix}${String(Date.now()).slice(-4)}`;
     }
   }
 
@@ -521,7 +524,11 @@ class SupabaseDataAccessLayer {
     return this.formatApplicantRow(data);
   }
 
-  public async getApplicantByNationalId(nationalId: string, excludeId?: string): Promise<Applicant | null> {
+  public async getApplicantByNationalId(
+    nationalId: string,
+    excludeId?: string,
+    category?: string
+  ): Promise<Applicant | null> {
     if (!nationalId) return null;
     const cleanId = nationalId.trim();
     const supabase = getSupabase();
@@ -537,6 +544,13 @@ class SupabaseDataAccessLayer {
         hr_decision:hr_decisions(*)
       `)
       .eq('national_id', cleanId);
+
+    // الرقم القومي فريد داخل نفس تصنيف الطلب فقط (متقدم جديد / موظف حالي)،
+    // عشان لو حد بيسجل من لينك الموظفين الحاليين ومعاه سجل قديم كمتقدم
+    // عادي، الاتنين ميتلخبطوش مع بعض.
+    if (category) {
+      query = query.eq('applicant_category', category);
+    }
 
     if (excludeId) {
       query = query.neq('id', excludeId);
@@ -594,8 +608,13 @@ class SupabaseDataAccessLayer {
       return { success: false, error: 'الرقم القومي يجب أن يتكون من 14 رقمًا صحيحًا' };
     }
 
-    // Check duplicate in Supabase
-    const existing = await this.getApplicantByNationalId(nationalId);
+    // تصنيف مصدر الطلب — لازم يتحدد قبل فحص التكرار عشان الفحص يبقى داخل
+    // نفس التصنيف بس (متقدم جديد ≠ موظف حالي)
+    const applicant_category: string =
+      payload.applicant_category === 'internal_staff' ? 'internal_staff' : 'external';
+
+    // Check duplicate in Supabase (within the same category only)
+    const existing = await this.getApplicantByNationalId(nationalId, undefined, applicant_category);
     if (existing) {
       return {
         success: false,
@@ -611,7 +630,7 @@ class SupabaseDataAccessLayer {
     }
 
     const id = 'app_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-    const application_code = await this.generateApplicationCode();
+    const application_code = await this.generateApplicationCode(applicant_category);
     const now = new Date().toISOString();
 
     // Handle Photo upload to Supabase Storage if it's base64
@@ -668,6 +687,7 @@ class SupabaseDataAccessLayer {
       declaration_date: payload.declaration_date || now.split('T')[0],
 
       status: payload.status || 'طلب جديد',
+      applicant_category,
       is_converted_to_employee: false,
 
       created_at: now,
@@ -817,7 +837,7 @@ class SupabaseDataAccessLayer {
       if (nationalId.length !== 14 || !/^\d{14}$/.test(nationalId)) {
         return { success: false, error: 'الرقم القومي يجب أن يتكون من 14 رقمًا صحيحًا' };
       }
-      const existing = await this.getApplicantByNationalId(nationalId, id);
+      const existing = await this.getApplicantByNationalId(nationalId, id, current.applicant_category);
       if (existing) {
         return {
           success: false,
