@@ -261,7 +261,19 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
         uploaded_by: currentUser.name,
         uploaded_at: new Date().toISOString(),
       };
-      setDocuments(prev => [...prev, newDoc]);
+      // وش/ظهر البطاقة والشهادة الصحية: الرفع الجديد بيستبدل القديم (مش بيتضاف جنبه)،
+      // والقديم بيتمسح فعليًا من قاعدة البيانات لما تدوس حفظ.
+      // "مستندات أخرى" بتفضل تتراكم عادي.
+      const replaceable = [
+        'صورة بطاقة الرقم القومي - الوجه',
+        'صورة بطاقة الرقم القومي - الظهر',
+        'شهادة صحية',
+      ];
+      setDocuments(prev =>
+        replaceable.includes(docType)
+          ? [...prev.filter(d => d.document_type !== docType), newDoc]
+          : [...prev, newDoc]
+      );
     } catch (err: any) {
       alert(err.message || 'فشل رفع الملف، يرجى المحاولة مرة أخرى');
     } finally {
@@ -425,6 +437,36 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
       let result: Applicant;
       if (isEditing && initialData?.id) {
         result = await ApiService.updateApplicant(initialData.id, payload, currentUser);
+
+        // السيرفر بيتجاهل documents في التعديل، فلازم نزامن المرفقات (إضافة/حذف)
+        // بنفسنا: الجديد الأول ثم المحذوف، عشان لو حصل خطأ ما يفضلش المتقدم بلا مستند.
+        const initialDocs = initialData.documents || [];
+        const initialIds = new Set(initialDocs.map(d => d.id));
+        const currentIds = new Set(documents.map(d => d.id));
+        const addedDocs = documents.filter(d => !initialIds.has(d.id));
+        const removedDocs = initialDocs.filter(d => !currentIds.has(d.id));
+
+        for (const doc of addedDocs) {
+          await ApiService.uploadDocument(
+            initialData.id,
+            {
+              document_type: doc.document_type,
+              file_name: doc.file_name,
+              file_url: doc.file_url,
+              file_size: doc.file_size,
+            },
+            currentUser,
+          );
+        }
+        for (const doc of removedDocs) {
+          try {
+            await ApiService.deleteDocument(doc.id, currentUser);
+          } catch (delErr: any) {
+            // لو المستند اتمسح قبل كده مفيش مشكلة
+            if (!String(delErr?.message || '').includes('غير موجود')) throw delErr;
+          }
+        }
+
         setSuccessToast('تم تحديث بيانات طلب التوظيف بنجاح');
       } else {
         result = await ApiService.createApplicant(payload, currentUser);
