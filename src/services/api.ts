@@ -572,17 +572,21 @@ export class ApiService {
     return json.data;
   }
 
-  static async updateEmployeeStatus(id: string, status: string): Promise<Employee> {
+  static async updateEmployeeStatus(
+    id: string,
+    status: string,
+    extra?: { separation_date?: string; separation_reason?: string }
+  ): Promise<{ employee: Employee; warning?: string }> {
     const res = await fetch(`/api/employees/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, ...(extra || {}) }),
     });
     const json = await res.json();
     if (!res.ok) {
       throw new Error(json.error || 'فشل تحديث حالة الموظف');
     }
-    return json.data;
+    return { employee: json.data, warning: json.warning };
   }
 
   /**

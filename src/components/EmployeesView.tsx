@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Employee, Applicant, CurrentUser, Branch, JobPosition } from '../types';
 import { SvgIcons } from './BobWichLogo';
 import { EditEmployeeModal } from './EditEmployeeModal';
+import { DepartureDialog } from './DepartureDialog';
+import { isDepartedStatus } from '../utils/employeeStatus';
 
 interface EmployeesViewProps {
   employees: Employee[];
@@ -17,7 +19,12 @@ interface EmployeesViewProps {
   onPrintResignation?: (employee: Employee) => void;
   onPrintPayslip?: (employee: Employee) => void;
   onPrintCard?: (employee: Employee) => void;
-  onUpdateStatus?: (employeeId: string, newStatus: string) => void;
+  /** extra بيتبعت مع الاستقالة/إنهاء التعاقد (تاريخ وسبب الخروج) */
+  onUpdateStatus?: (
+    employeeId: string,
+    newStatus: string,
+    extra?: { separation_date?: string; separation_reason?: string },
+  ) => void | Promise<void>;
   onEmployeeUpdated?: (updated: Employee) => void;
   onDelete?: (employeeId: string) => void;
 }
@@ -42,6 +49,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  // نافذة تسجيل الاستقالة / إنهاء التعاقد
+  const [pendingDeparture, setPendingDeparture] = useState<{ employee: Employee; status: string } | null>(null);
+  const [isSavingDeparture, setIsSavingDeparture] = useState(false);
   const canManage = currentUser.role === 'admin' || currentUser.role === 'hr';
 
   const safeEmployees = useMemo(() => Array.isArray(employees) ? employees : [], [employees]);
@@ -88,7 +98,8 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
             <span>سجل الموظفين المعينين</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            قاعدة بيانات الموظفين المعينين رسمياً من خلال طلبات التوظيف الإلكترونية مع الاحتفاظ بملف التقديم الأصلي
+            قاعدة بيانات الموظفين المعينين رسمياً من خلال طلبات التوظيف الإلكترونية مع الاحتفاظ بملف التقديم الأصلي —
+            المستقيلون ومنهيو التعاقد بيتنقلوا تلقائيًا لتاب «أرشيف المستقيلين».
           </p>
         </div>
 
@@ -123,7 +134,6 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
             <option value="نشط">نشط</option>
             <option value="تحت الاختبار">تحت الاختبار</option>
             <option value="مجاز">مجاز</option>
-            <option value="مستقيل">مستقيل</option>
           </select>
         </div>
       </div>
@@ -195,7 +205,15 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                           {onUpdateStatus && (currentUser.role === 'admin' || currentUser.role === 'hr') && (
                             <select
                               value={emp.status}
-                              onChange={e => onUpdateStatus(emp.id, e.target.value)}
+                              onChange={e => {
+                                const next = e.target.value;
+                                // الاستقالة/إنهاء التعاقد بتحتاج تاريخ وسبب، ثم الموظف يتنقل للأرشيف
+                                if (isDepartedStatus(next)) {
+                                  setPendingDeparture({ employee: emp, status: next });
+                                } else {
+                                  onUpdateStatus(emp.id, next);
+                                }
+                              }}
                               className="block w-full bg-stone-50 border border-stone-300 rounded-lg text-[10px] py-1 px-1.5 font-semibold text-stone-700 focus:outline-none focus:ring-1 focus:ring-[#9E1A24]"
                               title="تغيير حالة الموظف أو تسجيل استقالة/إنهاء تعاقد"
                             >
@@ -322,6 +340,28 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
           onSaved={updated => {
             setEditingEmployee(null);
             if (onEmployeeUpdated) onEmployeeUpdated(updated);
+          }}
+        />
+      )}
+
+      {/* تسجيل استقالة / إنهاء تعاقد (بعدها الموظف بيتنقل لأرشيف المستقيلين) */}
+      {pendingDeparture && onUpdateStatus && (
+        <DepartureDialog
+          employee={pendingDeparture.employee}
+          status={pendingDeparture.status}
+          isSaving={isSavingDeparture}
+          onCancel={() => setPendingDeparture(null)}
+          onConfirm={async (separationDate, reason) => {
+            setIsSavingDeparture(true);
+            try {
+              await onUpdateStatus(pendingDeparture.employee.id, pendingDeparture.status, {
+                separation_date: separationDate,
+                separation_reason: reason,
+              });
+              setPendingDeparture(null);
+            } finally {
+              setIsSavingDeparture(false);
+            }
           }}
         />
       )}

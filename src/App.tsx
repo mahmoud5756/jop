@@ -18,6 +18,7 @@ import { PayslipView } from './components/PayslipView';
 import { EmployeeCardView } from './components/EmployeeCardView';
 import { DocumentsPrintView } from './components/DocumentsPrintView';
 import { RejectedArchiveView } from './components/RejectedArchiveView';
+import { DepartedArchiveView } from './components/DepartedArchiveView';
 import { EmployeesView } from './components/EmployeesView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
@@ -28,6 +29,7 @@ import { SharePortalModal } from './components/SharePortalModal';
 import { LoginView } from './components/LoginView';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { SvgIcons } from './components/BobWichLogo';
+import { isDepartedEmployee } from './utils/employeeStatus';
 import { isRejectedApplicant, buildStatusChangePayload, REJECTED_STATUS } from './utils/applicantStatus';
 
 export function App() {
@@ -62,7 +64,7 @@ export function App() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Navigation & View State
-  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'rejected_archive' | 'print'>('applicants');
+  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'rejected_archive' | 'departed_archive' | 'print'>('applicants');
 
   // Share & QR Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -90,6 +92,9 @@ export function App() {
     () => applicants.filter(a => a.applicant_category === 'internal_staff' && !isRejectedApplicant(a)),
     [applicants]
   );
+  // الموظفين النشطين بيفضلوا في سجل الموظفين، والمستقيلين/منهيي التعاقد في أرشيفهم
+  const activeEmployees = useMemo(() => employees.filter(e => !isDepartedEmployee(e)), [employees]);
+  const departedEmployees = useMemo(() => employees.filter(e => isDepartedEmployee(e)), [employees]);
   const rejectedApplicants = useMemo(
     () => applicants.filter(a => isRejectedApplicant(a)),
     [applicants]
@@ -337,14 +342,40 @@ export function App() {
     showToast(`تم تحويل المتقدم إلى موظف بنجاح بكود (${employee.employee_code})`);
   };
 
-  const handleUpdateEmployeeStatus = async (employeeId: string, newStatus: string) => {
+  const handleUpdateEmployeeStatus = async (
+    employeeId: string,
+    newStatus: string,
+    extra?: { separation_date?: string; separation_reason?: string },
+  ) => {
     try {
-      const updated = await ApiService.updateEmployeeStatus(employeeId, newStatus);
+      const { employee: updated, warning } = await ApiService.updateEmployeeStatus(employeeId, newStatus, extra);
       setEmployees(prev => prev.map(e => e.id === employeeId ? updated : e));
-      showToast(`تم تحديث حالة الموظف إلى "${newStatus}" بنجاح`);
+      showToast(
+        isDepartedEmployee(updated)
+          ? `تم تسجيل "${newStatus}" للموظف "${updated.full_name}" ونقله إلى أرشيف المستقيلين`
+          : `تم تحديث حالة الموظف إلى "${newStatus}" بنجاح`
+      );
+      if (warning) alert(warning);
       fetchData();
     } catch (err: any) {
       alert(err.message || 'فشل تحديث حالة الموظف');
+      throw err;
+    }
+  };
+
+  // إعادة موظف من أرشيف المستقيلين للشغل (حالة: نشط)
+  const handleReinstateEmployee = async (employee: Employee) => {
+    if (!canManageHR) {
+      alert('عذراً، إعادة التعيين مقتصرة على مدير النظام والموارد البشرية');
+      return;
+    }
+    if (!window.confirm(`هل تريد إعادة تعيين "${employee.full_name}" وإرجاعه إلى سجل الموظفين (نشط)؟`)) {
+      return;
+    }
+    try {
+      await handleUpdateEmployeeStatus(employee.id, 'نشط');
+    } catch {
+      /* التنبيه اتعرض داخل handleUpdateEmployeeStatus */
     }
   };
 
@@ -531,6 +562,7 @@ export function App() {
             onNavigate={(view: any) => setCurrentView(view)}
             onOpenShareModal={() => setIsShareModalOpen(true)}
             rejectedCount={rejectedApplicants.length}
+            departedCount={departedEmployees.length}
           />
 
           {/* Main Content Area */}
@@ -615,6 +647,22 @@ export function App() {
                   />
                 )}
 
+                {/* VIEW: أرشيف المستقيلين */}
+                {currentView === 'departed_archive' && canManageHR && (
+                  <DepartedArchiveView
+                    employees={departedEmployees}
+                    applicants={applicants}
+                    branches={branches}
+                    positions={positions}
+                    currentUser={currentUser}
+                    onViewApplicant={handleViewApplicant}
+                    onPrintDocs={handlePrintApplicantDocs}
+                    onPrintResignation={handlePrintResignation}
+                    onReinstate={handleReinstateEmployee}
+                    onDelete={handleDeleteEmployee}
+                  />
+                )}
+
                 {/* VIEW: NEW / EDIT FORM */}
                 {(currentView === 'new_applicant' || currentView === 'edit_applicant') && (
                   <ApplicantForm
@@ -633,7 +681,7 @@ export function App() {
                 {/* VIEW: EMPLOYEES */}
                 {currentView === 'employees' && (
                   <EmployeesView
-                    employees={employees}
+                    employees={activeEmployees}
                     applicants={applicants}
                     branches={branches}
                     positions={positions}

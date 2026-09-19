@@ -66,6 +66,9 @@ function normalizeApplicantStatus(status: any): any {
   return s;
 }
 
+// حالات الخروج من الشغل (الموظف اللي حالته منها بيظهر في أرشيف المستقيلين)
+const DEPARTED_EMPLOYEE_STATUSES = ['مستقيل', 'منهي التعاقد', 'منتهي الخدمة'];
+
 class SupabaseDataAccessLayer {
   // =========================================================================
   // Master Data (Branches & Positions)
@@ -1482,8 +1485,9 @@ class SupabaseDataAccessLayer {
     id: string,
     status: string,
     performedBy: string,
-    userRole: UserRole
-  ): Promise<{ success: boolean; employee?: Employee; error?: string }> {
+    userRole: UserRole,
+    extra?: { separation_date?: string; separation_reason?: string }
+  ): Promise<{ success: boolean; employee?: Employee; error?: string; warning?: string }> {
     const supabase = getSupabase();
     const { data: emp, error: fetchErr } = await supabase
       .from('employees')
@@ -1497,15 +1501,37 @@ class SupabaseDataAccessLayer {
 
     const oldStatus = emp.status;
     const now = new Date().toISOString();
+    const departed = DEPARTED_EMPLOYEE_STATUSES.includes(String(status).trim());
 
-    const { error: updateErr } = await supabase
-      .from('employees')
-      .update({ status, updated_at: now })
-      .eq('id', id);
+    const patch: Record<string, any> = { status, updated_at: now };
+    let warning: string | undefined;
+
+    // أعمدة تاريخ/سبب الخروج بتتكتب بس لو موجودة في الجدول (الـ migration اتشغّل).
+    // لو لسه ما اتشغلش، تغيير الحالة نفسه بيشتغل عادي ونرجّع تحذير.
+    const hasSeparationColumns = 'separation_date' in emp && 'separation_reason' in emp;
+    if (hasSeparationColumns) {
+      if (departed) {
+        patch.separation_date = extra?.separation_date || now.split('T')[0];
+        patch.separation_reason = extra?.separation_reason?.trim() || null;
+      } else {
+        // رجوع الموظف للشغل: نمسح بيانات الخروج القديمة
+        patch.separation_date = null;
+        patch.separation_reason = null;
+      }
+    } else if (departed && (extra?.separation_date || extra?.separation_reason)) {
+      warning =
+        'تم تغيير الحالة، لكن تاريخ وسبب الخروج لم يُحفظا لأن ملف migration_departed_archive.sql لم يُشغَّل بعد على قاعدة البيانات.';
+    }
+
+    const { error: updateErr } = await supabase.from('employees').update(patch).eq('id', id);
 
     if (updateErr) {
       return { success: false, error: `فشل تحديث حالة الموظف: ${updateErr.message}` };
     }
+
+    const reasonNote =
+      departed && patch.separation_reason ? ` — السبب: ${patch.separation_reason}` : '';
+    const dateNote = departed && patch.separation_date ? ` (بتاريخ ${patch.separation_date})` : '';
 
     await this.addAuditLog(
       'employee',
@@ -1513,12 +1539,12 @@ class SupabaseDataAccessLayer {
       `تحديث حالة الموظف (${status})`,
       performedBy,
       userRole,
-      `تم تغير حالة الموظف ${emp.full_name} (${emp.employee_code}) من "${oldStatus}" إلى "${status}"`,
+      `تم تغير حالة الموظف ${emp.full_name} (${emp.employee_code}) من "${oldStatus}" إلى "${status}"${dateNote}${reasonNote}`,
       { entity_code: emp.employee_code, entity_name: emp.full_name, old_value: oldStatus, new_value: status }
     );
 
     const { data: updatedEmp } = await supabase.from('employees').select('*').eq('id', id).single();
-    return { success: true, employee: updatedEmp || undefined };
+    return { success: true, employee: updatedEmp || undefined, warning };
   }
 
   // =========================================================================

@@ -15,6 +15,8 @@ interface NavbarProps {
   onOpenShareModal?: () => void;
   /** عدد الطلبات المرفوضة (بيظهر كعداد على تبويب الأرشيف) */
   rejectedCount?: number;
+  /** عدد المستقيلين/منهيي التعاقد (عدّاد تاب أرشيف المستقيلين) */
+  departedCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -28,6 +30,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectEmployee,
   onOpenShareModal,
   rejectedCount = 0,
+  departedCount = 0,
 }) => {
   const currentActive = currentView || activeView || 'applicants';
   const [searchQuery, setSearchQuery] = useState('');
@@ -346,6 +349,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               {rejectedCount > 0 && (
                 <span className="bg-stone-700 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono">
                   {rejectedCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {(currentUser.role === 'admin' || currentUser.role === 'hr') && (
+            <button
+              onClick={() => onNavigate('departed_archive')}
+              className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${
+                currentActive === 'departed_archive'
+                  ? 'bg-stone-200 text-stone-900 border-b-2 border-stone-700'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              }`}
+            >
+              <span className="text-base">🚪</span>
+              <span>أرشيف المستقيلين</span>
+              {departedCount > 0 && (
+                <span className="bg-stone-700 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono">
+                  {departedCount}
                 </span>
               )}
             </button>

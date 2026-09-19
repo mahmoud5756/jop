@@ -482,18 +482,25 @@ export function createApp() {
 
   // Update Employee Status (e.g. Resignation / Termination / Active)
   app.patch('/api/employees/:id/status', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
-    const { status } = req.body;
+    const { status, separation_date, separation_reason } = req.body;
     const performedBy = req.user?.name || 'مدير الموارد البشرية';
     const userRole = req.user?.role || 'hr';
     if (!status) {
       return res.status(400).json({ error: 'الحالة الجديدة مطلوبة' });
     }
+    if (separation_date !== undefined && separation_date !== null && separation_date !== '' &&
+        !/^\d{4}-\d{2}-\d{2}$/.test(String(separation_date))) {
+      return res.status(400).json({ error: 'صيغة تاريخ الاستقالة غير صحيحة' });
+    }
     try {
-      const result = await db.updateEmployeeStatus(req.params.id, status, performedBy, userRole);
+      const result = await db.updateEmployeeStatus(req.params.id, status, performedBy, userRole, {
+        separation_date: separation_date ? String(separation_date) : undefined,
+        separation_reason: separation_reason ? String(separation_reason).slice(0, 500) : undefined,
+      });
       if (!result.success) {
         return res.status(400).json({ error: result.error });
       }
-      res.json({ success: true, data: result.employee, message: 'تم تحديث حالة الموظف بنجاح' });
+      res.json({ success: true, data: result.employee, warning: result.warning, message: 'تم تحديث حالة الموظف بنجاح' });
     } catch (err: any) {
       console.error('API PATCH /api/employees/:id/status error:', err);
       res.status(500).json({ error: err.message || 'فشل تحديث حالة الموظف' });

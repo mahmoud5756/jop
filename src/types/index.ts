@@ -170,9 +170,13 @@ export interface Employee {
   position_name: string;
   hire_date: string;
   salary: number | string;
-  status: 'نشط' | 'تحت الاختبار' | 'إجازة' | 'منتهي الخدمة';
+  status: 'نشط' | 'تحت الاختبار' | 'إجازة' | 'مجاز' | 'مستقيل' | 'منهي التعاقد' | 'منتهي الخدمة';
   photo_url?: string;
   qualification: string;
+  /** تاريخ الاستقالة / إنهاء التعاقد (YYYY-MM-DD) — بيتسجل لما الحالة تتحول لمستقيل أو منهي التعاقد */
+  separation_date?: string | null;
+  /** سبب الاستقالة / إنهاء التعاقد (اختياري) */
+  separation_reason?: string | null;
   created_at: string;
   updated_at: string;
 }
