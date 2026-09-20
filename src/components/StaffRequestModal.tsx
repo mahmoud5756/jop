@@ -22,7 +22,6 @@ export const StaffRequestModal: React.FC<Props> = ({ positions, initialPosition,
   const [error, setError] = useState<string | null>(null);
 
   const activePositions = positions.filter(p => p.is_active);
-  const cashier = activePositions.find(p => p.title.includes('كاشير'));
   const inputClass =
     'w-full px-3.5 py-2.5 rounded-xl border border-stone-300 bg-white text-sm font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#9E1A24]';
 
@@ -68,20 +67,6 @@ export const StaffRequestModal: React.FC<Props> = ({ positions, initialPosition,
               <SvgIcons.AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
-          )}
-
-          {cashier && (
-            <button
-              type="button"
-              onClick={() => setPosition(cashier.title)}
-              className={`w-full px-3 py-2.5 rounded-xl border text-xs font-black transition-all ${
-                position === cashier.title
-                  ? 'bg-red-50 border-[#9E1A24] text-[#9E1A24]'
-                  : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
-              }`}
-            >
-              🧾 محتاج كاشير
-            </button>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
