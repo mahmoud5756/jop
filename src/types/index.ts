@@ -234,6 +234,51 @@ export interface UserAccount {
   last_login?: string;
 }
 
+// ============================================================================
+// Branch Staffing (العدد المطلوب من كل وظيفة في كل فرع — لوحة مدير الفرع)
+// ============================================================================
+
+/** العدد المطلوب من وظيفة معيّنة في فرع معيّن — بيضبطه الأدمن/الموارد البشرية */
+export interface StaffingRequirement {
+  id: string;
+  branch_name: string;
+  position_name: string;
+  required_count: number;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+/** صف مقارنة العدد المطلوب بالعدد الحالي لوظيفة واحدة داخل فرع */
+export interface BranchStaffingRow {
+  position_name: string;
+  required_count: number;
+  current_count: number;
+  /** الشاغر = المطلوب - الموجود (بحد أدنى صفر) */
+  shortage: number;
+}
+
+/** موظف ناقصه مستند أساسي (بطاقة/شهادة صحية) */
+export interface BranchEmployeeMissingDocs {
+  employee_id: string;
+  employee_code: string;
+  full_name: string;
+  position_name: string;
+  phone: string;
+  /** ملف المتقدم المرتبط بالموظف — مطلوب عشان نرفع المستند الناقص من شاشة متابعة الفرع */
+  applicant_id: string;
+  missing: string[];
+}
+
+/** ملخص فرع كامل لمدير الفرع: مين معاه، اي الوظائف الناقصة، ومين ناقصه مستندات */
+export interface BranchStaffingOverview {
+  branch_name: string;
+  positions: BranchStaffingRow[];
+  total_required: number;
+  total_current: number;
+  total_shortage: number;
+  employees_missing_docs: BranchEmployeeMissingDocs[];
+}
+
 export interface CompanySettings {
   id: string;
   commercial_registry: string;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Branch, JobPosition, CurrentUser } from '../types';
+import { Branch, JobPosition, CurrentUser, StaffingRequirement } from '../types';
 import { ApiService } from '../services/api';
-import { Building2, Briefcase, Plus, Trash2, Edit2, CheckCircle2, XCircle, MapPin, Save, X, AlertCircle } from 'lucide-react';
+import { Building2, Briefcase, Plus, Trash2, Edit2, CheckCircle2, XCircle, MapPin, Save, X, AlertCircle, Users } from 'lucide-react';
 
 interface Props {
   currentUser: CurrentUser;
@@ -9,11 +9,15 @@ interface Props {
 }
 
 export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
-  const [activeTab, setActiveTab] = useState<'branches' | 'positions'>('branches');
+  const [activeTab, setActiveTab] = useState<'branches' | 'positions' | 'staffing'>('branches');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [positions, setPositions] = useState<JobPosition[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // العدد المطلوب من كل وظيفة في كل فرع (بيستخدمها مدير الفرع في شاشة "متابعة الفرع")
+  const [staffing, setStaffing] = useState<StaffingRequirement[]>([]);
+  const [savingCell, setSavingCell] = useState<string | null>(null);
 
   // Branch Modal State
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
@@ -29,12 +33,14 @@ export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
     try {
       setIsLoading(true);
       setError(null);
-      const [brs, pos] = await Promise.all([
+      const [brs, pos, stf] = await Promise.all([
         ApiService.getAdminBranches(),
         ApiService.getAdminPositions(),
+        ApiService.getStaffingRequirements(),
       ]);
       setBranches(brs);
       setPositions(pos);
+      setStaffing(stf);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'فشل تحميل البيانات');
@@ -165,6 +171,32 @@ export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
     }
   };
 
+  // Staffing Handlers — العدد المطلوب من كل وظيفة في كل فرع
+  const getRequiredCount = (branchName: string, positionTitle: string): number =>
+    staffing.find(s => s.branch_name === branchName && s.position_name === positionTitle)?.required_count || 0;
+
+  const handleSaveRequiredCount = async (branchName: string, positionTitle: string, value: number) => {
+    const cellKey = `${branchName}__${positionTitle}`;
+    const clean = Math.max(0, Math.floor(Number(value)) || 0);
+    if (clean === getRequiredCount(branchName, positionTitle)) return; // مفيش تغيير
+    setSavingCell(cellKey);
+    try {
+      const saved = await ApiService.setStaffingRequirement({
+        branch_name: branchName,
+        position_name: positionTitle,
+        required_count: clean,
+      });
+      setStaffing(prev => {
+        const rest = prev.filter(s => !(s.branch_name === branchName && s.position_name === positionTitle));
+        return [...rest, saved];
+      });
+    } catch (err: any) {
+      showToast(err.message || 'فشل حفظ العدد المطلوب');
+    } finally {
+      setSavingCell(null);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header Banner */}
@@ -186,14 +218,14 @@ export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
             >
               <Plus className="w-4 h-4" /> إضافة فرع جديد
             </button>
-          ) : (
+          ) : activeTab === 'positions' ? (
             <button
               onClick={handleOpenNewPosition}
               className="bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold px-5 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2 text-sm"
             >
               <Plus className="w-4 h-4" /> إضافة مسمى وظيفي جديد
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -218,6 +250,16 @@ export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
           }`}
         >
           <Briefcase className="w-4 h-4" /> المسميات الوظيفية ({positions.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('staffing')}
+          className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition ${
+            activeTab === 'staffing'
+              ? 'border-amber-600 text-amber-800 bg-amber-50/50 rounded-t-xl'
+              : 'border-transparent text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          <Users className="w-4 h-4" /> العدد المطلوب لكل فرع
         </button>
       </div>
 
@@ -308,7 +350,7 @@ export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
             </div>
           )}
         </div>
-      ) : (
+      ) : activeTab === 'positions' ? (
         /* Positions List */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {positions.map(pos => (
@@ -381,6 +423,57 @@ export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
               >
                 + إضافة أول مسمى وظيفي
               </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Staffing Requirements Matrix — العدد المطلوب من كل وظيفة في كل فرع.
+           مدير الفرع مايشوفش التاب ده أصلاً (شاشة إدارة الفروع مقصورة على
+           الأدمن/الموارد البشرية)، وده بيستخدمه في شاشة "متابعة الفرع" بتاعته
+           كمرجع (Read-only) — هو نفسه ميقدرش يعدّل الأرقام دي. */
+        <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 text-xs text-stone-500">
+            حدّد العدد المطلوب من كل وظيفة في كل فرع. مدير الفرع بيشوف الأرقام دي في شاشة "متابعة الفرع" بتاعته للمقارنة بالموجود فعليًا — وهو مايقدرش يعدّلها، التعديل هنا بس.
+          </div>
+          {branches.filter(b => b.is_active).length === 0 || positions.filter(p => p.is_active).length === 0 ? (
+            <div className="p-8 text-center text-sm text-stone-400">
+              محتاج فرع نشط واحد ووظيفة نشطة واحدة على الأقل عشان تقدر تحدد الاحتياج.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-stone-50 text-stone-500 text-[11px] font-bold">
+                    <th className="text-right px-4 py-2 sticky right-0 bg-stone-50">الفرع \ الوظيفة</th>
+                    {positions.filter(p => p.is_active).map(pos => (
+                      <th key={pos.id} className="text-center px-3 py-2 whitespace-nowrap">{pos.title}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {branches.filter(b => b.is_active).map(branch => (
+                    <tr key={branch.id} className="border-t border-stone-100">
+                      <td className="px-4 py-2 font-bold text-stone-800 sticky right-0 bg-white whitespace-nowrap">{branch.name}</td>
+                      {positions.filter(p => p.is_active).map(pos => {
+                        const cellKey = `${branch.name}__${pos.title}`;
+                        return (
+                          <td key={pos.id} className="px-3 py-2 text-center">
+                            <input
+                              type="number"
+                              min={0}
+                              defaultValue={getRequiredCount(branch.name, pos.title)}
+                              key={`${cellKey}_${getRequiredCount(branch.name, pos.title)}`}
+                              onBlur={e => handleSaveRequiredCount(branch.name, pos.title, Number(e.target.value))}
+                              disabled={savingCell === cellKey}
+                              className="w-16 text-center border border-stone-300 rounded-lg py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50"
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

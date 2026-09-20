@@ -23,6 +23,7 @@ import { WhatsAppDialog } from './components/WhatsAppDialog';
 import { EmployeesView } from './components/EmployeesView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
+import { BranchDashboardView } from './components/BranchDashboardView';
 import { CompanySettingsView } from './components/CompanySettingsView';
 import { FormFieldsSettingsView } from './components/FormFieldsSettingsView';
 import { PublicApplicantPortal } from './components/PublicApplicantPortal';
@@ -65,7 +66,7 @@ export function App() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Navigation & View State
-  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'rejected_archive' | 'departed_archive' | 'print'>('applicants');
+  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'rejected_archive' | 'departed_archive' | 'branch_dashboard' | 'print'>('applicants');
 
   // Share & QR Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -787,6 +788,11 @@ export function App() {
                 {/* VIEW: BRANCHES & POSITIONS */}
                 {currentView === 'branches_positions' && currentUser && (
                   <BranchesAndPositionsView currentUser={currentUser} showToast={showToast} />
+                )}
+
+                {/* VIEW: BRANCH DASHBOARD (متابعة الفرع — مدير الفرع بس) */}
+                {currentView === 'branch_dashboard' && currentUser && (
+                  <BranchDashboardView currentUser={currentUser} />
                 )}
 
                 {/* VIEW: COMPANY SETTINGS (السجل التجاري / البطاقة الضريبية) */}

@@ -319,6 +319,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
+          {currentUser.role === 'manager' && (
+            <button
+              onClick={() => onNavigate('branch_dashboard')}
+              className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${
+                currentActive === 'branch_dashboard'
+                  ? 'bg-red-50 text-[#9E1A24] border-b-2 border-[#9E1A24]'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              }`}
+            >
+              <span className="text-base">🏪</span>
+              <span>متابعة الفرع</span>
+            </button>
+          )}
+
           <button
             onClick={() => onNavigate('employees')}
             className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${

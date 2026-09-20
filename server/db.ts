@@ -12,10 +12,16 @@ import {
   UserRole,
   UserAccount,
   CurrentUser,
-  FormFieldConfig
+  FormFieldConfig,
+  StaffingRequirement,
+  BranchStaffingOverview,
+  BranchStaffingRow,
+  BranchEmployeeMissingDocs,
 } from '../src/types';
 import { hashPassword, verifyPassword } from './auth.js';
 import { getSupabase, uploadToSupabaseStorage } from './supabase.js';
+import { isDepartedStatus } from '../src/utils/employeeStatus';
+import { getMissingDocuments } from '../src/utils/applicantDocuments';
 
 /**
  * Escapes characters that are structurally significant in PostgREST filter
@@ -136,6 +142,141 @@ class SupabaseDataAccessLayer {
       throw new Error(`فشل حذف الفرع: ${error.message}`);
     }
     return true;
+  }
+
+  // =========================================================================
+  // Branch Staffing (العدد المطلوب من كل وظيفة في كل فرع)
+  // بيستخدمها الأدمن/الموارد البشرية لضبط الاحتياج، ولوحة "متابعة الفرع"
+  // الخاصة بمدير الفرع لمعرفة مين معاه فعليًا واي الوظائف الناقصة.
+  // =========================================================================
+
+  public async getStaffingRequirements(branchName?: string): Promise<StaffingRequirement[]> {
+    const supabase = getSupabase();
+    let query = supabase
+      .from('branch_staffing_requirements')
+      .select('*')
+      .order('branch_name')
+      .order('position_name');
+    if (branchName) {
+      query = query.eq('branch_name', branchName);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching staffing requirements from Supabase:', error);
+      throw new Error(`فشل استرجاع العدد المطلوب: ${error.message}`);
+    }
+    return data || [];
+  }
+
+  public async setStaffingRequirement(
+    branch_name: string,
+    position_name: string,
+    required_count: number,
+    updated_by?: string
+  ): Promise<StaffingRequirement> {
+    const supabase = getSupabase();
+    // id ثابت مشتق من الفرع والوظيفة عشان upsert يرجع لنفس الصف دايمًا
+    const id = `stf_${encodeURIComponent(branch_name)}__${encodeURIComponent(position_name)}`;
+    const payload: StaffingRequirement = {
+      id,
+      branch_name,
+      position_name,
+      required_count: Math.max(0, Math.floor(Number(required_count)) || 0),
+      updated_at: new Date().toISOString(),
+      updated_by: updated_by || '',
+    };
+    const { error } = await supabase
+      .from('branch_staffing_requirements')
+      .upsert(payload, { onConflict: 'branch_name,position_name' });
+    if (error) {
+      throw new Error(`فشل حفظ العدد المطلوب: ${error.message}`);
+    }
+    return payload;
+  }
+
+  /**
+   * ملخص فرع كامل لمدير الفرع: الوظائف والعدد المطلوب مقابل الموجود فعليًا
+   * (شاغر = مطلوب - موجود)، وقائمة الموظفين النشطين اللي ناقصهم مستندات
+   * أساسية (وش/ظهر البطاقة أو الشهادة الصحية).
+   */
+  public async getBranchStaffingOverview(branchName: string): Promise<BranchStaffingOverview> {
+    const supabase = getSupabase();
+
+    const [{ data: employees, error: empErr }, { data: requirements, error: reqErr }] = await Promise.all([
+      supabase.from('employees').select('*').eq('branch_name', branchName),
+      supabase.from('branch_staffing_requirements').select('*').eq('branch_name', branchName),
+    ]);
+
+    if (empErr) throw new Error(`فشل استرجاع موظفي الفرع: ${empErr.message}`);
+    if (reqErr) throw new Error(`فشل استرجاع العدد المطلوب: ${reqErr.message}`);
+
+    const activeEmployees: Employee[] = (employees || []).filter((e: Employee) => !isDepartedStatus(e.status));
+
+    const currentByPosition = new Map<string, number>();
+    for (const e of activeEmployees) {
+      currentByPosition.set(e.position_name, (currentByPosition.get(e.position_name) || 0) + 1);
+    }
+
+    const requiredByPosition = new Map<string, number>();
+    for (const r of requirements || []) {
+      requiredByPosition.set(r.position_name, r.required_count);
+    }
+
+    const positionNames = new Set<string>([...currentByPosition.keys(), ...requiredByPosition.keys()]);
+    const positions: BranchStaffingRow[] = Array.from(positionNames)
+      .map(position_name => {
+        const current_count = currentByPosition.get(position_name) || 0;
+        const required_count = requiredByPosition.get(position_name) || 0;
+        return {
+          position_name,
+          required_count,
+          current_count,
+          shortage: Math.max(0, required_count - current_count),
+        };
+      })
+      .sort((a, b) => a.position_name.localeCompare(b.position_name, 'ar'));
+
+    // مستندات ناقصة: بنجيب مستندات المتقدمين المرتبطين بالموظفين النشطين دفعة واحدة
+    const applicantIds = activeEmployees.map(e => e.applicant_id).filter((id): id is string => Boolean(id));
+    const docsByApplicant = new Map<string, ApplicantDocument[]>();
+    if (applicantIds.length > 0) {
+      const { data: docs, error: docsErr } = await supabase
+        .from('applicant_documents')
+        .select('*')
+        .in('applicant_id', applicantIds);
+      if (docsErr) throw new Error(`فشل استرجاع مستندات الموظفين: ${docsErr.message}`);
+      for (const d of docs || []) {
+        const list = docsByApplicant.get(d.applicant_id) || [];
+        list.push(d);
+        docsByApplicant.set(d.applicant_id, list);
+      }
+    }
+
+    const employees_missing_docs: BranchEmployeeMissingDocs[] = [];
+    for (const e of activeEmployees) {
+      const docs = e.applicant_id ? docsByApplicant.get(e.applicant_id) || [] : [];
+      const missing = getMissingDocuments({ documents: docs });
+      if (missing.length > 0) {
+        employees_missing_docs.push({
+          employee_id: e.id,
+          employee_code: e.employee_code,
+          full_name: e.full_name,
+          position_name: e.position_name,
+          phone: e.phone,
+          applicant_id: e.applicant_id || '',
+          missing,
+        });
+      }
+    }
+
+    return {
+      branch_name: branchName,
+      positions,
+      total_required: positions.reduce((s, p) => s + p.required_count, 0),
+      total_current: activeEmployees.length,
+      total_shortage: positions.reduce((s, p) => s + p.shortage, 0),
+      employees_missing_docs,
+    };
   }
 
   // =========================================================================

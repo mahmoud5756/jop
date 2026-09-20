@@ -392,6 +392,14 @@ export function createApp() {
     }
 
     try {
+      // مدير الفرع مسموح له يرفع مستندات موظفين فرعه بس (من شاشة "متابعة الفرع")
+      if (req.user?.role === 'manager') {
+        const applicant = await db.getApplicantById(applicantId);
+        if (!applicant || applicant.branch_name !== req.user?.branch) {
+          return res.status(403).json({ error: 'غير مصرح لك برفع مستندات لموظف خارج فرعك' });
+        }
+      }
+
       const doc = await db.addDocument({
         applicant_id: applicantId,
         document_type: document_type || 'أخرى',
@@ -461,7 +469,8 @@ export function createApp() {
   app.get('/api/employees', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const filters = {
       search: req.query.search as string,
-      branch: req.query.branch as string,
+      // مدير الفرع بيشوف موظفين فرعه بس، حتى لو حاول يبعت فلتر فرع تاني
+      branch: req.user?.role === 'manager' ? (req.user?.branch || '__none__') : (req.query.branch as string),
       position: req.query.position as string,
       status: req.query.status as string,
     };
@@ -696,6 +705,66 @@ export function createApp() {
       res.json({ success: true, message: 'تم حذف الوظيفة بنجاح' });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'فشل حذف الوظيفة' });
+    }
+  });
+
+  // =========================================================================
+  // Branch Staffing (العدد المطلوب من كل وظيفة في كل فرع)
+  // الأدمن/الموارد البشرية بيضبطوا الاحتياج، ومدير الفرع بيشوف ملخص فرعه بس
+  // (مين معاه فعليًا واي الوظائف الناقصة، ومين ناقصه مستندات).
+  // =========================================================================
+  app.get('/api/admin/staffing-requirements', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const requirements = await db.getStaffingRequirements();
+      res.json({ data: requirements });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'فشل استرجاع العدد المطلوب' });
+    }
+  });
+
+  app.put('/api/admin/staffing-requirements', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
+    const { branch_name, position_name, required_count } = req.body;
+    if (!branch_name || !position_name) {
+      return res.status(400).json({ error: 'الفرع والوظيفة مطلوبين' });
+    }
+    try {
+      const requirement = await db.setStaffingRequirement(branch_name, position_name, required_count, req.user?.name);
+      await db.addAuditLog(
+        'branch',
+        requirement.id,
+        'تحديث العدد المطلوب',
+        req.user?.name || 'مسؤول النظام',
+        req.user?.role || 'admin',
+        `تم ضبط العدد المطلوب لوظيفة "${position_name}" في فرع "${branch_name}" على ${requirement.required_count}`
+      );
+      res.json({ success: true, data: requirement });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'فشل حفظ العدد المطلوب' });
+    }
+  });
+
+  // ملخص متابعة الفرع: مدير الفرع بيشوف فرعه بس (بيتحدد من حسابه مباشرة
+  // ومينفعش يتغير من الفرونت)، والأدمن/الموارد البشرية يقدروا يشوفوا أي فرع
+  // بتمرير ?branch=...
+  app.get('/api/branch-overview', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      let branch: string;
+      if (req.user?.role === 'manager') {
+        branch = req.user?.branch || '';
+        if (!branch) {
+          return res.status(400).json({ error: 'حسابك غير مرتبط بفرع محدد. يرجى مراجعة مسؤول النظام لربط حسابك بفرع.' });
+        }
+      } else {
+        branch = (req.query.branch as string) || '';
+        if (!branch) {
+          return res.status(400).json({ error: 'يجب تحديد الفرع' });
+        }
+      }
+      const overview = await db.getBranchStaffingOverview(branch);
+      res.json({ data: overview });
+    } catch (err: any) {
+      console.error('API /api/branch-overview error:', err);
+      res.status(500).json({ error: err.message || 'فشل استرجاع بيانات الفرع' });
     }
   });
 

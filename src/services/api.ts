@@ -8,7 +8,9 @@ import {
   JobPosition,
   CurrentUser,
   AuthResponse,
-  FormFieldConfig
+  FormFieldConfig,
+  StaffingRequirement,
+  BranchStaffingOverview
 } from '../types';
 
 const TOKEN_STORAGE_KEY = 'bobwich_auth_token';
@@ -229,6 +231,41 @@ export class ApiService {
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || 'فشل حذف الوظيفة');
+  }
+
+  // =========================================================================
+  // Branch Staffing (العدد المطلوب من كل وظيفة في كل فرع)
+  // =========================================================================
+  static async getStaffingRequirements(): Promise<StaffingRequirement[]> {
+    const res = await fetch('/api/admin/staffing-requirements', { headers: this.getAuthHeaders() });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'فشل استرجاع العدد المطلوب');
+    return json.data || [];
+  }
+
+  static async setStaffingRequirement(data: {
+    branch_name: string;
+    position_name: string;
+    required_count: number;
+  }): Promise<StaffingRequirement> {
+    const res = await fetch('/api/admin/staffing-requirements', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+      body: JSON.stringify(data),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'فشل حفظ العدد المطلوب');
+    return json.data;
+  }
+
+  /** ملخص متابعة الفرع (مين معاه، اي الوظائف الناقصة، ومين ناقصه مستندات).
+   *  مدير الفرع مش محتاج يبعت branch — بيتحدد من حسابه في السيرفر. */
+  static async getBranchOverview(branch?: string): Promise<BranchStaffingOverview> {
+    const qs = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+    const res = await fetch(`/api/branch-overview${qs}`, { headers: this.getAuthHeaders() });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'فشل استرجاع بيانات الفرع');
+    return json.data;
   }
 
   // =========================================================================
