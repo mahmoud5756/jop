@@ -181,8 +181,11 @@ export function App() {
         setIsLoading(true);
         setErrorMessage(null);
       }
+      // مدير الفرع مش مصرح له يشوف بيانات المتقدمين خالص (السيرفر برضه بيرفضها)،
+      // فمش بنطلبها له أصلاً عشان منسببش 403 متكرر أو تسجيل خروج غلط.
+      const canSeeApplicants = currentUser.role === 'admin' || currentUser.role === 'hr';
       const [apps, emps, brs, pos] = await Promise.all([
-        ApiService.getApplicants(),
+        canSeeApplicants ? ApiService.getApplicants() : Promise.resolve([]),
         ApiService.getEmployees(),
         ApiService.getBranches(),
         ApiService.getPositions(),
