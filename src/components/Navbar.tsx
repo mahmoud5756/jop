@@ -287,8 +287,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* New Applicant Action Button */}
-            {(currentUser.role === 'admin' || currentUser.role === 'hr' || currentUser.role === 'manager') && (
+            {/* New Applicant Action Button — Admin/HR only (branch managers must never create/see applications) */}
+            {(currentUser.role === 'admin' || currentUser.role === 'hr') && (
               <button
                 onClick={() => onNavigate('new_applicant')}
                 className="bg-[#9E1A24] hover:bg-[#85151e] text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm hover:shadow transition-all active:scale-95 cursor-pointer"
@@ -302,22 +302,25 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Navigation Tabs Bar */}
         <div className="flex items-center gap-2 border-t border-stone-100 pt-2 pb-1 overflow-x-auto text-sm">
-          <button
-            onClick={() => onNavigate('applicants')}
-            className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${
-              currentActive === 'applicants'
-                ? 'bg-red-50 text-[#9E1A24] border-b-2 border-[#9E1A24]'
-                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
-            }`}
-          >
-            <SvgIcons.FileText className="w-4 h-4" />
-            <span>المتقدمون وطلبات التوظيف</span>
-            {newApplicantsCount > 0 && (
-              <span className="bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono" title="طلبات جديدة">
-                {newApplicantsCount}
-              </span>
-            )}
-          </button>
+          {/* المتقدمون وطلبات التوظيف — Admin/HR فقط، مدير الفرع ممنوع يشوف بيانات المتقدمين */}
+          {(currentUser.role === 'admin' || currentUser.role === 'hr') && (
+            <button
+              onClick={() => onNavigate('applicants')}
+              className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${
+                currentActive === 'applicants'
+                  ? 'bg-red-50 text-[#9E1A24] border-b-2 border-[#9E1A24]'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              }`}
+            >
+              <SvgIcons.FileText className="w-4 h-4" />
+              <span>المتقدمون وطلبات التوظيف</span>
+              {newApplicantsCount > 0 && (
+                <span className="bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono" title="طلبات جديدة">
+                  {newApplicantsCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {currentUser.role === 'manager' && (
             <button

@@ -299,8 +299,10 @@ export function createApp() {
     }
   });
 
-  // Applicants List & Filter
-  app.get('/api/applicants', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  // Applicants List & Filter — Admin/HR only. Branch managers must never see
+  // candidate data; their only window into the pipeline is /api/branch-overview
+  // (scoped to their own branch's already-hired employees).
+  app.get('/api/applicants', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     const filters = {
       search: req.query.search as string,
       status: req.query.status as string,
@@ -316,8 +318,8 @@ export function createApp() {
     }
   });
 
-  // Single Applicant Details
-  app.get('/api/applicants/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  // Single Applicant Details — Admin/HR only
+  app.get('/api/applicants/:id', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const applicant = await db.getApplicantById(req.params.id);
       if (!applicant) {
@@ -330,8 +332,8 @@ export function createApp() {
     }
   });
 
-  // Staff Manual Create Applicant
-  app.post('/api/applicants', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  // Staff Manual Create Applicant — Admin/HR only
+  app.post('/api/applicants', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     const performedBy = req.user?.name || 'مسؤول التوظيف';
     const userRole = req.user?.role || 'hr';
     try {
@@ -347,8 +349,8 @@ export function createApp() {
     }
   });
 
-  // Update Applicant
-  app.put('/api/applicants/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  // Update Applicant — Admin/HR only
+  app.put('/api/applicants/:id', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     const performedBy = req.user?.name || 'مسؤول التوظيف';
     const userRole = req.user?.role || 'hr';
     try {
@@ -432,8 +434,8 @@ export function createApp() {
     }
   });
 
-  // Interviews Recording
-  app.post('/api/applicants/:id/interviews', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  // Interviews Recording — Admin/HR only (candidate data)
+  app.post('/api/applicants/:id/interviews', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     const applicantId = req.params.id;
     const performedBy = req.user?.name || 'مسؤول المقابلات';
     const userRole = req.user?.role || 'hr';

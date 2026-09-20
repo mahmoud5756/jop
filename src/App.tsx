@@ -144,6 +144,9 @@ export function App() {
       try {
         const user = await ApiService.getMe();
         setCurrentUser(user);
+        if (user.role === 'manager') {
+          setCurrentView('branch_dashboard');
+        }
       } catch (err) {
         console.warn('Session expired or invalid:', err);
         ApiService.clearSession();
@@ -257,9 +260,20 @@ export function App() {
     fetchData(true);
   }, [currentView]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // حماية إضافية: مدير الفرع ممنوع يوصل لأي شاشة فيها بيانات متقدمين
+  // (حتى لو حصل أي تغيير غير متوقع في الحالة)، بيترجّع فورًا لشاشة "متابعة الفرع".
+  useEffect(() => {
+    const applicantOnlyViews = ['applicants', 'internal_staff_applicants', 'new_applicant', 'edit_applicant', 'rejected_archive', 'departed_archive'];
+    if (currentUser?.role === 'manager' && applicantOnlyViews.includes(currentView)) {
+      setCurrentView('branch_dashboard');
+    }
+  }, [currentUser, currentView]);
+
   // Auth Handlers
   const handleLoginSuccess = (user: CurrentUser) => {
     setCurrentUser(user);
+    // مدير الفرع بيروح مباشرة لشاشة "متابعة الفرع" — ممنوع يشوف قائمة المتقدمين
+    setCurrentView(user.role === 'manager' ? 'branch_dashboard' : 'applicants');
     showToast(`مرحباً بك مجدداً ${user.name}`);
   };
 
@@ -673,8 +687,8 @@ export function App() {
               </div>
             ) : (
               <>
-                {/* VIEW: APPLICANTS LIST */}
-                {currentView === 'applicants' && (
+                {/* VIEW: APPLICANTS LIST — Admin/HR only, branch managers must never see applicant data */}
+                {currentView === 'applicants' && (currentUser?.role === 'admin' || currentUser?.role === 'hr') && (
                   <ApplicantsList
                     applicants={externalApplicants}
                     branches={branches}
