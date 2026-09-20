@@ -418,6 +418,7 @@ export class ApiService {
 
     const res = await fetch(`/api/applicants?${params.toString()}`, {
       headers: this.getAuthHeaders(),
+      cache: 'no-store',
     });
     if (!res.ok) {
       if (res.status === 401) {
@@ -552,6 +553,7 @@ export class ApiService {
 
     const res = await fetch(`/api/employees?${params.toString()}`, {
       headers: this.getAuthHeaders(),
+      cache: 'no-store',
     });
     if (!res.ok) {
       throw new Error('فشل استرجاع بيانات الموظفين');

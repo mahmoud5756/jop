@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Applicant,
   Employee,
@@ -150,12 +150,22 @@ export function App() {
     }
   }, [isPublicPortal]);
 
-  // Fetch all initial authenticated dashboard data
-  const fetchData = useCallback(async () => {
+  // Fetch all authenticated dashboard data.
+  // silent = true: تحديث في الخلفية (بدون لودر ولا رسالة خطأ) — بيتستخدم في التحديث التلقائي.
+  const lastFetchRef = useRef(0);
+  const inFlightRef = useRef(false);
+
+  const fetchData = useCallback(async (silent: boolean = false) => {
     if (!currentUser || isPublicPortal) return;
+    // التحديث الصامت بيتخطى لو فيه تحديث صامت شغال؛ لكن التحديث بعد أي حفظ/تعديل بيشتغل دايمًا
+    if (silent && inFlightRef.current) return;
+    if (silent) inFlightRef.current = true;
+    lastFetchRef.current = Date.now();
     try {
-      setIsLoading(true);
-      setErrorMessage(null);
+      if (!silent) {
+        setIsLoading(true);
+        setErrorMessage(null);
+      }
       const [apps, emps, brs, pos] = await Promise.all([
         ApiService.getApplicants(),
         ApiService.getEmployees(),
@@ -166,15 +176,17 @@ export function App() {
       setEmployees(Array.isArray(emps) ? emps : []);
       setBranches(Array.isArray(brs) ? brs : []);
       setPositions(Array.isArray(pos) ? pos : []);
+      if (silent) setErrorMessage(null);
     } catch (err: any) {
       console.error('Error loading dashboard data:', err);
       if (err.message?.includes('غير مصرح') || err.message?.includes('جلسة')) {
         handleLogout();
-      } else {
+      } else if (!silent) {
         setErrorMessage(err.message || 'فشل في الاتصال بقاعدة البيانات');
       }
     } finally {
-      setIsLoading(false);
+      if (silent) inFlightRef.current = false;
+      if (!silent) setIsLoading(false);
     }
   }, [currentUser, isPublicPortal]);
 
@@ -183,6 +195,36 @@ export function App() {
       fetchData();
     }
   }, [currentUser, isPublicPortal, fetchData]);
+
+  // تحديث تلقائي: بدل ما تعمل ريفريش كل شوية، الطلبات الجديدة (من لينك التقديم) والتعديلات
+  // اللي بتتم من أجهزة تانية بتظهر لوحدها —
+  //   • كل 45 ثانية طول ما التاب مفتوح ومعروض
+  //   • أول ما ترجع للتاب أو للنافذة بعد ما كنت في حاجة تانية
+  //   • أول ما تنتقل بين الشاشات (لو عدّى أكتر من 5 ثواني من آخر تحديث)
+  useEffect(() => {
+    if (!currentUser || isPublicPortal) return;
+    const refreshIfStale = (minAgeMs: number) => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastFetchRef.current < minAgeMs) return;
+      fetchData(true);
+    };
+    const interval = window.setInterval(() => refreshIfStale(40_000), 45_000);
+    const onVisible = () => refreshIfStale(10_000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [currentUser, isPublicPortal, fetchData]);
+
+  useEffect(() => {
+    if (!currentUser || isPublicPortal) return;
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastFetchRef.current < 5_000) return;
+    fetchData(true);
+  }, [currentView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auth Handlers
   const handleLoginSuccess = (user: CurrentUser) => {
