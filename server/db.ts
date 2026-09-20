@@ -20,8 +20,8 @@ import {
 } from '../src/types';
 import { hashPassword, verifyPassword } from './auth.js';
 import { getSupabase, uploadToSupabaseStorage } from './supabase.js';
-import { isDepartedStatus } from '../src/utils/employeeStatus';
-import { getMissingDocuments } from '../src/utils/applicantDocuments';
+import { isDepartedStatus } from '../src/utils/employeeStatus.js';
+import { getMissingDocuments } from '../src/utils/applicantDocuments.js';
 
 /**
  * Escapes characters that are structurally significant in PostgREST filter
