@@ -39,10 +39,7 @@ export const WhatsAppDialog: React.FC<WhatsAppDialogProps> = ({ applicant, onClo
     regenerate(key);
   };
 
-  const open = () => {
-    if (!phone) return;
-    window.open(buildWhatsAppUrl(phone, message), '_blank', 'noopener,noreferrer');
-  };
+  const whatsappUrl = phone ? buildWhatsAppUrl(phone, message) : '';
 
   const inputCls =
     'w-full bg-stone-50 rounded-xl px-3 py-2 border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600';
@@ -145,13 +142,23 @@ export const WhatsAppDialog: React.FC<WhatsAppDialogProps> = ({ applicant, onClo
         </label>
 
         <div className="flex items-center gap-2 pt-1">
-          <button
-            onClick={open}
-            disabled={!phone || !message.trim()}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-300 disabled:cursor-not-allowed text-white py-2.5 rounded-xl font-bold text-sm transition-all"
-          >
-            فتح واتساب بالرسالة
-          </button>
+          {phone && message.trim() ? (
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-bold text-sm transition-all"
+            >
+              فتح واتساب بالرسالة
+            </a>
+          ) : (
+            <button
+              disabled
+              className="flex-1 bg-stone-300 cursor-not-allowed text-white py-2.5 rounded-xl font-bold text-sm transition-all"
+            >
+              فتح واتساب بالرسالة
+            </button>
+          )}
           <button
             onClick={onClose}
             className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-5 py-2.5 rounded-xl font-bold text-sm transition-all"
