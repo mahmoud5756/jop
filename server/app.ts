@@ -598,6 +598,77 @@ export function createApp() {
     }
   });
 
+  // Create a new user account — e.g. another system manager/admin (Admin only)
+  app.post('/api/users', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+    const { username, name, email, role, branch, password } = req.body || {};
+    try {
+      const user = await db.createUser({ username, name, email, role, branch, password });
+      await db.addAuditLog(
+        'applicant',
+        user.id,
+        'إنشاء حساب مستخدم جديد',
+        req.user?.name || 'مسؤول النظام',
+        req.user?.role || 'admin',
+        `تم إنشاء حساب (${user.name}) بصلاحية [${user.role}]`,
+        { entity_code: user.username, entity_name: user.name }
+      );
+      res.status(201).json({ success: true, data: user });
+    } catch (err: any) {
+      console.error('API POST /api/users error:', err);
+      res.status(400).json({ error: err.message || 'فشل إنشاء المستخدم' });
+    }
+  });
+
+  // Update a user account (profile, role, active status, or reset password) — Admin only
+  app.put('/api/users/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+    const id = req.params.id;
+    const { name, email, role, branch, is_active, password } = req.body || {};
+
+    if (id === req.user?.id && (is_active === false || (role && role !== req.user?.role))) {
+      return res.status(400).json({ error: 'لا يمكنك تعطيل حسابك الخاص أو تغيير صلاحيتك بنفسك' });
+    }
+
+    try {
+      const user = await db.updateUser(id, { name, email, role, branch, is_active, password });
+      await db.addAuditLog(
+        'applicant',
+        user.id,
+        'تحديث حساب مستخدم',
+        req.user?.name || 'مسؤول النظام',
+        req.user?.role || 'admin',
+        `تم تحديث بيانات حساب (${user.name})`,
+        { entity_code: user.username, entity_name: user.name }
+      );
+      res.json({ success: true, data: user });
+    } catch (err: any) {
+      console.error('API PUT /api/users/:id error:', err);
+      res.status(400).json({ error: err.message || 'فشل تحديث المستخدم' });
+    }
+  });
+
+  // Delete a user account — Admin only (cannot delete your own account)
+  app.delete('/api/users/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+    const id = req.params.id;
+    if (id === req.user?.id) {
+      return res.status(400).json({ error: 'لا يمكنك حذف حسابك الخاص' });
+    }
+    try {
+      await db.deleteUser(id);
+      await db.addAuditLog(
+        'applicant',
+        id,
+        'حذف حساب مستخدم',
+        req.user?.name || 'مسؤول النظام',
+        req.user?.role || 'admin',
+        `تم حذف حساب مستخدم بنجاح`
+      );
+      res.json({ success: true, message: 'تم حذف المستخدم بنجاح' });
+    } catch (err: any) {
+      console.error('API DELETE /api/users/:id error:', err);
+      res.status(500).json({ error: err.message || 'فشل حذف المستخدم' });
+    }
+  });
+
   // Supabase Integration info & Schema (Admin only - Protected from Public/Candidates)
   app.get('/api/supabase/status', requireAuth, requireRole(['admin']), (req: AuthenticatedRequest, res: Response) => {
     const configured = isSupabaseConfigured();

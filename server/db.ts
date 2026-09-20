@@ -1889,7 +1889,136 @@ class SupabaseDataAccessLayer {
       email: u.email,
       role: u.role,
       branch: u.branch,
+      is_active: u.is_active,
+      created_at: u.created_at,
     }));
+  }
+
+  /** إنشاء حساب مستخدم جديد (مدير نظام / موارد بشرية / مدير فرع / موظف) — Admin فقط. */
+  public async createUser(input: {
+    username: string;
+    name: string;
+    email?: string;
+    role: UserRole;
+    branch?: string;
+    password: string;
+  }): Promise<CurrentUser> {
+    const supabase = getSupabase();
+    const username = sanitizePostgrestValue((input.username || '').trim().toLowerCase());
+    const name = (input.name || '').trim();
+
+    if (!username || !name || !input.password) {
+      throw new Error('اسم المستخدم والاسم الكامل وكلمة المرور مطلوبين');
+    }
+    if (input.password.length < 6) {
+      throw new Error('كلمة المرور يجب ألا تقل عن 6 أحرف أو أرقام');
+    }
+    if (!['admin', 'hr', 'manager', 'employee'].includes(input.role)) {
+      throw new Error('صلاحية غير معروفة');
+    }
+
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .ilike('username', username)
+      .maybeSingle();
+    if (existing) {
+      throw new Error('اسم المستخدم مستخدم بالفعل، برجاء اختيار اسم آخر');
+    }
+
+    const { hash, salt } = hashPassword(input.password);
+    const newUser = {
+      id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      username,
+      name,
+      email: input.email?.trim() || null,
+      role: input.role,
+      branch: input.branch?.trim() || null,
+      password_hash: hash,
+      salt,
+      is_active: true,
+    };
+
+    const { error } = await supabase.from('users').insert([newUser]);
+    if (error) {
+      throw new Error(`فشل إنشاء المستخدم: ${error.message}`);
+    }
+
+    return {
+      id: newUser.id,
+      username: newUser.username,
+      name: newUser.name,
+      email: newUser.email || undefined,
+      role: newUser.role,
+      branch: newUser.branch || undefined,
+      is_active: true,
+    };
+  }
+
+  /** تعديل بيانات مستخدم (وكلمة المرور اختياريًا) — Admin فقط. */
+  public async updateUser(
+    id: string,
+    updates: {
+      name?: string;
+      email?: string;
+      role?: UserRole;
+      branch?: string;
+      is_active?: boolean;
+      password?: string;
+    }
+  ): Promise<CurrentUser> {
+    const supabase = getSupabase();
+    const payload: Record<string, any> = {};
+
+    if (updates.name !== undefined) payload.name = updates.name.trim();
+    if (updates.email !== undefined) payload.email = updates.email.trim() || null;
+    if (updates.role !== undefined) payload.role = updates.role;
+    if (updates.branch !== undefined) payload.branch = updates.branch.trim() || null;
+    if (updates.is_active !== undefined) payload.is_active = updates.is_active;
+
+    if (updates.password) {
+      if (updates.password.length < 6) {
+        throw new Error('كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف أو أرقام');
+      }
+      const { hash, salt } = hashPassword(updates.password);
+      payload.password_hash = hash;
+      payload.salt = salt;
+    }
+
+    const { error } = await supabase.from('users').update(payload).eq('id', id);
+    if (error) {
+      throw new Error(`فشل تحديث المستخدم: ${error.message}`);
+    }
+
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (fetchError || !user) {
+      throw new Error('المستخدم غير موجود');
+    }
+
+    return {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      branch: user.branch,
+      is_active: user.is_active,
+      created_at: user.created_at,
+    };
+  }
+
+  /** حذف مستخدم نهائيًا — Admin فقط. */
+  public async deleteUser(id: string): Promise<boolean> {
+    const supabase = getSupabase();
+    const { error } = await supabase.from('users').delete().eq('id', id);
+    if (error) {
+      throw new Error(`فشل حذف المستخدم: ${error.message}`);
+    }
+    return true;
   }
 
   public async changeUserPassword(

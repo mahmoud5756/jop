@@ -218,6 +218,8 @@ export interface CurrentUser {
   role: UserRole;
   email?: string;
   branch?: string;
+  is_active?: boolean;
+  created_at?: string;
 }
 
 export interface UserAccount {

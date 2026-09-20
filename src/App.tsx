@@ -25,6 +25,7 @@ import { AuditLogsView } from './components/AuditLogsView';
 import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
 import { BranchDashboardView } from './components/BranchDashboardView';
 import { CompanySettingsView } from './components/CompanySettingsView';
+import { UsersManagementView } from './components/UsersManagementView';
 import { FormFieldsSettingsView } from './components/FormFieldsSettingsView';
 import { PublicApplicantPortal } from './components/PublicApplicantPortal';
 import { SharePortalModal } from './components/SharePortalModal';
@@ -66,7 +67,7 @@ export function App() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Navigation & View State
-  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'rejected_archive' | 'departed_archive' | 'branch_dashboard' | 'print'>('applicants');
+  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'users' | 'rejected_archive' | 'departed_archive' | 'branch_dashboard' | 'print'>('applicants');
 
   // Share & QR Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -803,6 +804,11 @@ export function App() {
                 {/* VIEW: FORM FIELDS SETTINGS (إعدادات نموذج التقديم) */}
                 {currentView === 'form_fields' && currentUser && (
                   <FormFieldsSettingsView currentUser={currentUser} showToast={showToast} />
+                )}
+
+                {/* VIEW: USERS MANAGEMENT (إدارة المستخدمين — Admin فقط) */}
+                {currentView === 'users' && currentUser?.role === 'admin' && (
+                  <UsersManagementView currentUser={currentUser} branches={branches} showToast={showToast} />
                 )}
               </>
             )}

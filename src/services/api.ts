@@ -142,6 +142,53 @@ export class ApiService {
   }
 
   // =========================================================================
+  // System Users (إدارة حسابات المستخدمين — Admin فقط)
+  // =========================================================================
+  static async getUsers(): Promise<CurrentUser[]> {
+    const res = await fetch('/api/users', { headers: this.getAuthHeaders() });
+    const json = await this.parseResponse(res);
+    return json.data || [];
+  }
+
+  static async createUser(data: {
+    username: string;
+    name: string;
+    email?: string;
+    role: string;
+    branch?: string;
+    password: string;
+  }): Promise<CurrentUser> {
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+      body: JSON.stringify(data),
+    });
+    const json = await this.parseResponse(res);
+    return json.data;
+  }
+
+  static async updateUser(
+    id: string,
+    updates: { name?: string; email?: string; role?: string; branch?: string; is_active?: boolean; password?: string }
+  ): Promise<CurrentUser> {
+    const res = await fetch(`/api/users/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+      body: JSON.stringify(updates),
+    });
+    const json = await this.parseResponse(res);
+    return json.data;
+  }
+
+  static async deleteUser(id: string): Promise<void> {
+    const res = await fetch(`/api/users/${id}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(),
+    });
+    await this.parseResponse(res);
+  }
+
+  // =========================================================================
   // Public Portal Endpoints (For Candidates & Application Form)
   // =========================================================================
 
