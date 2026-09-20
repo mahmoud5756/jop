@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Applicant, ApplicantDocument } from '../types';
 import { SvgIcons } from './BobWichLogo';
 
@@ -25,7 +25,7 @@ const CARD_W = 85.6; // مم — مقاس كارت CR80 (نفس البطاقة �
 const CARD_H = 54; // مم
 const CARD_GAP = 8; // مم بين الوش والظهر
 const HEADER_H = 9; // مم — العنوان الصغير أعلى الورقة
-const ID_TOP_PAD = 6; // مم
+const ID_TOP_PAD = 8; // مم
 
 const FRONT_TYPE = 'صورة بطاقة الرقم القومي - الوجه';
 const BACK_TYPE = 'صورة بطاقة الرقم القومي - الظهر';
@@ -50,7 +50,21 @@ const isPdfDoc = (d: ApplicantDocument) => {
 
 const lastOf = <T,>(list: T[]): T | undefined => (list.length ? list[list.length - 1] : undefined);
 
-// ── صورة داخل إطار بمقاس ثابت بالمللي، مع دعم التدوير (للصور المصورة بالعرض) ──
+// ── صورة داخل إطار بمقاس ثابت بالمللي، مع تدوير + تكبير + تحريك (سحب) ─────────
+interface ImageView {
+  /** التكبير (1 = زي ما اختار: كاملة أو ملء الإطار) */
+  z: number;
+  /** الإزاحة الأفقية بالمللي (موجب = الصورة تتحرك يمين) */
+  tx: number;
+  /** الإزاحة الرأسية بالمللي (موجب = الصورة تنزل لتحت) */
+  ty: number;
+}
+
+const DEFAULT_VIEW: ImageView = { z: 1, tx: 0, ty: 0 };
+const MAX_ZOOM = 4;
+const PX_TO_MM = 25.4 / 96;
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
 interface DocImageProps {
   src: string;
   w: number;
@@ -59,12 +73,87 @@ interface DocImageProps {
   fit: 'contain' | 'cover';
   radius?: number;
   alt: string;
+  view: ImageView;
+  onViewChange: (v: ImageView) => void;
 }
 
-const DocImage: React.FC<DocImageProps> = ({ src, w, h, rotation, fit, radius = 0, alt }) => {
+const DocImage: React.FC<DocImageProps> = ({
+  src,
+  w,
+  h,
+  rotation,
+  fit,
+  radius = 0,
+  alt,
+  view,
+  onViewChange,
+}) => {
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const dragRef = useRef<{ x: number; y: number } | null>(null);
+  // آخر قيمة للـ view — عشان السحب السريع ما يشتغلش على قيمة قديمة
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  useEffect(() => {
+    setNatural(null);
+    const el = imgRef.current;
+    if (el && el.complete && el.naturalWidth) {
+      setNatural({ w: el.naturalWidth, h: el.naturalHeight });
+    }
+  }, [src]);
+
   const swapped = rotation % 180 !== 0;
+
+  // أبعاد الصورة بعد التكبير، وحدود الإزاحة المسموحة (عشان الصورة ما تسيبش فراغ جوه الإطار)
+  let imgW = w;
+  let imgH = h;
+  let limitX = 0;
+  let limitY = 0;
+  if (natural) {
+    const visW0 = swapped ? natural.h : natural.w;
+    const visH0 = swapped ? natural.w : natural.h;
+    const base = fit === 'cover' ? Math.max(w / visW0, h / visH0) : Math.min(w / visW0, h / visH0);
+    const scale = base * view.z;
+    imgW = natural.w * scale; // أبعاد العنصر قبل التدوير
+    imgH = natural.h * scale;
+    limitX = Math.max(0, (visW0 * scale - w) / 2);
+    limitY = Math.max(0, (visH0 * scale - h) / 2);
+  }
+  const tx = clamp(view.tx, -limitX, limitX);
+  const ty = clamp(view.ty, -limitY, limitY);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!natural) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { x: e.clientX, y: e.clientY };
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const last = dragRef.current;
+    if (!last) return;
+    const dx = (e.clientX - last.x) * PX_TO_MM;
+    const dy = (e.clientY - last.y) * PX_TO_MM;
+    dragRef.current = { x: e.clientX, y: e.clientY };
+    const cur = viewRef.current;
+    const next = {
+      ...cur,
+      tx: clamp(cur.tx + dx, -limitX, limitX),
+      ty: clamp(cur.ty + dy, -limitY, limitY),
+    };
+    viewRef.current = next;
+    onViewChange(next);
+  };
+  const endDrag = () => {
+    dragRef.current = null;
+  };
+
   return (
     <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      title="اسحب الصورة لتحريكها"
       style={{
         position: 'relative',
         width: `${w}mm`,
@@ -72,25 +161,35 @@ const DocImage: React.FC<DocImageProps> = ({ src, w, h, rotation, fit, radius = 
         overflow: 'hidden',
         borderRadius: radius ? `${radius}mm` : 0,
         background: '#fff',
+        cursor: natural ? 'grab' : 'default',
+        touchAction: 'none',
       }}
     >
       <img
+        ref={imgRef}
         src={src}
         alt={alt}
         draggable={false}
         referrerPolicy="no-referrer"
+        onLoad={e => {
+          const el = e.currentTarget;
+          if (el.naturalWidth) setNatural({ w: el.naturalWidth, h: el.naturalHeight });
+        }}
         style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
-          // عند التدوير 90/270 بنبدّل العرض والارتفاع عشان الصورة تملأ نفس الإطار بعد اللف
-          width: `${swapped ? h : w}mm`,
-          height: `${swapped ? w : h}mm`,
-          // Tailwind preflight بيحط max-width:100% على الصور، وده بيبوّظ التدوير
+          // قبل ما تتحمّل الصورة (ملهاش أبعاد لسه) بنعرضها بالملء العادي
+          width: natural ? `${imgW}mm` : `${swapped ? h : w}mm`,
+          height: natural ? `${imgH}mm` : `${swapped ? w : h}mm`,
+          // Tailwind preflight بيحط max-width:100% على الصور، وده بيبوّظ التدوير والتكبير
           maxWidth: 'none',
           maxHeight: 'none',
-          objectFit: fit,
-          transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+          objectFit: natural ? 'fill' : fit,
+          pointerEvents: 'none',
+          userSelect: 'none',
+          // الإزاحة في مساحة الشاشة (قبل التدوير) فالاتجاهات دايمًا بديهية
+          transform: `translate(-50%, -50%) translate(${tx}mm, ${ty}mm) rotate(${rotation}deg)`,
         }}
       />
     </div>
@@ -154,6 +253,8 @@ export const DocumentsPrintView: React.FC<DocumentsPrintViewProps> = ({ applican
   const [showHeader, setShowHeader] = useState(true);
   const [swapFaces, setSwapFaces] = useState(false);
   const [rot, setRot] = useState<Record<string, number>>({});
+  // تكبير وتحريك كل صورة لوحدها (بالسحب) عشان تملا المربع زي ما تحب
+  const [views, setViews] = useState<Record<string, ImageView>>({});
 
   // الدمج في ورقة واحدة مناسب بس مع الحجم الحقيقي للبطاقة (المساحة المتبقية كافية)
   const canMerge = idScale === 1;
@@ -168,8 +269,19 @@ export const DocumentsPrintView: React.FC<DocumentsPrintViewProps> = ({ applican
     return () => window.removeEventListener('keydown', onKey);
   }, [onBack]);
 
-  const rotate = (key: string, delta: number) =>
+  const viewOf = (key: string): ImageView => views[key] || DEFAULT_VIEW;
+  const setView = (key: string, v: ImageView) => setViews(prev => ({ ...prev, [key]: v }));
+
+  const rotate = (key: string, delta: number) => {
     setRot(prev => ({ ...prev, [key]: (((prev[key] || 0) + delta) % 360 + 360) % 360 }));
+    // بعد التدوير بنصفّر التحريك (التكبير بيفضل)
+    setViews(prev => ({ ...prev, [key]: { ...(prev[key] || DEFAULT_VIEW), tx: 0, ty: 0 } }));
+  };
+
+  const zoom = (key: string, delta: number) => {
+    const cur = viewOf(key);
+    setView(key, { ...cur, z: clamp(Math.round((cur.z + delta) * 100) / 100, 1, MAX_ZOOM) });
+  };
 
   const handlePrint = () => {
     setTimeout(() => window.print(), 50);
@@ -193,23 +305,33 @@ export const DocumentsPrintView: React.FC<DocumentsPrintViewProps> = ({ applican
       </div>
     ) : null;
 
-  const renderRotateControls = (key: string) => (
-    <div className="print:hidden absolute top-1 left-1 z-10 flex gap-1">
-      <button
-        type="button"
-        onClick={() => rotate(key, -90)}
-        className="bg-stone-900/70 hover:bg-stone-900 text-white w-6 h-6 rounded-md text-sm leading-none"
-        title="تدوير 90° لليسار"
-      >
+  const ctrlBtn =
+    'bg-stone-900/70 hover:bg-stone-900 text-white w-6 h-6 rounded-md text-sm leading-none flex items-center justify-center';
+
+  // أدوات كل صورة (بتظهر على الشاشة بس ومش بتتطبع): تدوير + تكبير/تصغير + رجوع للوضع الأصلي
+  const renderRotateControls = (key: string, outside = false) => (
+    <div
+      className={`print:hidden absolute z-10 flex gap-1 ${outside ? '-top-7 left-0' : 'top-1 left-1'}`}
+    >
+      <button type="button" onClick={() => rotate(key, -90)} className={ctrlBtn} title="تدوير 90° لليسار">
         ↺
+      </button>
+      <button type="button" onClick={() => rotate(key, 90)} className={ctrlBtn} title="تدوير 90° لليمين">
+        ↻
+      </button>
+      <button type="button" onClick={() => zoom(key, 0.15)} className={ctrlBtn} title="تكبير الصورة">
+        +
+      </button>
+      <button type="button" onClick={() => zoom(key, -0.15)} className={ctrlBtn} title="تصغير الصورة">
+        −
       </button>
       <button
         type="button"
-        onClick={() => rotate(key, 90)}
-        className="bg-stone-900/70 hover:bg-stone-900 text-white w-6 h-6 rounded-md text-sm leading-none"
-        title="تدوير 90° لليمين"
+        onClick={() => setView(key, DEFAULT_VIEW)}
+        className={ctrlBtn}
+        title="رجوع للوضع الأصلي (بدون تكبير أو تحريك)"
       >
-        ↻
+        ⟲
       </button>
     </div>
   );
@@ -230,6 +352,8 @@ export const DocumentsPrintView: React.FC<DocumentsPrintViewProps> = ({ applican
             fit={idFit}
             radius={3.2}
             alt={label}
+            view={viewOf(key)}
+            onViewChange={v => setView(key, v)}
           />
         ) : (
           <div
@@ -247,7 +371,7 @@ export const DocumentsPrintView: React.FC<DocumentsPrintViewProps> = ({ applican
             borderRadius: '3.2mm',
           }}
         />
-        {doc && renderRotateControls(key)}
+        {doc && renderRotateControls(key, true)}
         <span className="print:hidden absolute -top-4 right-0 text-[10px] font-bold text-stone-400">
           {label}
         </span>
@@ -267,6 +391,8 @@ export const DocumentsPrintView: React.FC<DocumentsPrintViewProps> = ({ applican
           rotation={rot[key] || 0}
           fit="contain"
           alt={doc.document_type}
+          view={viewOf(key)}
+          onViewChange={v => setView(key, v)}
         />
         {renderRotateControls(key)}
       </div>
@@ -594,7 +720,7 @@ export const DocumentsPrintView: React.FC<DocumentsPrintViewProps> = ({ applican
             </button>
             <p className="text-[11px] text-stone-500 leading-relaxed">
               في نافذة الطباعة اختر ورق <strong>A4</strong> وتأكد إن <strong>Scale = 100%</strong>{' '}
-              (مش «Fit to page») عشان مقاس البطاقة يطلع حقيقي. الصور الجانبية تقدر تلفّها بزرار ↻ على الصورة.
+              (مش «Fit to page») عشان مقاس البطاقة يطلع حقيقي. على كل صورة: <strong>اسحبها</strong> بالماوس أو صباعك لتحريكها لفوق/تحت/جنب، و<strong>+ −</strong> للتكبير، و↻ للتدوير، و⟲ للرجوع للوضع الأصلي.
             </p>
           </div>
         </div>

@@ -807,7 +807,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-stone-700 min-w-26">مسؤول التوظيف:</span>
                       <span className="border-b border-stone-400 flex-1 font-semibold text-stone-900 pb-0.5">
-                        {applicant.hr_decision?.recruiter_name || 'أ. سارة أحمد'}
+                        {applicant.hr_decision?.recruiter_name || 'أ. محمود عزت'}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">

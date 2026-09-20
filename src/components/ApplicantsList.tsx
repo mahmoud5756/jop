@@ -25,6 +25,27 @@ interface ApplicantsListProps {
   emptyStateLabel?: string;
 }
 
+/**
+ * تقسيم المتقدمين لثلاث مجموعات:
+ *  - جدد: طلب جديد / تحت المراجعة
+ *  - قائمة الانتظار
+ *  - نشطين (شغالين حاليًا في الإجراءات): حضر المقابلة / إعادة مقابلة / مقبول / اتحوّل لموظف
+ */
+type GroupTab = 'all' | 'new' | 'waiting' | 'active';
+
+const groupOf = (a: Applicant): Exclude<GroupTab, 'all'> => {
+  if (a.status === 'قائمة انتظار') return 'waiting';
+  if (
+    a.is_converted_to_employee ||
+    a.status === 'حضر المقابلة' ||
+    a.status === 'إعادة مقابلة' ||
+    a.status === 'مقبول'
+  ) {
+    return 'active';
+  }
+  return 'new';
+};
+
 export const ApplicantsList: React.FC<ApplicantsListProps> = ({
   applicants,
   branches,
@@ -48,6 +69,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedPosition, setSelectedPosition] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [groupTab, setGroupTab] = useState<GroupTab>('all');
   const [filterConverted, setFilterConverted] = useState<'all' | 'converted' | 'applicants_only'>('all');
 
   // Filtered list calculation
@@ -66,6 +88,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
       const matchesBranch = selectedBranch === 'all' || app.branch_name === selectedBranch;
       const matchesPosition = selectedPosition === 'all' || app.position_name === selectedPosition;
       const matchesStatus = selectedStatus === 'all' || app.status === selectedStatus;
+      const matchesGroup = groupTab === 'all' || groupOf(app) === groupTab;
 
       let matchesConverted = true;
       if (filterConverted === 'converted') {
@@ -74,9 +97,9 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
         matchesConverted = !app.is_converted_to_employee;
       }
 
-      return matchesSearch && matchesBranch && matchesPosition && matchesStatus && matchesConverted;
+      return matchesSearch && matchesBranch && matchesPosition && matchesStatus && matchesGroup && matchesConverted;
     });
-  }, [safeApplicants, searchTerm, selectedBranch, selectedPosition, selectedStatus, filterConverted]);
+  }, [safeApplicants, searchTerm, selectedBranch, selectedPosition, selectedStatus, groupTab, filterConverted]);
 
   // Statistics counters
   const stats = useMemo(() => {
@@ -85,8 +108,20 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
     const pending = safeApplicants.filter(a => a.status === 'طلب جديد' || a.status === 'تحت المراجعة').length;
     const interviewed = safeApplicants.filter(a => a.status === 'حضر المقابلة').length;
     const waiting = safeApplicants.filter(a => a.status === 'قائمة انتظار').length;
-    return { total, accepted, pending, interviewed, waiting };
+    const groups = {
+      new: safeApplicants.filter(a => groupOf(a) === 'new').length,
+      waiting: safeApplicants.filter(a => groupOf(a) === 'waiting').length,
+      active: safeApplicants.filter(a => groupOf(a) === 'active').length,
+    };
+    return { total, accepted, pending, interviewed, waiting, groups };
   }, [safeApplicants]);
+
+  // الضغط على تاب مجموعة بيصفّر باقي الفلاتر السريعة، والعكس صحيح للكروت
+  const selectGroup = (g: GroupTab) => {
+    setGroupTab(g);
+    setSelectedStatus('all');
+    setFilterConverted('all');
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -146,7 +181,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
       {/* Metrics Row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div
-          onClick={() => { setSelectedStatus('all'); setFilterConverted('all'); }}
+          onClick={() => { setSelectedStatus('all'); setFilterConverted('all'); setGroupTab('all'); }}
           className="bg-white p-3.5 rounded-2xl border border-stone-200 shadow-xs cursor-pointer hover:border-[#9E1A24] transition-all"
         >
           <span className="text-[11px] font-bold text-stone-500 block">إجمالي المتقدمين</span>
@@ -154,7 +189,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
         </div>
 
         <div
-          onClick={() => setSelectedStatus('طلب جديد')}
+          onClick={() => { setGroupTab('all'); setSelectedStatus('طلب جديد'); }}
           className="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-200 shadow-xs cursor-pointer hover:border-blue-500 transition-all"
         >
           <span className="text-[11px] font-bold text-blue-700 block">طلبات جديدة / مراجعة</span>
@@ -162,7 +197,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
         </div>
 
         <div
-          onClick={() => setSelectedStatus('حضر المقابلة')}
+          onClick={() => { setGroupTab('all'); setSelectedStatus('حضر المقابلة'); }}
           className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-200 shadow-xs cursor-pointer hover:border-amber-500 transition-all"
         >
           <span className="text-[11px] font-bold text-amber-800 block">تمت المقابلة</span>
@@ -170,7 +205,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
         </div>
 
         <div
-          onClick={() => { setSelectedStatus('مقبول'); setFilterConverted('converted'); }}
+          onClick={() => { setGroupTab('all'); setSelectedStatus('مقبول'); setFilterConverted('converted'); }}
           className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200 shadow-xs cursor-pointer hover:border-emerald-500 transition-all"
         >
           <span className="text-[11px] font-bold text-emerald-800 block">تم القبول والتعيين</span>
@@ -178,12 +213,33 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
         </div>
 
         <div
-          onClick={() => setSelectedStatus('قائمة انتظار')}
+          onClick={() => { setGroupTab('all'); setSelectedStatus('قائمة انتظار'); }}
           className="bg-stone-100 p-3.5 rounded-2xl border border-stone-300 shadow-xs cursor-pointer hover:border-stone-500 transition-all col-span-2 sm:col-span-1"
         >
           <span className="text-[11px] font-bold text-stone-700 block">قائمة الانتظار</span>
           <span className="text-xl font-black text-stone-900 font-mono">{stats.waiting}</span>
         </div>
+      </div>
+
+      {/* تقسيم المتقدمين: جدد / قائمة انتظار / نشطين */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {([
+          { key: 'all', label: 'الكل', count: stats.total, active: 'bg-stone-800 text-white border-stone-800', idle: 'bg-white text-stone-700 border-stone-300 hover:border-stone-500', badge: 'bg-stone-200 text-stone-800' },
+          { key: 'new', label: 'جدد', count: stats.groups.new, active: 'bg-blue-700 text-white border-blue-700', idle: 'bg-white text-blue-800 border-blue-200 hover:border-blue-500', badge: 'bg-blue-100 text-blue-800' },
+          { key: 'waiting', label: 'قائمة الانتظار', count: stats.groups.waiting, active: 'bg-stone-600 text-white border-stone-600', idle: 'bg-white text-stone-700 border-stone-300 hover:border-stone-500', badge: 'bg-stone-200 text-stone-800' },
+          { key: 'active', label: 'نشطين (مقابلات ومقبولين)', count: stats.groups.active, active: 'bg-emerald-700 text-white border-emerald-700', idle: 'bg-white text-emerald-800 border-emerald-200 hover:border-emerald-500', badge: 'bg-emerald-100 text-emerald-800' },
+        ] as { key: GroupTab; label: string; count: number; active: string; idle: string; badge: string }[]).map(t => (
+          <button
+            key={t.key}
+            onClick={() => selectGroup(t.key)}
+            className={`px-4 py-2 rounded-xl border text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${groupTab === t.key ? t.active : t.idle}`}
+          >
+            <span>{t.label}</span>
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black font-mono ${groupTab === t.key ? 'bg-white/25 text-white' : t.badge}`}>
+              {t.count}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Filter and Search Bar */}
