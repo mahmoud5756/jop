@@ -19,6 +19,7 @@ import { EmployeeCardView } from './components/EmployeeCardView';
 import { DocumentsPrintView } from './components/DocumentsPrintView';
 import { RejectedArchiveView } from './components/RejectedArchiveView';
 import { DepartedArchiveView } from './components/DepartedArchiveView';
+import { WhatsAppDialog } from './components/WhatsAppDialog';
 import { EmployeesView } from './components/EmployeesView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
@@ -95,6 +96,8 @@ export function App() {
   // الموظفين النشطين بيفضلوا في سجل الموظفين، والمستقيلين/منهيي التعاقد في أرشيفهم
   const activeEmployees = useMemo(() => employees.filter(e => !isDepartedEmployee(e)), [employees]);
   const departedEmployees = useMemo(() => employees.filter(e => isDepartedEmployee(e)), [employees]);
+  const newExternalCount = useMemo(() => externalApplicants.filter(a => a.status === 'طلب جديد').length, [externalApplicants]);
+  const newStaffCount = useMemo(() => staffApplicants.filter(a => a.status === 'طلب جديد').length, [staffApplicants]);
   const rejectedApplicants = useMemo(
     () => applicants.filter(a => isRejectedApplicant(a)),
     [applicants]
@@ -111,15 +114,20 @@ export function App() {
   const [printingCardEmployee, setPrintingCardEmployee] = useState<Employee | null>(null);
   // طباعة البطاقة (وش وضهر) والشهادة الصحية
   const [printingDocsApplicant, setPrintingDocsApplicant] = useState<Applicant | null>(null);
+  // رسالة واتساب جاهزة لمتقدم
+  const [whatsAppApplicant, setWhatsAppApplicant] = useState<Applicant | null>(null);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  const toastTimerRef = useRef<number | null>(null);
+  const showToast = (msg: string, durationMs: number = 4000) => {
     setToastMessage(msg);
-    setTimeout(() => {
+    // نلغي المؤقت القديم عشان إشعار قديم ما يقفلش الجديد بدري
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => {
       setToastMessage(null);
-    }, 4000);
+    }, durationMs);
   };
 
   // Verify session on mount
@@ -154,6 +162,8 @@ export function App() {
   // silent = true: تحديث في الخلفية (بدون لودر ولا رسالة خطأ) — بيتستخدم في التحديث التلقائي.
   const lastFetchRef = useRef(0);
   const inFlightRef = useRef(false);
+  // الطلبات اللي اتشافت قبل كده — عشان نعرف الطلب الجديد اللي وصل بعد التحديث التلقائي
+  const knownApplicantIdsRef = useRef<Set<string> | null>(null);
 
   const fetchData = useCallback(async (silent: boolean = false) => {
     if (!currentUser || isPublicPortal) return;
@@ -172,7 +182,26 @@ export function App() {
         ApiService.getBranches(),
         ApiService.getPositions(),
       ]);
-      setApplicants(Array.isArray(apps) ? apps : []);
+      const appsList: Applicant[] = Array.isArray(apps) ? apps : [];
+
+      // إشعار بالطلبات الجديدة اللي وصلت (من لينك التقديم مثلًا) — في التحديث التلقائي بس،
+      // مش أول تحميل ولا بعد حفظ المستخدم لطلب بنفسه.
+      if (silent && knownApplicantIdsRef.current) {
+        const known = knownApplicantIdsRef.current;
+        const fresh = appsList.filter(a => !known.has(a.id) && a.status === 'طلب جديد');
+        if (fresh.length === 1) {
+          const a = fresh[0];
+          showToast(
+            `🔔 وصل ${a.applicant_category === 'internal_staff' ? 'تسجيل موظف حالي' : 'طلب جديد'}: ${a.full_name} — ${a.position_name}`,
+            10000,
+          );
+        } else if (fresh.length > 1) {
+          showToast(`🔔 وصل ${fresh.length} طلبات جديدة`, 10000);
+        }
+      }
+      knownApplicantIdsRef.current = new Set(appsList.map(a => a.id));
+
+      setApplicants(appsList);
       setEmployees(Array.isArray(emps) ? emps : []);
       setBranches(Array.isArray(brs) ? brs : []);
       setPositions(Array.isArray(pos) ? pos : []);
@@ -240,6 +269,8 @@ export function App() {
     setPrintingApplicant(null);
     setPrintingCardEmployee(null);
     setPrintingDocsApplicant(null);
+    setWhatsAppApplicant(null);
+    knownApplicantIdsRef.current = null;
     showToast('تم تسجيل الخروج بنجاح');
   };
 
@@ -578,6 +609,11 @@ export function App() {
         />
       )}
 
+      {/* رسالة واتساب جاهزة للمتقدم */}
+      {whatsAppApplicant && (
+        <WhatsAppDialog applicant={whatsAppApplicant} onClose={() => setWhatsAppApplicant(null)} />
+      )}
+
       {/* طباعة مستندات المتقدم: بطاقة الرقم القومي (وش وضهر) + الشهادة الصحية */}
       {printingDocsApplicant && (
         <DocumentsPrintView
@@ -605,6 +641,8 @@ export function App() {
             onOpenShareModal={() => setIsShareModalOpen(true)}
             rejectedCount={rejectedApplicants.length}
             departedCount={departedEmployees.length}
+            newApplicantsCount={newExternalCount}
+            newStaffCount={newStaffCount}
           />
 
           {/* Main Content Area */}
@@ -648,6 +686,7 @@ export function App() {
                     onOpenShareModal={() => setIsShareModalOpen(true)}
                     onPrintDocs={handlePrintApplicantDocs}
                     onReject={handleRejectApplicant}
+                    onWhatsApp={setWhatsAppApplicant}
                   />
                 )}
 
@@ -666,6 +705,7 @@ export function App() {
                     onOpenShareModal={() => setIsStaffShareModalOpen(true)}
                     onPrintDocs={handlePrintApplicantDocs}
                     onReject={handleRejectApplicant}
+                    onWhatsApp={setWhatsAppApplicant}
                     title="تسجيل الموظفين الحاليين"
                     subtitle="أرشيف منفصل لتسجيلات الموظفين الحاليين في النظام الجديد — لا يتداخل مع المتقدمين الجدد"
                     shareButtonLabel="رابط تسجيل الموظفين الحاليين"
@@ -775,6 +815,7 @@ export function App() {
               onPrintDocs={handlePrintApplicantDocs}
               onReject={handleRejectApplicant}
               onRestore={handleRestoreApplicant}
+              onWhatsApp={setWhatsAppApplicant}
             />
           )}
         </div>

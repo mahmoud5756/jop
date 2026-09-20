@@ -521,10 +521,6 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         setErrorMessage(declErr);
         return false;
       }
-      if (!formData.applicant_signature_name?.trim()) {
-        setErrorMessage('يرجى كتابة اسمك في خانة توقيع المتقدم كإقرار رسمي');
-        return false;
-      }
       const err5 = validateCustomFields(fieldConfig, 'declaration', customData);
       if (err5) {
         setErrorMessage(err5);
@@ -586,6 +582,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
       const payload: Partial<Applicant> = {
         ...formData,
+        // التوقيع في الإقرار = اسم المتقدم نفسه
+        applicant_signature_name: formData.full_name,
         // تطبيع الإجابات: الحقول التي لم يملأها المتقدم تُحفظ كقيم صريحة
         experience_years: Number(formData.experience_years) || 0,
         restaurant_experience: formData.restaurant_experience === true,
@@ -1708,15 +1706,14 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">
-                  توقيع المتقدم (الاسم الثلاثي أو الرباعي) <span className="text-red-500">*</span>
+                  توقيع المتقدم (نفس الاسم المكتوب في الاستمارة)
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder="اكتب اسمك كتوقيع إلكتروني"
-                  value={formData.applicant_signature_name || ''}
-                  onChange={e => setFormData(prev => ({ ...prev, applicant_signature_name: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-bold"
+                  readOnly
+                  value={formData.full_name || ''}
+                  title="بيتاخد تلقائيًا من اسمك في الخطوة الأولى"
+                  className="w-full px-4 py-3 rounded-xl border border-stone-300 bg-stone-100 text-stone-700 cursor-not-allowed text-sm font-bold"
                 />
               </div>
 

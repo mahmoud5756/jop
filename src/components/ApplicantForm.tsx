@@ -100,7 +100,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
     custom_skill: initialData?.custom_skill || '',
 
     declaration_accepted: initialData?.declaration_accepted ?? false,
-    applicant_signature_name: initialData?.applicant_signature_name || '',
+    applicant_signature_name: initialData?.applicant_signature_name || initialData?.full_name || '',
     declaration_date: initialData?.declaration_date || new Date().toISOString().split('T')[0],
 
     status: initialData?.status || 'طلب جديد',
@@ -418,6 +418,8 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
     try {
       const payload: Partial<Applicant> = {
         ...formData,
+        // اسم المقر في الإقرار = اسم المتقدم دايمًا
+        applicant_signature_name: formData.full_name,
         custom_data: customData,
         experiences: experiences.filter(exp => exp.workplace || exp.position),
         assets: assets.filter(a => a.asset_name),
@@ -652,7 +654,11 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     type="text"
                     required
                     value={formData.full_name}
-                    onChange={e => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                    onChange={e => {
+                      const newName = e.target.value;
+                      // اسم المقر في الإقرار هو نفس اسم المتقدم دايمًا
+                      setFormData(prev => ({ ...prev, full_name: newName, applicant_signature_name: newName }));
+                    }}
                     placeholder="الاسم رباعي كما في بطاقة الرقم القومي"
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
                   />
@@ -1728,12 +1734,13 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1">اسم المتقدم المقر:</label>
+                  <label className="block font-bold text-stone-700 mb-1">اسم المتقدم المقر: <span className="text-[10px] font-normal text-stone-400">(نفس اسم المتقدم تلقائيًا)</span></label>
                   <input
                     type="text"
-                    value={formData.applicant_signature_name || formData.full_name}
-                    onChange={e => setFormData(prev => ({ ...prev, applicant_signature_name: e.target.value }))}
-                    className="w-full bg-white rounded-lg p-2 border border-stone-300 text-xs font-semibold"
+                    value={formData.full_name}
+                    readOnly
+                    title="بيتاخد تلقائيًا من اسم المتقدم في الخطوة الأولى"
+                    className="w-full bg-stone-100 text-stone-700 rounded-lg p-2 border border-stone-300 text-xs font-semibold cursor-not-allowed"
                   />
                 </div>
 

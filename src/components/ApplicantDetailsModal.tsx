@@ -27,6 +27,8 @@ interface ApplicantDetailsModalProps {
   onReject?: (applicant: Applicant) => void;
   /** استرجاع طلب مرفوض من الأرشيف */
   onRestore?: (applicant: Applicant) => void;
+  /** رسالة واتساب جاهزة */
+  onWhatsApp?: (applicant: Applicant) => void;
 }
 
 export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
@@ -40,6 +42,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
   onPrintDocs,
   onReject,
   onRestore,
+  onWhatsApp,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'interviews' | 'assets' | 'documents' | 'audit'>('overview');
 
@@ -210,6 +213,17 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
               <SvgIcons.Print className="w-3.5 h-3.5" />
               <span>طباعة الاستمارة (A4)</span>
             </button>
+
+            {onWhatsApp && (
+              <button
+                onClick={() => onWhatsApp(applicant)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition-all"
+                title="رسالة واتساب جاهزة للمتقدم"
+              >
+                <span>💬</span>
+                <span>واتساب</span>
+              </button>
+            )}
 
             {onPrintDocs && (
               <button
@@ -464,7 +478,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                   <div className="bg-white p-2 rounded-xl border border-stone-200">
                     <span className="text-stone-500 block text-[11px]">اسم الموقّع:</span>
-                    <span className="font-bold">{applicant.applicant_signature_name || applicant.full_name || '—'}</span>
+                    <span className="font-bold">{applicant.full_name || '—'}</span>
                   </div>
                   <div className="bg-white p-2 rounded-xl border border-stone-200">
                     <span className="text-stone-500 block text-[11px]">تاريخ الإقرار:</span>

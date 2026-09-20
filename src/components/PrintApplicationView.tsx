@@ -598,7 +598,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-stone-700">الاسم:</span>
                           <span className="border-b border-stone-400 flex-1 font-semibold">
-                            {applicant.applicant_signature_name || applicant.full_name || '______________'}
+                            {applicant.full_name || '______________'}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -677,11 +677,11 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                   <div className="grid grid-cols-2 gap-4 pt-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-stone-700 min-w-22">اسم المتقدم:</span>
-                      <span className="border-b border-stone-400 flex-1 font-semibold text-stone-900">{applicant.applicant_signature_name || applicant.full_name || '______________'}</span>
+                      <span className="border-b border-stone-400 flex-1 font-semibold text-stone-900">{applicant.full_name || '______________'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-stone-700 min-w-20">التوقيع:</span>
-                      <span className="border-b border-stone-400 flex-1 font-signature text-stone-800">{applicant.applicant_signature_name ? `توقيع: ${applicant.applicant_signature_name}` : '______________________'}</span>
+                      <span className="border-b border-stone-400 flex-1 font-signature text-stone-800">{applicant.full_name ? `توقيع: ${applicant.full_name}` : '______________________'}</span>
                     </div>
                   </div>
                 </div>

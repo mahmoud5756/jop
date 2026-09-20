@@ -699,7 +699,8 @@ class SupabaseDataAccessLayer {
       can_work_holidays: payload.can_work_holidays ?? true,
 
       declaration_accepted: payload.declaration_accepted ?? true,
-      applicant_signature_name: payload.applicant_signature_name || payload.full_name || '',
+      // اسم المقر في الإقرار = اسم المتقدم دايمًا
+      applicant_signature_name: (payload.full_name || '').trim(),
       declaration_date: payload.declaration_date || now.split('T')[0],
 
       status: normalizeApplicantStatus(payload.status) || 'طلب جديد',
@@ -909,6 +910,12 @@ class SupabaseDataAccessLayer {
       can_work_shifts: payload.can_work_shifts !== undefined ? payload.can_work_shifts : current.can_work_shifts,
       can_work_overtime: payload.can_work_overtime !== undefined ? payload.can_work_overtime : current.can_work_overtime,
       can_work_holidays: payload.can_work_holidays !== undefined ? payload.can_work_holidays : current.can_work_holidays,
+
+      // الإقرار: كانت الحقول دي بتتحفظ عند الإنشاء بس، وتعديلها بعد كده ماكانش بيتحفظ
+      declaration_accepted: payload.declaration_accepted !== undefined ? Boolean(payload.declaration_accepted) : current.declaration_accepted,
+      // اسم المقر في الإقرار = اسم المتقدم دايمًا (بيتحدّث تلقائيًا لما الاسم يتغيّر)
+      applicant_signature_name: payload.full_name !== undefined ? payload.full_name.trim() : current.full_name,
+      declaration_date: payload.declaration_date !== undefined ? payload.declaration_date : current.declaration_date,
 
       status: payload.status !== undefined ? normalizeApplicantStatus(payload.status) : current.status,
       updated_at: now,

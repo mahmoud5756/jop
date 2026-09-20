@@ -17,6 +17,9 @@ interface NavbarProps {
   rejectedCount?: number;
   /** عدد المستقيلين/منهيي التعاقد (عدّاد تاب أرشيف المستقيلين) */
   departedCount?: number;
+  /** عدد الطلبات الجديدة (حالة "طلب جديد") — عدّاد على تاب المتقدمين وتاب الموظفين الحاليين */
+  newApplicantsCount?: number;
+  newStaffCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -31,6 +34,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenShareModal,
   rejectedCount = 0,
   departedCount = 0,
+  newApplicantsCount = 0,
+  newStaffCount = 0,
 }) => {
   const currentActive = currentView || activeView || 'applicants';
   const [searchQuery, setSearchQuery] = useState('');
@@ -307,6 +312,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <SvgIcons.FileText className="w-4 h-4" />
             <span>المتقدمون وطلبات التوظيف</span>
+            {newApplicantsCount > 0 && (
+              <span className="bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono" title="طلبات جديدة">
+                {newApplicantsCount}
+              </span>
+            )}
           </button>
 
           <button
@@ -332,6 +342,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <span className="text-base">🗂️</span>
               <span>تسجيل الموظفين الحاليين</span>
+              {newStaffCount > 0 && (
+                <span className="bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono" title="تسجيلات جديدة">
+                  {newStaffCount}
+                </span>
+              )}
             </button>
           )}
 

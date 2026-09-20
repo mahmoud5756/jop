@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Applicant, Branch, JobPosition, CurrentUser } from '../types';
 import { SvgIcons } from './BobWichLogo';
+import { getMissingDocuments } from '../utils/applicantDocuments';
 
 interface ApplicantsListProps {
   applicants: Applicant[];
@@ -17,6 +18,8 @@ interface ApplicantsListProps {
   onPrintDocs?: (applicant: Applicant) => void;
   /** رفض الطلب ونقله لأرشيف المرفوضين */
   onReject?: (applicant: Applicant) => void;
+  /** فتح رسالة واتساب جاهزة للمتقدم */
+  onWhatsApp?: (applicant: Applicant) => void;
   /** تخصيصات النصوص عند استخدام نفس الشاشة لأرشيف منفصل (مثل تسجيل الموظفين الحاليين) */
   title?: string;
   subtitle?: string;
@@ -59,6 +62,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
   onOpenShareModal,
   onPrintDocs,
   onReject,
+  onWhatsApp,
   title = 'سجل طلبات التوظيف الإلكترونية',
   subtitle = 'إدارة ومتابعة طلبات التوظيف، فحص المستندات، وإجراء المقابلات لجميع فروع BOB WICH',
   shareButtonLabel = 'رابط التقديم والـ QR Code',
@@ -70,6 +74,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
   const [selectedPosition, setSelectedPosition] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [groupTab, setGroupTab] = useState<GroupTab>('all');
+  const [docsFilter, setDocsFilter] = useState<'all' | 'missing' | 'complete'>('all');
   const [filterConverted, setFilterConverted] = useState<'all' | 'converted' | 'applicants_only'>('all');
 
   // Filtered list calculation
@@ -89,6 +94,9 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
       const matchesPosition = selectedPosition === 'all' || app.position_name === selectedPosition;
       const matchesStatus = selectedStatus === 'all' || app.status === selectedStatus;
       const matchesGroup = groupTab === 'all' || groupOf(app) === groupTab;
+      const missingCount = getMissingDocuments(app).length;
+      const matchesDocs =
+        docsFilter === 'all' || (docsFilter === 'missing' ? missingCount > 0 : missingCount === 0);
 
       let matchesConverted = true;
       if (filterConverted === 'converted') {
@@ -97,9 +105,9 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
         matchesConverted = !app.is_converted_to_employee;
       }
 
-      return matchesSearch && matchesBranch && matchesPosition && matchesStatus && matchesGroup && matchesConverted;
+      return matchesSearch && matchesBranch && matchesPosition && matchesStatus && matchesGroup && matchesDocs && matchesConverted;
     });
-  }, [safeApplicants, searchTerm, selectedBranch, selectedPosition, selectedStatus, groupTab, filterConverted]);
+  }, [safeApplicants, searchTerm, selectedBranch, selectedPosition, selectedStatus, groupTab, docsFilter, filterConverted]);
 
   // Statistics counters
   const stats = useMemo(() => {
@@ -113,7 +121,8 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
       waiting: safeApplicants.filter(a => groupOf(a) === 'waiting').length,
       active: safeApplicants.filter(a => groupOf(a) === 'active').length,
     };
-    return { total, accepted, pending, interviewed, waiting, groups };
+    const missingDocs = safeApplicants.filter(a => getMissingDocuments(a).length > 0).length;
+    return { total, accepted, pending, interviewed, waiting, groups, missingDocs };
   }, [safeApplicants]);
 
   // الضغط على تاب مجموعة بيصفّر باقي الفلاتر السريعة، والعكس صحيح للكروت
@@ -244,7 +253,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           {/* Search Box */}
           <div className="lg:col-span-2 relative">
             <input
@@ -313,6 +322,19 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
               <option value="إعادة مقابلة">إعادة مقابلة</option>
               <option value="مقبول">مقبول</option>
               <option value="قائمة انتظار">قائمة انتظار</option>
+            </select>
+          </div>
+
+          {/* Documents Filter */}
+          <div>
+            <select
+              value={docsFilter}
+              onChange={e => setDocsFilter(e.target.value as 'all' | 'missing' | 'complete')}
+              className="w-full bg-stone-50 rounded-xl px-3 py-2.5 border border-stone-300 text-xs font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#9E1A24]"
+            >
+              <option value="all">كل المستندات</option>
+              <option value="missing">ناقص مستندات ({stats.missingDocs})</option>
+              <option value="complete">مستندات كاملة</option>
             </select>
           </div>
         </div>
@@ -425,6 +447,17 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
                               </span>
                             )}
                           </div>
+                          {(() => {
+                            const missing = getMissingDocuments(app);
+                            return missing.length > 0 ? (
+                              <div
+                                className="mt-1 inline-block bg-amber-50 text-amber-800 border border-amber-200 rounded px-1.5 py-0.5 text-[10px] font-bold"
+                                title="مستندات أساسية لسه ماترفعتش"
+                              >
+                                ⚠ ناقص: {missing.join('، ')}
+                              </div>
+                            ) : null;
+                          })()}
                         </div>
                       </div>
                     </td>
@@ -442,6 +475,15 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
 
                     {/* Phone */}
                     <td className="py-3 px-4 font-mono text-stone-700">
+                      {onWhatsApp && (
+                        <button
+                          onClick={() => onWhatsApp(app)}
+                          className="ml-1.5 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 rounded-md px-1.5 py-0.5 text-[11px] font-sans transition-all align-middle"
+                          title="رسالة واتساب جاهزة"
+                        >
+                          💬
+                        </button>
+                      )}
                       {app.phone}
                     </td>
 
