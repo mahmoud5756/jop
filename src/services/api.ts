@@ -10,7 +10,9 @@ import {
   AuthResponse,
   FormFieldConfig,
   StaffingRequirement,
-  BranchStaffingOverview
+  BranchStaffingOverview,
+  ManagerRequest,
+  ManagerRequestType
 } from '../types';
 
 const TOKEN_STORAGE_KEY = 'bobwich_auth_token';
@@ -312,6 +314,56 @@ export class ApiService {
     const res = await fetch(`/api/branch-overview${qs}`, { headers: this.getAuthHeaders() });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || 'فشل استرجاع بيانات الفرع');
+    return json.data;
+  }
+
+  // =========================================================================
+  // طلبات مدير الفرع للموارد البشرية
+  // =========================================================================
+  static async getManagerRequests(params?: { status?: string; branch?: string }): Promise<ManagerRequest[]> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.branch) qs.set('branch', params.branch);
+    const q = qs.toString();
+    const res = await fetch(`/api/manager-requests${q ? `?${q}` : ''}`, { headers: this.getAuthHeaders() });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'فشل استرجاع الطلبات');
+    return json.data || [];
+  }
+
+  static async createManagerRequest(payload: {
+    request_type: ManagerRequestType;
+    employee_id?: string;
+    target_branch?: string;
+    requested_position?: string;
+    requested_count?: number;
+    effective_date?: string;
+    review_result?: 'تمام' | 'مش تمام';
+    urgent?: boolean;
+    reason?: string;
+  }): Promise<ManagerRequest> {
+    const res = await fetch('/api/manager-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'فشل إرسال الطلب');
+    return json.data;
+  }
+
+  static async resolveManagerRequest(
+    id: string,
+    action: 'approve' | 'reject' | 'execute',
+    note?: string
+  ): Promise<ManagerRequest> {
+    const res = await fetch(`/api/manager-requests/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+      body: JSON.stringify({ action, note: note || '' }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'فشل تحديث الطلب');
     return json.data;
   }
 

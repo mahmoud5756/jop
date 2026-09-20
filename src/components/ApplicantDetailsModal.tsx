@@ -67,6 +67,19 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
     status: 'تحت الاختبار' as const,
   });
   const [convertError, setConvertError] = useState<string | null>(null);
+  // الفرع اللي الموارد البشرية هتنزّل فيه الموظف ممكن يختلف عن الفرع اللي قدّم عليه —
+  // بنختاره من قائمة الفروع الفعلية (مش كتابة حرة) عشان الاسم يطابق فرع مدير الفرع بالظبط.
+  const [branchOptions, setBranchOptions] = useState<string[]>([]);
+  const [positionOptions, setPositionOptions] = useState<string[]>([]);
+  useEffect(() => {
+    if (!showConvertDialog) return;
+    Promise.all([ApiService.getBranches(), ApiService.getPositions()])
+      .then(([brs, pos]) => {
+        setBranchOptions(brs.filter(b => b.is_active).map(b => b.name));
+        setPositionOptions(pos.filter(p => p.is_active).map(p => p.title));
+      })
+      .catch(() => { /* لو فشل التحميل نفضل على القيم الحالية */ });
+  }, [showConvertDialog]);
 
   const canManageHR = currentUser.role === 'admin' || currentUser.role === 'hr';
   const canDelete = currentUser.role === 'admin';
@@ -757,23 +770,45 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-stone-700 mb-1">الفرع المعين به:</label>
-                <input
-                  type="text"
+                <label className="block font-bold text-stone-700 mb-1">الفرع اللي هينزل فيه:</label>
+                <select
                   value={convertForm.branch_name}
                   onChange={e => setConvertForm(prev => ({ ...prev, branch_name: e.target.value }))}
                   className="w-full bg-stone-50 rounded-xl p-2.5 border border-stone-300 font-semibold"
-                />
+                >
+                  {!branchOptions.includes(convertForm.branch_name) && convertForm.branch_name && (
+                    <option value={convertForm.branch_name}>{convertForm.branch_name}</option>
+                  )}
+                  {branchOptions.map(b => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] mt-1 text-stone-500 font-semibold">
+                  المتقدم قدّم على: <span className="text-stone-800 font-black">{applicant.branch_name || '—'}</span>
+                  {convertForm.branch_name !== applicant.branch_name && (
+                    <span className="text-amber-700 font-black"> · هتنزّله فرع مختلف</span>
+                  )}
+                </p>
               </div>
 
               <div>
                 <label className="block font-bold text-stone-700 mb-1">المسمى الوظيفي:</label>
-                <input
-                  type="text"
+                <select
                   value={convertForm.position_name}
                   onChange={e => setConvertForm(prev => ({ ...prev, position_name: e.target.value }))}
                   className="w-full bg-stone-50 rounded-xl p-2.5 border border-stone-300 font-semibold"
-                />
+                >
+                  {!positionOptions.includes(convertForm.position_name) && convertForm.position_name && (
+                    <option value={convertForm.position_name}>{convertForm.position_name}</option>
+                  )}
+                  {positionOptions.map(p => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

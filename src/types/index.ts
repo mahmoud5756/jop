@@ -183,7 +183,7 @@ export interface Employee {
 
 export interface AuditLog {
   id: string;
-  entity_type: 'applicant' | 'employee' | 'interview' | 'asset' | 'hr_decision' | 'document' | 'branch' | 'position' | 'company_settings';
+  entity_type: 'applicant' | 'employee' | 'interview' | 'asset' | 'hr_decision' | 'document' | 'branch' | 'position' | 'company_settings' | 'manager_request';
   entity_id: string;
   entity_code?: string;
   entity_name?: string;
@@ -337,4 +337,56 @@ export interface FormFieldSettings {
   config: FormFieldConfig[];
   updated_at?: string;
   updated_by?: string;
+}
+
+// ============================================================================
+// Manager Requests (طلبات مدير الفرع للموارد البشرية)
+// ============================================================================
+
+/**
+ * أنواع الطلبات اللي مدير الفرع يقدر يرفعها للموارد البشرية:
+ *  - staff_request:    طلب موظف/كاشير (أو أي وظيفة) للفرع
+ *  - transfer:         نقل موظف من فرعه لفرع تاني
+ *  - new_hire_review:  تأكيد موظف جديد نزل الفرع (تمام / مش تمام)
+ *  - investigation:    تحويل موظف للتحقيق
+ *  - termination:      طلب إنهاء تعاقد موظف
+ *  - resignation:      إبلاغ باستقالة موظف وتاريخ آخر يوم
+ */
+export type ManagerRequestType =
+  | 'staff_request'
+  | 'transfer'
+  | 'new_hire_review'
+  | 'investigation'
+  | 'termination'
+  | 'resignation';
+
+export type ManagerRequestStatus = 'جديد' | 'تمت الموافقة' | 'مرفوض' | 'تم التنفيذ';
+
+export interface ManagerRequest {
+  id: string;
+  request_type: ManagerRequestType;
+  status: ManagerRequestStatus;
+  /** فرع مدير الفرع اللي رفع الطلب */
+  branch_name: string;
+  requested_by: string;
+  employee_id?: string | null;
+  employee_code?: string | null;
+  employee_name?: string | null;
+  employee_position?: string | null;
+  /** للنقل: الفرع المطلوب النقل له */
+  target_branch?: string | null;
+  /** لطلب موظف: الوظيفة والعدد المطلوب */
+  requested_position?: string | null;
+  requested_count?: number | null;
+  /** تاريخ سريان الطلب: آخر يوم عمل (استقالة/إنهاء) أو تاريخ النقل أو تاريخ الاحتياج */
+  effective_date?: string | null;
+  /** لتأكيد الموظف الجديد: 'تمام' أو 'مش تمام' */
+  review_result?: 'تمام' | 'مش تمام' | null;
+  urgent?: boolean;
+  reason?: string | null;
+  hr_note?: string | null;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  created_at: string;
+  updated_at?: string;
 }

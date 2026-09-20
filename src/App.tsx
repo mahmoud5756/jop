@@ -5,6 +5,7 @@ import {
   Branch,
   JobPosition,
   CurrentUser,
+  ManagerRequest,
 } from './types';
 import { ApiService } from './services/api';
 import { Navbar } from './components/Navbar';
@@ -24,6 +25,7 @@ import { EmployeesView } from './components/EmployeesView';
 import { AuditLogsView } from './components/AuditLogsView';
 import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
 import { BranchDashboardView } from './components/BranchDashboardView';
+import { ManagerRequestsInboxView } from './components/ManagerRequestsInboxView';
 import { CompanySettingsView } from './components/CompanySettingsView';
 import { UsersManagementView } from './components/UsersManagementView';
 import { FormFieldsSettingsView } from './components/FormFieldsSettingsView';
@@ -33,6 +35,7 @@ import { LoginView } from './components/LoginView';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { SvgIcons } from './components/BobWichLogo';
 import { isDepartedEmployee } from './utils/employeeStatus';
+import { MANAGER_REQUEST_LABELS } from './utils/managerRequests';
 import { isRejectedApplicant, buildStatusChangePayload, REJECTED_STATUS } from './utils/applicantStatus';
 
 export function App() {
@@ -67,7 +70,7 @@ export function App() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Navigation & View State
-  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'users' | 'rejected_archive' | 'departed_archive' | 'branch_dashboard' | 'print'>('applicants');
+  const [currentView, setCurrentView] = useState<'applicants' | 'employees' | 'internal_staff_applicants' | 'new_applicant' | 'edit_applicant' | 'audit_logs' | 'branches_positions' | 'company_settings' | 'form_fields' | 'users' | 'rejected_archive' | 'departed_archive' | 'branch_dashboard' | 'manager_requests' | 'print'>('applicants');
 
   // Share & QR Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -78,6 +81,9 @@ export function App() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [positions, setPositions] = useState<JobPosition[]>([]);
+  // طلبات مديري الفروع (الموارد البشرية/الأدمن بس)
+  const [managerRequests, setManagerRequests] = useState<ManagerRequest[]>([]);
+  const knownRequestIdsRef = useRef<Set<string> | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -98,6 +104,10 @@ export function App() {
   // الموظفين النشطين بيفضلوا في سجل الموظفين، والمستقيلين/منهيي التعاقد في أرشيفهم
   const activeEmployees = useMemo(() => employees.filter(e => !isDepartedEmployee(e)), [employees]);
   const departedEmployees = useMemo(() => employees.filter(e => isDepartedEmployee(e)), [employees]);
+  const pendingRequestsCount = useMemo(
+    () => managerRequests.filter(r => r.status === 'جديد').length,
+    [managerRequests]
+  );
   const newExternalCount = useMemo(() => externalApplicants.filter(a => a.status === 'طلب جديد').length, [externalApplicants]);
   const newStaffCount = useMemo(() => staffApplicants.filter(a => a.status === 'طلب جديد').length, [staffApplicants]);
   const rejectedApplicants = useMemo(
@@ -191,6 +201,26 @@ export function App() {
         ApiService.getPositions(),
       ]);
       const appsList: Applicant[] = Array.isArray(apps) ? apps : [];
+
+      // طلبات مديري الفروع — للأدمن/الموارد البشرية بس. لو الجدول لسه ما اتعملش نتجاهل الخطأ.
+      if (canSeeApplicants) {
+        try {
+          const reqs = await ApiService.getManagerRequests();
+          if (silent && knownRequestIdsRef.current) {
+            const known = knownRequestIdsRef.current;
+            const fresh = reqs.filter(r => !known.has(r.id) && r.status === 'جديد');
+            if (fresh.length === 1) {
+              showToast(`🔔 طلب جديد من فرع ${fresh[0].branch_name}: ${MANAGER_REQUEST_LABELS[fresh[0].request_type]}`, 10000);
+            } else if (fresh.length > 1) {
+              showToast(`🔔 وصل ${fresh.length} طلبات جديدة من مديري الفروع`, 10000);
+            }
+          }
+          knownRequestIdsRef.current = new Set(reqs.map(r => r.id));
+          setManagerRequests(reqs);
+        } catch (e) {
+          console.warn('manager requests unavailable:', e);
+        }
+      }
 
       // إشعار بالطلبات الجديدة اللي وصلت (من لينك التقديم مثلًا) — في التحديث التلقائي بس،
       // مش أول تحميل ولا بعد حفظ المستخدم لطلب بنفسه.
@@ -290,6 +320,8 @@ export function App() {
     setPrintingDocsApplicant(null);
     setWhatsAppApplicant(null);
     knownApplicantIdsRef.current = null;
+    knownRequestIdsRef.current = null;
+    setManagerRequests([]);
     showToast('تم تسجيل الخروج بنجاح');
   };
 
@@ -662,6 +694,7 @@ export function App() {
             departedCount={departedEmployees.length}
             newApplicantsCount={newExternalCount}
             newStaffCount={newStaffCount}
+            pendingRequestsCount={pendingRequestsCount}
           />
 
           {/* Main Content Area */}
@@ -797,6 +830,17 @@ export function App() {
                     onUpdateStatus={handleUpdateEmployeeStatus}
                     onEmployeeUpdated={handleEmployeeUpdated}
                     onDelete={handleDeleteEmployee}
+                    onManagerRequestSent={msg => showToast(msg)}
+                  />
+                )}
+
+                {/* VIEW: طلبات مديري الفروع (الموارد البشرية/الأدمن) */}
+                {currentView === 'manager_requests' && canManageHR && currentUser && (
+                  <ManagerRequestsInboxView
+                    requests={managerRequests}
+                    currentUser={currentUser}
+                    onChanged={() => fetchData()}
+                    showToast={showToast}
                   />
                 )}
 

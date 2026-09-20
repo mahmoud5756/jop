@@ -477,6 +477,8 @@ export function createApp() {
       status: req.query.status as string,
     };
     try {
+      // استقالات/إنهاءات اتوافق عليها وتاريخها جه — بتتنفذ تلقائيًا قبل ما نرجّع القائمة
+      try { await db.applyDueDepartures(); } catch (e) { console.warn('applyDueDepartures failed:', e); }
       const employees = await db.getEmployees(filters);
       res.json({ data: employees, total: employees.length });
     } catch (err: any) {
@@ -813,6 +815,81 @@ export function createApp() {
       res.json({ success: true, data: requirement });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'فشل حفظ العدد المطلوب' });
+    }
+  });
+
+  // =========================================================================
+  // طلبات مدير الفرع للموارد البشرية
+  // (طلب موظف/كاشير، نقل، تقييم موظف جديد، تحقيق، إنهاء تعاقد، استقالة)
+  // =========================================================================
+
+  // مدير الفرع بيرفع الطلب — الفرع بيتحدد من حسابه وعمره ما بيجي من الفرونت
+  app.post('/api/manager-requests', requireAuth, requireRole(['manager']), async (req: AuthenticatedRequest, res: Response) => {
+    const branch = req.user?.branch || '';
+    if (!branch) {
+      return res.status(400).json({ error: 'حسابك غير مرتبط بفرع محدد. يرجى مراجعة مسؤول النظام لربط حسابك بفرع.' });
+    }
+    try {
+      const b = req.body || {};
+      const result = await db.createManagerRequest(
+        {
+          request_type: b.request_type,
+          employee_id: b.employee_id,
+          target_branch: b.target_branch,
+          requested_position: b.requested_position,
+          requested_count: b.requested_count,
+          effective_date: b.effective_date,
+          review_result: b.review_result,
+          urgent: b.urgent,
+          reason: b.reason,
+        },
+        { name: req.user?.name || 'مدير الفرع', branch, role: 'manager' }
+      );
+      if (!result.success) return res.status(400).json({ error: result.error });
+      res.status(201).json({ success: true, data: result.request, message: 'تم إرسال الطلب للموارد البشرية' });
+    } catch (err: any) {
+      console.error('API POST /api/manager-requests error:', err);
+      res.status(500).json({ error: err.message || 'فشل إرسال الطلب' });
+    }
+  });
+
+  // مدير الفرع يشوف طلبات فرعه بس، والأدمن/الموارد البشرية يشوفوا الكل
+  app.get('/api/manager-requests', requireAuth, requireRole(['manager', 'admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      try { await db.applyDueDepartures(); } catch (e) { console.warn('applyDueDepartures failed:', e); }
+      let branch: string | undefined;
+      if (req.user?.role === 'manager') {
+        branch = req.user?.branch || '__none__';
+      } else if (req.query.branch) {
+        branch = String(req.query.branch);
+      }
+      const data = await db.getManagerRequests({ branch, status: req.query.status as string | undefined });
+      res.json({ data, total: data.length });
+    } catch (err: any) {
+      console.error('API GET /api/manager-requests error:', err);
+      res.status(500).json({ error: err.message || 'فشل استرجاع الطلبات' });
+    }
+  });
+
+  // قرار الموارد البشرية: approve / reject / execute
+  app.patch('/api/manager-requests/:id', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
+    const { action, note } = req.body || {};
+    if (!['approve', 'reject', 'execute'].includes(action)) {
+      return res.status(400).json({ error: 'الإجراء غير صحيح' });
+    }
+    try {
+      const result = await db.resolveManagerRequest(
+        req.params.id,
+        action,
+        note || '',
+        req.user?.name || 'مدير الموارد البشرية',
+        req.user?.role || 'hr'
+      );
+      if (!result.success) return res.status(400).json({ error: result.error });
+      res.json({ success: true, data: result.request, message: 'تم تحديث الطلب' });
+    } catch (err: any) {
+      console.error('API PATCH /api/manager-requests/:id error:', err);
+      res.status(500).json({ error: err.message || 'فشل تحديث الطلب' });
     }
   });
 

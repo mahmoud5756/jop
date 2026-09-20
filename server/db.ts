@@ -17,7 +17,11 @@ import {
   BranchStaffingOverview,
   BranchStaffingRow,
   BranchEmployeeMissingDocs,
+  ManagerRequest,
+  ManagerRequestType,
+  ManagerRequestStatus,
 } from '../src/types';
+import { MANAGER_REQUEST_LABELS } from '../src/utils/managerRequests.js';
 import { hashPassword, verifyPassword } from './auth.js';
 import { getSupabase, uploadToSupabaseStorage } from './supabase.js';
 import { isDepartedStatus } from '../src/utils/employeeStatus.js';
@@ -1365,6 +1369,14 @@ class SupabaseDataAccessLayer {
       };
     }
 
+    // الفرع اللي الموظف هينزل فيه ممكن يختلف عن الفرع اللي قدّم عليه، بس لازم يكون فرع فعلي
+    // (عشان اسمه يطابق حساب مدير الفرع ويظهر له الموظف).
+    const assignedBranch = String(payload.branch_name || applicant.branch_name || '').trim();
+    if (payload.branch_name && assignedBranch !== applicant.branch_name) {
+      const { data: branchRow } = await supabase.from('branches').select('id').eq('name', assignedBranch).maybeSingle();
+      if (!branchRow) return { success: false, error: 'الفرع المختار غير موجود في قائمة الفروع' };
+    }
+
     const employee_code = await this.generateEmployeeCode();
     const now = new Date().toISOString();
     const id = 'emp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
@@ -1431,7 +1443,7 @@ class SupabaseDataAccessLayer {
       'تحويل متقدم إلى موظف رسمي',
       performedBy,
       userRole,
-      `تم تعيين المتقدم ${applicant.full_name} (${applicant.application_code}) كموظف جديد بكود (${employee.employee_code}) براتب ${employee.salary} وفرع ${employee.branch_name}`,
+      `تم تعيين المتقدم ${applicant.full_name} (${applicant.application_code}) كموظف جديد بكود (${employee.employee_code}) براتب ${employee.salary} وفرع ${employee.branch_name}${employee.branch_name !== applicant.branch_name ? ` (المتقدم قدّم على فرع ${applicant.branch_name})` : ''}`,
       { entity_code: employee.employee_code, entity_name: employee.full_name }
     );
 
@@ -1693,6 +1705,330 @@ class SupabaseDataAccessLayer {
 
     const { data: updatedEmp } = await supabase.from('employees').select('*').eq('id', id).single();
     return { success: true, employee: updatedEmp || undefined, warning };
+  }
+
+
+  // =========================================================================
+  // Manager Requests (طلبات مدير الفرع للموارد البشرية)
+  // =========================================================================
+
+  /**
+   * إنشاء طلب من مدير الفرع. الفرع بيتحدد من حساب المدير (مش من الفرونت)،
+   * وأي طلب يخص موظف لازم يكون الموظف فعلًا في فرع المدير ولسه على رأس الشغل.
+   */
+  public async createManagerRequest(
+    input: {
+      request_type: ManagerRequestType;
+      employee_id?: string;
+      target_branch?: string;
+      requested_position?: string;
+      requested_count?: number;
+      effective_date?: string;
+      review_result?: 'تمام' | 'مش تمام';
+      urgent?: boolean;
+      reason?: string;
+    },
+    manager: { name: string; branch: string; role: UserRole }
+  ): Promise<{ success: boolean; request?: ManagerRequest; error?: string }> {
+    const supabase = getSupabase();
+    const type = input.request_type;
+    const validTypes: ManagerRequestType[] = [
+      'staff_request', 'transfer', 'new_hire_review', 'investigation', 'termination', 'resignation',
+    ];
+    if (!validTypes.includes(type)) return { success: false, error: 'نوع الطلب غير صحيح' };
+
+    const reason = input.reason ? String(input.reason).trim().slice(0, 1000) : '';
+    const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+    const effective = input.effective_date ? String(input.effective_date).trim() : '';
+    if (effective && !isoDate.test(effective)) return { success: false, error: 'صيغة التاريخ غير صحيحة' };
+
+    const row: Record<string, any> = {
+      id: 'mrq_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      request_type: type,
+      status: 'جديد' as ManagerRequestStatus,
+      branch_name: manager.branch,
+      requested_by: manager.name,
+      reason: reason || null,
+      urgent: Boolean(input.urgent),
+      effective_date: effective || null,
+    };
+
+    if (type === 'staff_request') {
+      const position = String(input.requested_position || '').trim();
+      const count = Math.floor(Number(input.requested_count));
+      if (!position) return { success: false, error: 'اختر الوظيفة المطلوبة' };
+      if (!count || count < 1 || count > 50) return { success: false, error: 'العدد المطلوب لازم يكون من 1 إلى 50' };
+      row.requested_position = position;
+      row.requested_count = count;
+    } else {
+      // كل الأنواع التانية بتخص موظف بعينه في فرع المدير
+      if (!input.employee_id) return { success: false, error: 'اختر الموظف' };
+      const { data: emp, error: empErr } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('id', input.employee_id)
+        .maybeSingle();
+      if (empErr || !emp) return { success: false, error: 'الموظف غير موجود' };
+      if (emp.branch_name !== manager.branch) {
+        return { success: false, error: 'الموظف ده مش تابع لفرعك' };
+      }
+      if (isDepartedStatus(emp.status)) {
+        return { success: false, error: 'الموظف ده مسجّل خروجه بالفعل' };
+      }
+      row.employee_id = emp.id;
+      row.employee_code = emp.employee_code;
+      row.employee_name = emp.full_name;
+      row.employee_position = emp.position_name;
+
+      if (type === 'transfer') {
+        const target = String(input.target_branch || '').trim();
+        if (!target) return { success: false, error: 'اختر الفرع اللي هيتنقل له الموظف' };
+        if (target === manager.branch) return { success: false, error: 'الفرع المطلوب هو نفس فرع الموظف الحالي' };
+        const { data: b } = await supabase.from('branches').select('id').eq('name', target).maybeSingle();
+        if (!b) return { success: false, error: 'الفرع المطلوب غير موجود' };
+        row.target_branch = target;
+        if (!reason) return { success: false, error: 'اكتب سبب النقل' };
+      }
+      if (type === 'resignation' || type === 'termination') {
+        if (!effective) {
+          return {
+            success: false,
+            error: type === 'resignation' ? 'حدد آخر يوم عمل للموظف' : 'حدد تاريخ إنهاء التعاقد',
+          };
+        }
+        if (type === 'termination' && !reason) return { success: false, error: 'اكتب سبب طلب إنهاء التعاقد' };
+      }
+      if (type === 'investigation' && !reason) {
+        return { success: false, error: 'اكتب سبب التحويل للتحقيق' };
+      }
+      if (type === 'new_hire_review') {
+        const result = input.review_result;
+        if (result !== 'تمام' && result !== 'مش تمام') return { success: false, error: 'اختر: تمام أو مش تمام' };
+        if (result === 'مش تمام' && !reason) return { success: false, error: 'اكتب سبب إن الموظف مش تمام' };
+        // منع تكرار التقييم لنفس الموظف
+        const { data: existing } = await supabase
+          .from('manager_requests')
+          .select('id')
+          .eq('request_type', 'new_hire_review')
+          .eq('employee_id', emp.id)
+          .limit(1);
+        if (existing && existing.length > 0) {
+          return { success: false, error: 'تم تقييم الموظف ده قبل كده' };
+        }
+        row.review_result = result;
+        // "تمام" معلومة للموارد البشرية بس مفيهاش إجراء مطلوب
+        if (result === 'تمام') {
+          row.status = 'تم التنفيذ';
+          row.resolved_by = manager.name;
+          row.resolved_at = new Date().toISOString();
+        }
+      }
+      // منع طلب مكرر مفتوح من نفس النوع لنفس الموظف
+      if (type !== 'new_hire_review') {
+        const { data: open } = await supabase
+          .from('manager_requests')
+          .select('id')
+          .eq('request_type', type)
+          .eq('employee_id', emp.id)
+          .in('status', ['جديد', 'تمت الموافقة'])
+          .limit(1);
+        if (open && open.length > 0) {
+          return { success: false, error: 'فيه طلب من نفس النوع لنفس الموظف لسه ما اتنفذش' };
+        }
+      }
+    }
+
+    const { error } = await supabase.from('manager_requests').insert([row]);
+    if (error) {
+      return {
+        success: false,
+        error: `فشل حفظ الطلب: ${error.message} (تأكد إن migration_manager_requests.sql اتشغّل)`,
+      };
+    }
+
+    await this.addAuditLog(
+      'manager_request',
+      row.id,
+      `طلب من مدير الفرع: ${MANAGER_REQUEST_LABELS[type]}`,
+      manager.name,
+      manager.role,
+      this.describeManagerRequest(row as ManagerRequest),
+      { entity_code: row.employee_code || '', entity_name: row.employee_name || row.requested_position || '' }
+    );
+
+    return { success: true, request: row as ManagerRequest };
+  }
+
+  private describeManagerRequest(r: Partial<ManagerRequest>): string {
+    const who = r.employee_name ? `${r.employee_name}${r.employee_code ? ` (${r.employee_code})` : ''}` : '';
+    const parts: string[] = [`فرع ${r.branch_name}`];
+    switch (r.request_type) {
+      case 'staff_request':
+        parts.push(`طلب ${r.requested_count} × ${r.requested_position}`);
+        break;
+      case 'transfer':
+        parts.push(`نقل ${who} إلى فرع ${r.target_branch}`);
+        break;
+      case 'new_hire_review':
+        parts.push(`تقييم الموظف الجديد ${who}: ${r.review_result}`);
+        break;
+      case 'investigation':
+        parts.push(`تحويل ${who} للتحقيق`);
+        break;
+      case 'termination':
+        parts.push(`طلب إنهاء تعاقد ${who}`);
+        break;
+      case 'resignation':
+        parts.push(`استقالة ${who}`);
+        break;
+    }
+    if (r.effective_date) parts.push(`التاريخ: ${r.effective_date}`);
+    if (r.reason) parts.push(`السبب: ${r.reason}`);
+    return parts.join(' — ');
+  }
+
+  public async getManagerRequests(filters?: { branch?: string; status?: string }): Promise<ManagerRequest[]> {
+    const supabase = getSupabase();
+    let query = supabase
+      .from('manager_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (filters?.branch) query = query.eq('branch_name', filters.branch);
+    if (filters?.status && filters.status !== 'الكل') query = query.eq('status', filters.status);
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(`فشل استرجاع الطلبات: ${error.message} (تأكد إن migration_manager_requests.sql اتشغّل)`);
+    }
+    return (data || []) as ManagerRequest[];
+  }
+
+  /** تنفيذ الأثر الفعلي للطلب على سجل الموظف (نقل / استقالة / إنهاء). */
+  private async applyManagerRequest(
+    req: ManagerRequest,
+    performedBy: string,
+    userRole: UserRole
+  ): Promise<{ success: boolean; error?: string }> {
+    if (req.request_type === 'transfer' && req.employee_id && req.target_branch) {
+      const r = await this.updateEmployee(req.employee_id, { branch_name: req.target_branch }, performedBy, userRole);
+      return { success: r.success, error: r.error };
+    }
+    if ((req.request_type === 'resignation' || req.request_type === 'termination') && req.employee_id) {
+      const status = req.request_type === 'resignation' ? 'مستقيل' : 'منهي التعاقد';
+      const r = await this.updateEmployeeStatus(req.employee_id, status, performedBy, userRole, {
+        separation_date: req.effective_date || undefined,
+        separation_reason: req.reason || undefined,
+      });
+      return { success: r.success, error: r.error };
+    }
+    return { success: true };
+  }
+
+  /**
+   * قرار الموارد البشرية على طلب:
+   *  - approve: موافقة. النقل بيتنفذ فورًا. الاستقالة/الإنهاء بتتنفذ في تاريخها
+   *    (فورًا لو التاريخ النهارده أو فات، وإلا أوتوماتيك لما التاريخ يجي).
+   *  - reject:  رفض (لازم ملاحظة).
+   *  - execute: تنفيذ الآن / تم التنفيذ (لطلبات الموظفين والتحقيق... إلخ).
+   */
+  public async resolveManagerRequest(
+    id: string,
+    action: 'approve' | 'reject' | 'execute',
+    note: string,
+    performedBy: string,
+    userRole: UserRole
+  ): Promise<{ success: boolean; request?: ManagerRequest; error?: string }> {
+    const supabase = getSupabase();
+    const { data: req, error: fetchErr } = await supabase
+      .from('manager_requests')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (fetchErr || !req) return { success: false, error: 'الطلب غير موجود' };
+    const request = req as ManagerRequest;
+
+    if (request.status === 'مرفوض' || request.status === 'تم التنفيذ') {
+      return { success: false, error: 'الطلب ده اتقفل بالفعل' };
+    }
+    const hrNote = note ? String(note).trim().slice(0, 1000) : '';
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date().toISOString();
+    const patch: Record<string, any> = { hr_note: hrNote || null, updated_at: now };
+
+    if (action === 'reject') {
+      if (!hrNote) return { success: false, error: 'اكتب سبب الرفض عشان مدير الفرع يعرفه' };
+      patch.status = 'مرفوض';
+      patch.resolved_by = performedBy;
+      patch.resolved_at = now;
+    } else {
+      const isDeparture = request.request_type === 'resignation' || request.request_type === 'termination';
+      const executeNow =
+        action === 'execute' ||
+        request.request_type === 'transfer' ||
+        (isDeparture && (!request.effective_date || request.effective_date <= today)) ||
+        request.request_type === 'new_hire_review';
+
+      if (executeNow) {
+        const applied = await this.applyManagerRequest(request, performedBy, userRole);
+        if (!applied.success) return { success: false, error: applied.error || 'فشل تنفيذ الطلب' };
+        patch.status = 'تم التنفيذ';
+        patch.resolved_by = performedBy;
+        patch.resolved_at = now;
+      } else {
+        // استقالة/إنهاء بتاريخ مستقبلي: موافقة دلوقتي وتنفيذ أوتوماتيك يوم التاريخ
+        patch.status = 'تمت الموافقة';
+        patch.resolved_by = performedBy;
+        patch.resolved_at = now;
+      }
+    }
+
+    const { error: updErr } = await supabase.from('manager_requests').update(patch).eq('id', id);
+    if (updErr) return { success: false, error: `فشل تحديث الطلب: ${updErr.message}` };
+
+    const actionLabel =
+      action === 'reject' ? 'رفض طلب مدير فرع' : patch.status === 'تم التنفيذ' ? 'تنفيذ طلب مدير فرع' : 'موافقة على طلب مدير فرع';
+    await this.addAuditLog(
+      'manager_request',
+      id,
+      actionLabel,
+      performedBy,
+      userRole,
+      `${this.describeManagerRequest(request)}${hrNote ? ` — ملاحظة الموارد البشرية: ${hrNote}` : ''}`,
+      {
+        entity_code: request.employee_code || '',
+        entity_name: request.employee_name || request.requested_position || '',
+        old_value: request.status,
+        new_value: patch.status,
+      }
+    );
+
+    const { data: updated } = await supabase.from('manager_requests').select('*').eq('id', id).single();
+    return { success: true, request: (updated as ManagerRequest) || undefined };
+  }
+
+  /**
+   * الاستقالات/الإنهاءات اللي اتوافق عليها وتاريخها جه: بتتنفذ تلقائيًا
+   * (الموظف بيتنقل لأرشيف المستقيلين). بتتنادى عند فتح قوائم الموظفين والطلبات.
+   */
+  public async applyDueDepartures(): Promise<void> {
+    const supabase = getSupabase();
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('manager_requests')
+      .select('*')
+      .in('request_type', ['resignation', 'termination'])
+      .eq('status', 'تمت الموافقة')
+      .lte('effective_date', today);
+    if (error || !data || data.length === 0) return;
+    for (const r of data as ManagerRequest[]) {
+      const applied = await this.applyManagerRequest(r, r.resolved_by || 'النظام', 'hr');
+      if (applied.success) {
+        await supabase
+          .from('manager_requests')
+          .update({ status: 'تم التنفيذ', updated_at: new Date().toISOString() })
+          .eq('id', r.id);
+      }
+    }
   }
 
   // =========================================================================

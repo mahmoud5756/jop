@@ -3,6 +3,7 @@ import { Employee, Applicant, CurrentUser, Branch, JobPosition } from '../types'
 import { SvgIcons } from './BobWichLogo';
 import { EditEmployeeModal } from './EditEmployeeModal';
 import { DepartureDialog } from './DepartureDialog';
+import { ManagerEmployeeActionModal } from './ManagerEmployeeActionModal';
 import { isDepartedStatus } from '../utils/employeeStatus';
 
 interface EmployeesViewProps {
@@ -27,6 +28,8 @@ interface EmployeesViewProps {
   ) => void | Promise<void>;
   onEmployeeUpdated?: (updated: Employee) => void;
   onDelete?: (employeeId: string) => void;
+  /** بيتنادى بعد ما مدير الفرع يبعت طلب للموارد البشرية (لعرض رسالة نجاح) */
+  onManagerRequestSent?: (message: string) => void;
 }
 
 export const EmployeesView: React.FC<EmployeesViewProps> = ({
@@ -45,6 +48,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   onUpdateStatus,
   onEmployeeUpdated,
   onDelete,
+  onManagerRequestSent,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -53,6 +57,10 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   const [pendingDeparture, setPendingDeparture] = useState<{ employee: Employee; status: string } | null>(null);
   const [isSavingDeparture, setIsSavingDeparture] = useState(false);
   const canManage = currentUser.role === 'admin' || currentUser.role === 'hr';
+  // مدير الفرع: بيشوف موظفين فرعه وبيطلب إجراءات من الموارد البشرية،
+  // لكن مفيش عنده طباعة عقود/استقالات/مفردات/كروت ولا تعديل مباشر.
+  const isManager = currentUser.role === 'manager';
+  const [managerActionEmployee, setManagerActionEmployee] = useState<Employee | null>(null);
 
   const safeEmployees = useMemo(() => Array.isArray(employees) ? employees : [], [employees]);
   const safeApplicants = useMemo(() => Array.isArray(applicants) ? applicants : [], [applicants]);
@@ -229,6 +237,16 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
 
                       {/* Linked Applicant Actions & Delete */}
                       <td className="py-3 px-4 text-center">
+                        {isManager ? (
+                          <button
+                            onClick={() => setManagerActionEmployee(emp)}
+                            className="bg-[#9E1A24]/10 hover:bg-[#9E1A24] hover:text-white text-[#9E1A24] px-3 py-1.5 rounded-xl font-black transition-all inline-flex items-center gap-1.5 text-[11px]"
+                            title="نقل / استقالة / إنهاء تعاقد / تحويل للتحقيق — بيروح للموارد البشرية"
+                          >
+                            <SvgIcons.FileText className="w-3.5 h-3.5" />
+                            <span>طلب إجراء</span>
+                          </button>
+                        ) : (
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           {linkedApplicant && (
                             <>
@@ -320,6 +338,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                             </button>
                           )}
                         </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -341,6 +360,15 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
             setEditingEmployee(null);
             if (onEmployeeUpdated) onEmployeeUpdated(updated);
           }}
+        />
+      )}
+
+      {managerActionEmployee && (
+        <ManagerEmployeeActionModal
+          employee={managerActionEmployee}
+          branches={branches}
+          onClose={() => setManagerActionEmployee(null)}
+          onSent={msg => onManagerRequestSent?.(msg)}
         />
       )}
 

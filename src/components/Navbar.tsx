@@ -20,6 +20,8 @@ interface NavbarProps {
   /** عدد الطلبات الجديدة (حالة "طلب جديد") — عدّاد على تاب المتقدمين وتاب الموظفين الحاليين */
   newApplicantsCount?: number;
   newStaffCount?: number;
+  /** عدد طلبات مديري الفروع الجديدة (عدّاد تاب طلبات المديرين) */
+  pendingRequestsCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,6 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   departedCount = 0,
   newApplicantsCount = 0,
   newStaffCount = 0,
+  pendingRequestsCount = 0,
 }) => {
   const currentActive = currentView || activeView || 'applicants';
   const [searchQuery, setSearchQuery] = useState('');
@@ -347,6 +350,26 @@ export const Navbar: React.FC<NavbarProps> = ({
             <SvgIcons.Users className="w-4 h-4" />
             <span>سجل الموظفين (Employees)</span>
           </button>
+
+          {(currentUser.role === 'admin' || currentUser.role === 'hr') && (
+            <button
+              onClick={() => onNavigate('manager_requests')}
+              className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${
+                currentActive === 'manager_requests'
+                  ? 'bg-red-50 text-[#9E1A24] border-b-2 border-[#9E1A24]'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              }`}
+            >
+              <span className="text-base">📨</span>
+              <span>طلبات المديرين</span>
+              {pendingRequestsCount > 0 && (
+                <span className="bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono" title="طلبات جديدة">
+                  {pendingRequestsCount}
+                </span>
+              )}
+            </button>
+          )}
+
 
           {(currentUser.role === 'admin' || currentUser.role === 'hr') && (
             <button
