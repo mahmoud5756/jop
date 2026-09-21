@@ -251,7 +251,7 @@ export class ApiService {
     return json.data || [];
   }
 
-  static async createPosition(data: { title: string; department?: string; is_active?: boolean }): Promise<JobPosition> {
+  static async createPosition(data: { title: string; department?: string; is_active?: boolean; ranks?: string[] }): Promise<JobPosition> {
     const res = await fetch('/api/admin/positions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
@@ -740,6 +740,8 @@ export class ApiService {
       hire_date?: string;
       phone?: string;
       status?: string;
+      rank_name?: string | null;
+      hide_salary_from_manager?: boolean;
     }
   ): Promise<Employee> {
     const res = await fetch(`/api/employees/${id}`, {

@@ -13,6 +13,15 @@ import {
 const UPLOADS_BUCKET = 'hr-documents';
 const ALLOWED_UPLOAD_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
+/**
+ * مدير الفرع مايشوفش راتب الموظفين اللي عليهم علامة "إخفاء الراتب عن مدير الفرع".
+ * بنفرّغ الراتب من السيرفر نفسه (مش بس نخفيه في الشاشة) عشان مايبقاش ظاهر في أي طلب.
+ */
+function maskSalaryForManager<T extends { salary?: any; hide_salary_from_manager?: boolean }>(emp: T): T {
+  if (!emp || !emp.hide_salary_from_manager) return emp;
+  return { ...emp, salary: null };
+}
+
 // Builds and returns a fully configured Express app with all API routes.
 // Shared between the local dev server (server.ts) and the Vercel serverless
 // entry point (api/index.ts). Contains NO app.listen() and NO static/vite
@@ -265,6 +274,16 @@ export function createApp() {
     const q = (req.query.q as string) || '';
     try {
       const results = await db.globalSearch(q);
+      if (req.user?.role === 'manager') {
+        // مدير الفرع: موظفين فرعه بس (من غير رواتب مخفية) ومن غير ملفات المتقدمين
+        const branch = req.user.branch || '__none__';
+        return res.json({
+          data: {
+            applicants: [],
+            employees: results.employees.filter(e => e.branch_name === branch).map(maskSalaryForManager),
+          },
+        });
+      }
       res.json({ data: results });
     } catch (err: any) {
       console.error('API /api/search error:', err);
@@ -480,7 +499,9 @@ export function createApp() {
       // استقالات/إنهاءات اتوافق عليها وتاريخها جه — بتتنفذ تلقائيًا قبل ما نرجّع القائمة
       try { await db.applyDueDepartures(); } catch (e) { console.warn('applyDueDepartures failed:', e); }
       const employees = await db.getEmployees(filters);
-      res.json({ data: employees, total: employees.length });
+      // مدير الفرع مايشوفش راتب الموظفين اللي الموارد البشرية مخفياه عنه
+      const safe = req.user?.role === 'manager' ? employees.map(maskSalaryForManager) : employees;
+      res.json({ data: safe, total: safe.length });
     } catch (err: any) {
       console.error('API /api/employees error:', err);
       res.status(500).json({ error: err.message || 'فشل استرجاع بيانات الموظفين' });
@@ -492,6 +513,13 @@ export function createApp() {
       const result = await db.getEmployeeById(req.params.id);
       if (!result) {
         return res.status(404).json({ error: 'ملف الموظف غير موجود' });
+      }
+      if (req.user?.role === 'manager') {
+        // مدير الفرع: موظفين فرعه بس، ومن غير ملف التقديم (فيه قرار التعيين والراتب المقترح)
+        if (!req.user.branch || result.employee.branch_name !== req.user.branch) {
+          return res.status(404).json({ error: 'ملف الموظف غير موجود' });
+        }
+        return res.json({ data: { employee: maskSalaryForManager(result.employee), applicant: null } });
       }
       res.json({ data: result });
     } catch (err: any) {
@@ -532,7 +560,7 @@ export function createApp() {
   app.patch('/api/employees/:id', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     const performedBy = req.user?.name || 'مدير الموارد البشرية';
     const userRole = req.user?.role || 'hr';
-    const { branch_name, position_name, salary, hire_date, phone, status } = req.body || {};
+    const { branch_name, position_name, salary, hire_date, phone, status, rank_name, hide_salary_from_manager } = req.body || {};
 
     if (
       branch_name === undefined &&
@@ -540,7 +568,9 @@ export function createApp() {
       salary === undefined &&
       hire_date === undefined &&
       phone === undefined &&
-      status === undefined
+      status === undefined &&
+      rank_name === undefined &&
+      hide_salary_from_manager === undefined
     ) {
       return res.status(400).json({ error: 'لا توجد بيانات لتحديثها' });
     }
@@ -548,7 +578,7 @@ export function createApp() {
     try {
       const result = await db.updateEmployee(
         req.params.id,
-        { branch_name, position_name, salary, hire_date, phone, status },
+        { branch_name, position_name, salary, hire_date, phone, status, rank_name, hide_salary_from_manager },
         performedBy,
         userRole
       );
@@ -747,12 +777,12 @@ export function createApp() {
   });
 
   app.post('/api/admin/positions', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
-    const { title, department, is_active } = req.body;
+    const { title, department, is_active, ranks } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ error: 'مسمى الوظيفة مطلوب' });
     }
     try {
-      const pos = await db.createPosition(title, department, is_active ?? true);
+      const pos = await db.createPosition(title, department, is_active ?? true, ranks);
       await db.addAuditLog('position', pos.id, 'إنشاء وظيفة جديدة', req.user?.name || 'مسؤول النظام', req.user?.role || 'admin', `تم إنشاء المسمى الوظيفي "${pos.title}"`);
       res.status(201).json({ success: true, data: pos });
     } catch (err: any) {

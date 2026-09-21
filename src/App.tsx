@@ -37,6 +37,7 @@ import { SvgIcons } from './components/BobWichLogo';
 import { isDepartedEmployee } from './utils/employeeStatus';
 import { MANAGER_REQUEST_LABELS } from './utils/managerRequests';
 import { isRejectedApplicant, buildStatusChangePayload, REJECTED_STATUS } from './utils/applicantStatus';
+import { playNotificationSound, requestNotificationPermission, showSystemNotification } from './utils/notificationSound';
 
 export function App() {
   // Check if URL has public apply parameter
@@ -210,9 +211,15 @@ export function App() {
             const known = knownRequestIdsRef.current;
             const fresh = reqs.filter(r => !known.has(r.id) && r.status === 'جديد');
             if (fresh.length === 1) {
-              showToast(`🔔 طلب جديد من فرع ${fresh[0].branch_name}: ${MANAGER_REQUEST_LABELS[fresh[0].request_type]}`, 10000);
+              const msg = `🔔 طلب جديد من فرع ${fresh[0].branch_name}: ${MANAGER_REQUEST_LABELS[fresh[0].request_type]}`;
+              showToast(msg, 10000);
+              playNotificationSound();
+              showSystemNotification('طلب جديد من فرع', msg.replace('🔔 ', ''));
             } else if (fresh.length > 1) {
-              showToast(`🔔 وصل ${fresh.length} طلبات جديدة من مديري الفروع`, 10000);
+              const msg = `🔔 وصل ${fresh.length} طلبات جديدة من مديري الفروع`;
+              showToast(msg, 10000);
+              playNotificationSound();
+              showSystemNotification('طلبات جديدة', msg.replace('🔔 ', ''));
             }
           }
           knownRequestIdsRef.current = new Set(reqs.map(r => r.id));
@@ -229,12 +236,16 @@ export function App() {
         const fresh = appsList.filter(a => !known.has(a.id) && a.status === 'طلب جديد');
         if (fresh.length === 1) {
           const a = fresh[0];
-          showToast(
-            `🔔 وصل ${a.applicant_category === 'internal_staff' ? 'تسجيل موظف حالي' : 'طلب جديد'}: ${a.full_name} — ${a.position_name}`,
-            10000,
-          );
+          const label = a.applicant_category === 'internal_staff' ? 'تسجيل موظف حالي' : 'طلب جديد';
+          const msg = `🔔 وصل ${label}: ${a.full_name} — ${a.position_name}`;
+          showToast(msg, 10000);
+          playNotificationSound();
+          showSystemNotification(label, `${a.full_name} — ${a.position_name}`);
         } else if (fresh.length > 1) {
-          showToast(`🔔 وصل ${fresh.length} طلبات جديدة`, 10000);
+          const msg = `🔔 وصل ${fresh.length} طلبات جديدة`;
+          showToast(msg, 10000);
+          playNotificationSound();
+          showSystemNotification('طلبات جديدة', msg.replace('🔔 ', ''));
         }
       }
       knownApplicantIdsRef.current = new Set(appsList.map(a => a.id));
@@ -308,6 +319,9 @@ export function App() {
     // مدير الفرع بيروح مباشرة لشاشة "متابعة الفرع" — ممنوع يشوف قائمة المتقدمين
     setCurrentView(user.role === 'manager' ? 'branch_dashboard' : 'applicants');
     showToast(`مرحباً بك مجدداً ${user.name}`);
+    // بنطلب إذن إشعارات النظام هنا لأن تسجيل الدخول فيه ضغطة زرار حقيقية من المستخدم —
+    // المتصفحات بترفض طلب الإذن من غير تفاعل مباشر.
+    requestNotificationPermission();
   };
 
   const handleLogout = () => {

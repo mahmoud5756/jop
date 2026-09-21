@@ -405,13 +405,29 @@ class SupabaseDataAccessLayer {
     return clean as FormFieldConfig[];
   }
 
-  public async createPosition(title: string, department?: string, is_active: boolean = true): Promise<JobPosition> {
+  /** تنضيف قائمة الرتب: نصوص فقط، من غير فراغات زيادة أو تكرار */
+  private normalizeRanks(ranks: unknown): string[] {
+    if (!Array.isArray(ranks)) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const r of ranks) {
+      const v = String(r ?? '').trim().slice(0, 60);
+      if (v && !seen.has(v)) {
+        seen.add(v);
+        out.push(v);
+      }
+    }
+    return out;
+  }
+
+  public async createPosition(title: string, department?: string, is_active: boolean = true, ranks?: string[]): Promise<JobPosition> {
     const supabase = getSupabase();
     const newPos: JobPosition = {
       id: 'pos_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
       title: title.trim(),
       department: department?.trim() || 'المطعم',
       is_active,
+      ranks: this.normalizeRanks(ranks),
     };
     const { error } = await supabase.from('positions').insert([newPos]);
     if (error) {
@@ -422,7 +438,13 @@ class SupabaseDataAccessLayer {
 
   public async updatePosition(id: string, updates: Partial<JobPosition>): Promise<JobPosition> {
     const supabase = getSupabase();
-    const { error } = await supabase.from('positions').update(updates).eq('id', id);
+    // نسمح بس بالحقول المعروفة (بدل ما نمرر body الطلب كله للقاعدة)
+    const patch: Partial<JobPosition> = {};
+    if (updates.title !== undefined) patch.title = String(updates.title).trim();
+    if (updates.department !== undefined) patch.department = String(updates.department).trim();
+    if (updates.is_active !== undefined) patch.is_active = !!updates.is_active;
+    if (updates.ranks !== undefined) patch.ranks = this.normalizeRanks(updates.ranks);
+    const { error } = await supabase.from('positions').update(patch).eq('id', id);
     if (error) {
       throw new Error(`فشل تحديث الوظيفة: ${error.message}`);
     }
@@ -1563,6 +1585,8 @@ class SupabaseDataAccessLayer {
       hire_date?: string;
       phone?: string;
       status?: string;
+      rank_name?: string | null;
+      hide_salary_from_manager?: boolean;
     },
     performedBy: string,
     userRole: UserRole
@@ -1614,6 +1638,18 @@ class SupabaseDataAccessLayer {
     }
     if (updates.status !== undefined) {
       track('status', 'الحالة', String(updates.status).trim());
+    }
+    if (updates.rank_name !== undefined) {
+      const v = String(updates.rank_name ?? '').trim().slice(0, 60);
+      track('rank_name', 'الرتبة', v === '' ? null : v);
+    }
+    if (updates.hide_salary_from_manager !== undefined) {
+      const flag = !!updates.hide_salary_from_manager;
+      const oldFlag = !!(emp as any).hide_salary_from_manager;
+      if (flag !== oldFlag) {
+        patch.hide_salary_from_manager = flag;
+        changes.push(`إخفاء الراتب عن مدير الفرع: ${oldFlag ? 'مخفي' : 'ظاهر'} ← ${flag ? 'مخفي' : 'ظاهر'}`);
+      }
     }
 
     if (Object.keys(patch).length === 0) {

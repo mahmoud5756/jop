@@ -190,13 +190,34 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
 
                       {/* Position & Branch */}
                       <td className="py-3 px-4">
-                        <div className="font-bold text-stone-900">{emp.position_name}</div>
+                        <div className="font-bold text-stone-900">
+                          {emp.position_name}
+                          {emp.rank_name && (
+                            <span className="mr-1.5 align-middle px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black border border-amber-200">
+                              {emp.rank_name}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] text-stone-500 font-semibold">{emp.branch_name}</div>
                       </td>
 
                       {/* Salary */}
                       <td className="py-3 px-4 font-mono font-bold text-emerald-800">
-                        {emp.salary ? `${Number(emp.salary).toLocaleString('ar-EG')} ج.م` : '—'}
+                        {emp.salary === null && emp.hide_salary_from_manager ? (
+                          <span className="text-stone-400 font-bold">مخفي</span>
+                        ) : emp.salary ? (
+                          `${Number(emp.salary).toLocaleString('ar-EG')} ج.م`
+                        ) : (
+                          '—'
+                        )}
+                        {canManage && emp.hide_salary_from_manager && (
+                          <span
+                            className="block mt-0.5 text-[10px] font-bold text-amber-700"
+                            title="مدير الفرع مايشوفش راتب الموظف ده"
+                          >
+                            🔒 مخفي عن مدير الفرع
+                          </span>
+                        )}
                       </td>
 
                       {/* Hire Date */}

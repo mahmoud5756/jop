@@ -169,7 +169,12 @@ export interface Employee {
   branch_name: string;
   position_name: string;
   hire_date: string;
-  salary: number | string;
+  /** بيتفرّغ (null) في ردود مدير الفرع لو الموظف مخفي راتبه */
+  salary: number | string | null;
+  /** الرتبة داخل الوظيفة (اختياري) */
+  rank_name?: string | null;
+  /** TRUE = مدير الفرع مايشوفش راتب الموظف ده */
+  hide_salary_from_manager?: boolean;
   status: 'نشط' | 'تحت الاختبار' | 'إجازة' | 'مجاز' | 'مستقيل' | 'منهي التعاقد' | 'منتهي الخدمة';
   photo_url?: string;
   qualification: string;
@@ -209,6 +214,8 @@ export interface JobPosition {
   title: string;
   department: string;
   is_active: boolean;
+  /** الرتب المتاحة داخل الوظيفة دي (مثال: مبتدئ / أول / مشرف) */
+  ranks?: string[];
 }
 
 export interface CurrentUser {

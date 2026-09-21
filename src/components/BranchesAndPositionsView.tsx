@@ -27,7 +27,8 @@ export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
   // Position Modal State
   const [isPositionModalOpen, setIsPositionModalOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<JobPosition | null>(null);
-  const [positionForm, setPositionForm] = useState({ title: '', department: 'المطعم', is_active: true });
+  const [positionForm, setPositionForm] = useState<{ title: string; department: string; is_active: boolean; ranks: string[] }>({ title: '', department: 'المطعم', is_active: true, ranks: [] });
+  const [newRank, setNewRank] = useState('');
 
   const loadData = async () => {
     try {
@@ -115,14 +116,31 @@ export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
   // Position Handlers
   const handleOpenNewPosition = () => {
     setEditingPosition(null);
-    setPositionForm({ title: '', department: 'المطعم', is_active: true });
+    setPositionForm({ title: '', department: 'المطعم', is_active: true, ranks: [] });
+    setNewRank('');
     setIsPositionModalOpen(true);
   };
 
   const handleOpenEditPosition = (pos: JobPosition) => {
     setEditingPosition(pos);
-    setPositionForm({ title: pos.title, department: pos.department || 'المطعم', is_active: pos.is_active });
+    setPositionForm({ title: pos.title, department: pos.department || 'المطعم', is_active: pos.is_active, ranks: pos.ranks || [] });
+    setNewRank('');
     setIsPositionModalOpen(true);
+  };
+
+  const addRank = () => {
+    const v = newRank.trim();
+    if (!v) return;
+    if (positionForm.ranks.includes(v)) {
+      setNewRank('');
+      return;
+    }
+    setPositionForm({ ...positionForm, ranks: [...positionForm.ranks, v] });
+    setNewRank('');
+  };
+
+  const removeRank = (r: string) => {
+    setPositionForm({ ...positionForm, ranks: positionForm.ranks.filter(x => x !== r) });
   };
 
   const handleSavePosition = async (e: React.FormEvent) => {
@@ -378,6 +396,15 @@ export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
                 <span className="inline-block bg-stone-100 text-stone-700 text-xs px-2.5 py-1 rounded-md font-medium mb-4">
                   {pos.department || 'المطعم'}
                 </span>
+                {(pos.ranks || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {(pos.ranks || []).map(r => (
+                      <span key={r} className="bg-amber-50 text-amber-900 border border-amber-200 text-[11px] px-2 py-0.5 rounded-full font-bold">
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
@@ -592,6 +619,45 @@ export function BranchesAndPositionsView({ currentUser, showToast }: Props) {
                   placeholder="مثال: المطعم، الإدارة، خدمة العملاء"
                   className="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">الرتب داخل الوظيفة (اختياري)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newRank}
+                    onChange={e => setNewRank(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addRank();
+                      }
+                    }}
+                    placeholder="مثال: مبتدئ، أول، مشرف"
+                    className="flex-1 px-3.5 py-2.5 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={addRank}
+                    className="px-4 py-2 bg-stone-800 hover:bg-stone-900 text-white rounded-xl text-sm font-bold"
+                  >
+                    إضافة
+                  </button>
+                </div>
+                {positionForm.ranks.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {positionForm.ranks.map(r => (
+                      <span key={r} className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 text-xs pl-1 pr-2.5 py-1 rounded-full font-bold">
+                        {r}
+                        <button type="button" onClick={() => removeRank(r)} className="p-0.5 rounded-full hover:bg-amber-200" title="حذف الرتبة">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-stone-500 mt-1.5">حذف رتبة من هنا مابيمسحهاش من الموظفين اللي واخدينها فعلاً.</p>
               </div>
 
               <div className="flex items-center gap-2 pt-2">

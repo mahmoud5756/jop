@@ -32,11 +32,26 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
   );
   const [hireDate, setHireDate] = useState(employee.hire_date ? employee.hire_date.split('T')[0] : '');
   const [phone, setPhone] = useState(employee.phone || '');
+  const [rankName, setRankName] = useState(employee.rank_name || '');
+  const [hideSalary, setHideSalary] = useState(!!employee.hide_salary_from_manager);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const activeBranches = branches.filter(b => b.is_active);
   const activePositions = positions.filter(p => p.is_active);
+
+  // الرتب المتاحة للوظيفة المختارة (لو الرتبة الحالية مش ضمنها بنسيبها ظاهرة عشان مانضيعهاش بالغلط)
+  const selectedPosition = positions.find(p => p.title === positionName);
+  const availableRanks = selectedPosition?.ranks || [];
+
+  const handlePositionChange = (newPosition: string) => {
+    setPositionName(newPosition);
+    // الرتبة تخص الوظيفة القديمة — لو الوظيفة الجديدة مفيهاش نفس الرتبة نفرّغها
+    const next = positions.find(p => p.title === newPosition);
+    if (rankName && !(next?.ranks || []).includes(rankName)) {
+      setRankName('');
+    }
+  };
 
   const handleSave = async () => {
     if (!branchName.trim()) {
@@ -61,6 +76,8 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
         salary: salary === '' ? '' : Number(salary),
         hire_date: hireDate,
         phone: phone.replace(/\D/g, ''),
+        rank_name: rankName,
+        hide_salary_from_manager: hideSalary,
       });
       onSaved(updated);
     } catch (err: any) {
@@ -127,7 +144,7 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
               <label className="block text-xs font-bold text-stone-700">الوظيفة</label>
               <select
                 value={positionName}
-                onChange={e => setPositionName(e.target.value)}
+                onChange={e => handlePositionChange(e.target.value)}
                 className={inputClass}
               >
                 <option value="">اختر الوظيفة</option>
@@ -142,6 +159,27 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
               </select>
             </div>
 
+            {/* الرتبة داخل الوظيفة */}
+            <div className="space-y-1 sm:col-span-2">
+              <label className="block text-xs font-bold text-stone-700">الرتبة داخل الوظيفة</label>
+              <select value={rankName} onChange={e => setRankName(e.target.value)} className={inputClass}>
+                <option value="">
+                  {availableRanks.length === 0 && !rankName ? 'مفيش رتب متسجلة للوظيفة دي' : 'بدون رتبة'}
+                </option>
+                {availableRanks.map(r => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+                {rankName && !availableRanks.includes(rankName) && (
+                  <option value={rankName}>{rankName} (الحالية)</option>
+                )}
+              </select>
+              <p className="text-[10px] text-stone-500">
+                الرتب بتتضاف لكل وظيفة من شاشة "الفروع والوظائف ← المسميات الوظيفية ← تعديل".
+              </p>
+            </div>
+
             {/* الراتب */}
             <div className="space-y-1">
               <label className="block text-xs font-bold text-stone-700">الراتب الشهري (ج.م)</label>
@@ -154,6 +192,22 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
                 className={`${inputClass} font-mono`}
               />
             </div>
+
+            {/* إخفاء الراتب عن مدير الفرع */}
+            <label className="sm:col-span-2 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hideSalary}
+                onChange={e => setHideSalary(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-[#9E1A24]"
+              />
+              <span className="text-xs font-bold text-amber-900 leading-relaxed">
+                إخفاء راتب الموظف ده عن مدير الفرع
+                <span className="block text-[10px] font-semibold text-amber-800/80 mt-0.5">
+                  مدير الفرع هيشوف "مخفي" بدل الراتب. الأدمن والموارد البشرية يشوفوه عادي.
+                </span>
+              </span>
+            </label>
 
             {/* تاريخ بداية العمل */}
             <div className="space-y-1">
