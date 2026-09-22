@@ -175,6 +175,8 @@ export interface Employee {
   rank_name?: string | null;
   /** TRUE = مدير الفرع مايشوفش راتب الموظف ده */
   hide_salary_from_manager?: boolean;
+  /** رقم بصمة الموظف على جهاز الحضور والانصراف بالفرع — بيدخله مدير الفرع، وبيظهر له ولمدير النظام والموارد البشرية */
+  fingerprint_id?: string | null;
   status: 'نشط' | 'تحت الاختبار' | 'إجازة' | 'مجاز' | 'مستقيل' | 'منهي التعاقد' | 'منتهي الخدمة';
   photo_url?: string;
   qualification: string;

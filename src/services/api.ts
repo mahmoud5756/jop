@@ -742,6 +742,7 @@ export class ApiService {
       status?: string;
       rank_name?: string | null;
       hide_salary_from_manager?: boolean;
+      fingerprint_id?: string | null;
     }
   ): Promise<Employee> {
     const res = await fetch(`/api/employees/${id}`, {

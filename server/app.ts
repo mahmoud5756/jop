@@ -555,12 +555,37 @@ export function createApp() {
     }
   });
 
-  // تعديل بيانات موظف حالي (الفرع / الوظيفة / الراتب / تاريخ المباشرة)
+  // تعديل بيانات موظف حالي (الفرع / الوظيفة / الراتب / تاريخ المباشرة / رقم البصمة)
   // مخصص لتصحيح أي بيانات أُدخلت بالخطأ — كل تعديل يُسجّل في سجل العمليات.
-  app.patch('/api/employees/:id', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
+  // مدير الفرع مسموح له بالوصول هنا لكن لرقم البصمة فقط، ولموظفي فرعه فقط —
+  // باقي الحقول (الفرع/الوظيفة/الراتب...) للأدمن والموارد البشرية فقط.
+  app.patch('/api/employees/:id', requireAuth, requireRole(['admin', 'hr', 'manager']), async (req: AuthenticatedRequest, res: Response) => {
     const performedBy = req.user?.name || 'مدير الموارد البشرية';
     const userRole = req.user?.role || 'hr';
-    const { branch_name, position_name, salary, hire_date, phone, status, rank_name, hide_salary_from_manager } = req.body || {};
+    const isManager = req.user?.role === 'manager';
+
+    if (isManager) {
+      const { fingerprint_id } = req.body || {};
+      if (fingerprint_id === undefined) {
+        return res.status(400).json({ error: 'لا توجد بيانات لتحديثها' });
+      }
+      try {
+        const existing = await db.getEmployeeById(req.params.id);
+        if (!existing || !req.user?.branch || existing.employee.branch_name !== req.user.branch) {
+          return res.status(404).json({ error: 'ملف الموظف غير موجود' });
+        }
+        const result = await db.updateEmployee(req.params.id, { fingerprint_id }, performedBy, userRole);
+        if (!result.success) {
+          return res.status(400).json({ error: result.error });
+        }
+        return res.json({ success: true, data: maskSalaryForManager(result.employee!), message: 'تم تحديث رقم البصمة بنجاح' });
+      } catch (err: any) {
+        console.error('API PATCH /api/employees/:id (manager) error:', err);
+        return res.status(500).json({ error: err.message || 'فشل تحديث رقم البصمة' });
+      }
+    }
+
+    const { branch_name, position_name, salary, hire_date, phone, status, rank_name, hide_salary_from_manager, fingerprint_id } = req.body || {};
 
     if (
       branch_name === undefined &&
@@ -570,7 +595,8 @@ export function createApp() {
       phone === undefined &&
       status === undefined &&
       rank_name === undefined &&
-      hide_salary_from_manager === undefined
+      hide_salary_from_manager === undefined &&
+      fingerprint_id === undefined
     ) {
       return res.status(400).json({ error: 'لا توجد بيانات لتحديثها' });
     }
@@ -578,7 +604,7 @@ export function createApp() {
     try {
       const result = await db.updateEmployee(
         req.params.id,
-        { branch_name, position_name, salary, hire_date, phone, status, rank_name, hide_salary_from_manager },
+        { branch_name, position_name, salary, hire_date, phone, status, rank_name, hide_salary_from_manager, fingerprint_id },
         performedBy,
         userRole
       );

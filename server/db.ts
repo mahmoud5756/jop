@@ -1587,6 +1587,7 @@ class SupabaseDataAccessLayer {
       status?: string;
       rank_name?: string | null;
       hide_salary_from_manager?: boolean;
+      fingerprint_id?: string | null;
     },
     performedBy: string,
     userRole: UserRole
@@ -1650,6 +1651,10 @@ class SupabaseDataAccessLayer {
         patch.hide_salary_from_manager = flag;
         changes.push(`إخفاء الراتب عن مدير الفرع: ${oldFlag ? 'مخفي' : 'ظاهر'} ← ${flag ? 'مخفي' : 'ظاهر'}`);
       }
+    }
+    if (updates.fingerprint_id !== undefined) {
+      const v = String(updates.fingerprint_id ?? '').trim().slice(0, 40);
+      track('fingerprint_id', 'رقم البصمة', v === '' ? null : v);
     }
 
     if (Object.keys(patch).length === 0) {

@@ -34,6 +34,7 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
   const [phone, setPhone] = useState(employee.phone || '');
   const [rankName, setRankName] = useState(employee.rank_name || '');
   const [hideSalary, setHideSalary] = useState(!!employee.hide_salary_from_manager);
+  const [fingerprintId, setFingerprintId] = useState(employee.fingerprint_id || '');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +79,7 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
         phone: phone.replace(/\D/g, ''),
         rank_name: rankName,
         hide_salary_from_manager: hideSalary,
+        fingerprint_id: fingerprintId.trim(),
       });
       onSaved(updated);
     } catch (err: any) {
@@ -221,12 +223,24 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
             </div>
 
             {/* الهاتف */}
-            <div className="space-y-1 sm:col-span-2">
+            <div className="space-y-1">
               <label className="block text-xs font-bold text-stone-700">رقم الهاتف</label>
               <input
                 type="tel"
                 value={phone}
                 onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+                className={`${inputClass} font-mono`}
+              />
+            </div>
+
+            {/* رقم البصمة */}
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-stone-700">رقم البصمة</label>
+              <input
+                type="text"
+                value={fingerprintId}
+                onChange={e => setFingerprintId(e.target.value)}
+                placeholder="رقم الموظف على جهاز البصمة بالفرع"
                 className={`${inputClass} font-mono`}
               />
             </div>

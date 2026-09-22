@@ -5,6 +5,7 @@ import { EditEmployeeModal } from './EditEmployeeModal';
 import { DepartureDialog } from './DepartureDialog';
 import { ManagerEmployeeActionModal } from './ManagerEmployeeActionModal';
 import { isDepartedStatus } from '../utils/employeeStatus';
+import { ApiService } from '../services/api';
 
 interface EmployeesViewProps {
   employees: Employee[];
@@ -61,6 +62,26 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   // لكن مفيش عنده طباعة عقود/استقالات/مفردات/كروت ولا تعديل مباشر.
   const isManager = currentUser.role === 'manager';
   const [managerActionEmployee, setManagerActionEmployee] = useState<Employee | null>(null);
+
+  // تعديل مدير الفرع لرقم بصمة الموظف مباشرة من الجدول (الحقل الوحيد المسموح له بتعديله)
+  const [editingFingerprintId, setEditingFingerprintId] = useState<string | null>(null);
+  const [fingerprintDraft, setFingerprintDraft] = useState('');
+  const [isSavingFingerprint, setIsSavingFingerprint] = useState(false);
+  const [fingerprintError, setFingerprintError] = useState<string | null>(null);
+
+  const saveFingerprint = async (empId: string) => {
+    try {
+      setIsSavingFingerprint(true);
+      setFingerprintError(null);
+      const updated = await ApiService.updateEmployee(empId, { fingerprint_id: fingerprintDraft.trim() });
+      onEmployeeUpdated?.(updated);
+      setEditingFingerprintId(null);
+    } catch (err: any) {
+      setFingerprintError(err.message || 'فشل حفظ رقم البصمة');
+    } finally {
+      setIsSavingFingerprint(false);
+    }
+  };
 
   const safeEmployees = useMemo(() => Array.isArray(employees) ? employees : [], [employees]);
   const safeApplicants = useMemo(() => Array.isArray(applicants) ? applicants : [], [applicants]);
@@ -168,6 +189,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                   <th className="py-3.5 px-4">الوظيفة / الفرع</th>
                   <th className="py-3.5 px-4">الراتب الشهري</th>
                   <th className="py-3.5 px-4">تاريخ المباشرة</th>
+                  <th className="py-3.5 px-4">رقم البصمة</th>
                   <th className="py-3.5 px-4">الحالة وإدارتها</th>
                   <th className="py-3.5 px-4 text-center">الإجراءات والملف</th>
                 </tr>
@@ -223,6 +245,61 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                       {/* Hire Date */}
                       <td className="py-3 px-4 font-mono text-stone-600">
                         {emp.hire_date || '—'}
+                      </td>
+
+                      {/* Fingerprint ID — مدير الفرع يقدر يدخله/يعدّله مباشرة، الأدمن وHR يشوفوه هنا (وتعديله من "تعديل البيانات") */}
+                      <td className="py-3 px-4 font-mono text-stone-700">
+                        {isManager ? (
+                          editingFingerprintId === emp.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                autoFocus
+                                type="text"
+                                value={fingerprintDraft}
+                                onChange={e => setFingerprintDraft(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') saveFingerprint(emp.id);
+                                  if (e.key === 'Escape') setEditingFingerprintId(null);
+                                }}
+                                placeholder="رقم البصمة"
+                                className="w-24 px-2 py-1 rounded-lg border border-stone-300 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-[#9E1A24]"
+                              />
+                              <button
+                                onClick={() => saveFingerprint(emp.id)}
+                                disabled={isSavingFingerprint}
+                                title="حفظ"
+                                className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                              >
+                                <SvgIcons.Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setEditingFingerprintId(null)}
+                                title="إلغاء"
+                                className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600"
+                              >
+                                <SvgIcons.XMark className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditingFingerprintId(emp.id);
+                                setFingerprintDraft(emp.fingerprint_id || '');
+                                setFingerprintError(null);
+                              }}
+                              className="flex items-center gap-1.5 hover:text-[#9E1A24] transition-colors"
+                              title="تعديل رقم البصمة"
+                            >
+                              <span>{emp.fingerprint_id || '—'}</span>
+                              <SvgIcons.Edit className="w-3 h-3 text-stone-400" />
+                            </button>
+                          )
+                        ) : (
+                          emp.fingerprint_id || '—'
+                        )}
+                        {fingerprintError && editingFingerprintId === emp.id && (
+                          <p className="text-[10px] text-red-600 font-bold mt-1 max-w-[8rem]">{fingerprintError}</p>
+                        )}
                       </td>
 
                       {/* Status & Change Status */}
