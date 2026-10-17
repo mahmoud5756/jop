@@ -903,6 +903,11 @@ export function App() {
               onReject={handleRejectApplicant}
               onRestore={handleRestoreApplicant}
               onWhatsApp={setWhatsAppApplicant}
+              onInterviewAdded={(updated) => {
+                setSelectedApplicant(updated);
+                fetchData(true);
+                showToast('تم تسجيل المقابلة وتحديث حالة المتقدم');
+              }}
             />
           )}
         </div>

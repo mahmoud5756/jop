@@ -76,6 +76,33 @@ function normalizeApplicantStatus(status: any): any {
   return s;
 }
 
+/**
+ * حالة المتقدم المقابلة لنتيجة مقابلة معيّنة.
+ * "لم يحضر" مش بتغيّر حالة المتقدم (بيفضل زي ما هو).
+ */
+function applicantStatusFromInterview(status?: string): string | null {
+  switch (status) {
+    case 'مقبول': return 'مقبول';
+    case 'حضر': return 'حضر المقابلة';
+    case 'إعادة مقابلة': return 'إعادة مقابلة';
+    case 'مرفوض': return 'مرفوض';
+    default: return null;
+  }
+}
+
+/** آخر مقابلة = أعلى رقم مقابلة، ولو متساوية الأحدث تاريخًا ثم إنشاءً */
+function pickLatestInterview<T extends { interview_number?: any; interview_date?: string; created_at?: string }>(list: T[] | undefined): T | undefined {
+  if (!list || list.length === 0) return undefined;
+  const sorted = [...list].sort((a, b) => {
+    const n = (Number(a.interview_number) || 0) - (Number(b.interview_number) || 0);
+    if (n !== 0) return n;
+    const d = String(a.interview_date || '').localeCompare(String(b.interview_date || ''));
+    if (d !== 0) return d;
+    return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+  });
+  return sorted[sorted.length - 1];
+}
+
 // حالات الخروج من الشغل (الموظف اللي حالته منها بيظهر في أرشيف المستقيلين)
 const DEPARTED_EMPLOYEE_STATUSES = ['مستقيل', 'منهي التعاقد', 'منتهي الخدمة'];
 
@@ -965,7 +992,15 @@ class SupabaseDataAccessLayer {
     if (payload.interviews && payload.interviews.length > 0) {
       const intRows = this.buildInterviewRows(payload.interviews, id, performedBy, now);
       const { error: intError } = await supabase.from('interviews').insert(intRows);
-      if (intError) console.error('Error inserting interviews into Supabase:', intError);
+      if (intError) {
+        console.error('Error inserting interviews into Supabase:', intError);
+      } else {
+        // الحالة تتحدد تلقائيًا من آخر مقابلة
+        const autoStatus = applicantStatusFromInterview(pickLatestInterview(intRows)?.status);
+        if (autoStatus) {
+          await supabase.from('applicants').update({ status: autoStatus, updated_at: now }).eq('id', id);
+        }
+      }
     }
 
     // Insert HR decision if any
@@ -1163,6 +1198,17 @@ class SupabaseDataAccessLayer {
           console.error('Error syncing interviews into Supabase:', intError);
           return { success: false, error: `فشل حفظ المقابلات: ${intError.message}` };
         }
+      }
+
+      // الحالة تتغيّر تلقائيًا بس لو آخر مقابلة اتضافت/اتعدّلت في الحفظ ده،
+      // عشان ما نلغيش تغيير يدوي للحالة في كل مرة المتقدم بيتحفظ.
+      const prevLatest = pickLatestInterview(current.interviews as any[]);
+      const newLatest = pickLatestInterview(intRows);
+      const latestChanged =
+        !!newLatest && (!prevLatest || prevLatest.id !== newLatest.id || prevLatest.status !== newLatest.status);
+      const autoStatus = applicantStatusFromInterview(newLatest?.status);
+      if (latestChanged && autoStatus && !current.is_converted_to_employee) {
+        await supabase.from('applicants').update({ status: autoStatus, updated_at: now }).eq('id', id);
       }
     }
 
@@ -1377,17 +1423,10 @@ class SupabaseDataAccessLayer {
       throw new Error(`فشل تسجيل المقابلة في Supabase: ${intError.message}`);
     }
 
-    // Update applicant status automatically
-    let newApplicantStatus: string | null = null;
-    if (interview.status === 'حضر' || interview.status === 'مقبول') {
-      newApplicantStatus = interview.status === 'مقبول' ? 'مقبول' : 'حضر المقابلة';
-    } else if (interview.status === 'إعادة مقابلة') {
-      newApplicantStatus = 'إعادة مقابلة';
-    } else if (interview.status === 'مرفوض') {
-      newApplicantStatus = 'مرفوض';
-    }
-
-    if (newApplicantStatus) {
+    // Update applicant status automatically (مش بنغيّر حالة اللي اتحوّل لموظف)
+    const newApplicantStatus = applicantStatusFromInterview(interview.status);
+    const currentApplicant = await this.getApplicantById(applicantId);
+    if (newApplicantStatus && !currentApplicant?.is_converted_to_employee) {
       await supabase
         .from('applicants')
         .update({ status: newApplicantStatus, updated_at: now })
