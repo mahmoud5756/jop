@@ -961,6 +961,13 @@ class SupabaseDataAccessLayer {
       }
     }
 
+    // Insert interviews if any
+    if (payload.interviews && payload.interviews.length > 0) {
+      const intRows = this.buildInterviewRows(payload.interviews, id, performedBy, now);
+      const { error: intError } = await supabase.from('interviews').insert(intRows);
+      if (intError) console.error('Error inserting interviews into Supabase:', intError);
+    }
+
     // Insert HR decision if any
     if (payload.hr_decision) {
       const hrDecRow = {
@@ -1140,6 +1147,25 @@ class SupabaseDataAccessLayer {
       }
     }
 
+    // Sync interviews if provided
+    if (payload.interviews !== undefined) {
+      const intRows = this.buildInterviewRows(payload.interviews, id, performedBy, now);
+      const keepIds = intRows.map(r => r.id);
+      // امسح اللي اتشال من الفورم بس (من غير ما نلمس الباقي قبل ما الحفظ ينجح)
+      const { data: existing } = await supabase.from('interviews').select('id').eq('applicant_id', id);
+      const toDelete = (existing || []).map((r: any) => r.id).filter((x: string) => !keepIds.includes(x));
+      if (toDelete.length > 0) {
+        await supabase.from('interviews').delete().in('id', toDelete);
+      }
+      if (intRows.length > 0) {
+        const { error: intError } = await supabase.from('interviews').upsert(intRows, { onConflict: 'id' });
+        if (intError) {
+          console.error('Error syncing interviews into Supabase:', intError);
+          return { success: false, error: `فشل حفظ المقابلات: ${intError.message}` };
+        }
+      }
+    }
+
     // Upsert HR decision if provided
     if (payload.hr_decision) {
       const hrDecRow = {
@@ -1289,6 +1315,32 @@ class SupabaseDataAccessLayer {
     );
 
     return true;
+  }
+
+  // تحويل مقابلات الفورم لصفوف جاهزة للحفظ في جدول interviews
+  private buildInterviewRows(
+    interviews: Partial<Interview>[] | undefined,
+    applicantId: string,
+    performedBy: string,
+    now: string
+  ) {
+    return (interviews || []).map((it, idx) => {
+      const ev = Number(it.evaluation);
+      const num = Number(it.interview_number);
+      return {
+        id: it.id && String(it.id).trim() ? String(it.id) : 'int_' + Date.now() + '_' + idx,
+        applicant_id: applicantId,
+        interview_number: Number.isFinite(num) && num > 0 ? num : idx + 1,
+        interview_date: it.interview_date || now.split('T')[0],
+        interviewer_name: it.interviewer_name || performedBy || 'HR',
+        interviewer_role: it.interviewer_role || '',
+        status: it.status || 'مقبول',
+        evaluation: Number.isFinite(ev) && ev >= 1 && ev <= 5 ? Math.round(ev) : 5,
+        notes: it.notes || '',
+        created_at: it.created_at || now,
+        updated_at: now,
+      };
+    });
   }
 
   // =========================================================================
