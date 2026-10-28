@@ -17,6 +17,7 @@ import { CashierContractView } from './components/CashierContractView';
 import { ResignationClearanceView } from './components/ResignationClearanceView';
 import { PayslipView } from './components/PayslipView';
 import { EmployeeCardView } from './components/EmployeeCardView';
+import { EmployeesReportView } from './components/EmployeesReportView';
 import { DocumentsPrintView } from './components/DocumentsPrintView';
 import { RejectedArchiveView } from './components/RejectedArchiveView';
 import { DepartedArchiveView } from './components/DepartedArchiveView';
@@ -125,6 +126,8 @@ export function App() {
   const [printingResignationEmployee, setPrintingResignationEmployee] = useState<Employee | null>(null);
   const [printingPayslipEmployee, setPrintingPayslipEmployee] = useState<Employee | null>(null);
   const [printingCardEmployee, setPrintingCardEmployee] = useState<Employee | null>(null);
+  // تقرير الموظفين PDF (مقسّم حسب الفرع)
+  const [isEmployeesReportOpen, setIsEmployeesReportOpen] = useState(false);
   // طباعة البطاقة (وش وضهر) والشهادة الصحية
   const [printingDocsApplicant, setPrintingDocsApplicant] = useState<Applicant | null>(null);
   // رسالة واتساب جاهزة لمتقدم
@@ -674,6 +677,16 @@ export function App() {
         />
       )}
 
+      {/* تقرير الموظفين PDF — مقسّم حسب الفرع وشامل رقم البصمة */}
+      {isEmployeesReportOpen && currentUser && (
+        <EmployeesReportView
+          employees={activeEmployees}
+          applicants={applicants}
+          currentUser={currentUser}
+          onBack={() => setIsEmployeesReportOpen(false)}
+        />
+      )}
+
       {/* رسالة واتساب جاهزة للمتقدم */}
       {whatsAppApplicant && (
         <WhatsAppDialog applicant={whatsAppApplicant} onClose={() => setWhatsAppApplicant(null)} />
@@ -845,6 +858,7 @@ export function App() {
                     onEmployeeUpdated={handleEmployeeUpdated}
                     onDelete={handleDeleteEmployee}
                     onManagerRequestSent={msg => showToast(msg)}
+                    onOpenReport={() => setIsEmployeesReportOpen(true)}
                   />
                 )}
 

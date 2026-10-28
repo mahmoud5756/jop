@@ -31,6 +31,8 @@ interface EmployeesViewProps {
   onDelete?: (employeeId: string) => void;
   /** بيتنادى بعد ما مدير الفرع يبعت طلب للموارد البشرية (لعرض رسالة نجاح) */
   onManagerRequestSent?: (message: string) => void;
+  /** فتح تقرير الموظفين (PDF مقسّم حسب الفرع) */
+  onOpenReport?: () => void;
 }
 
 export const EmployeesView: React.FC<EmployeesViewProps> = ({
@@ -50,6 +52,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   onEmployeeUpdated,
   onDelete,
   onManagerRequestSent,
+  onOpenReport,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -132,9 +135,21 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
           </p>
         </div>
 
-        <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-4 py-2 rounded-2xl text-xs font-bold flex items-center gap-2">
-          <SvgIcons.UserCheck className="w-4 h-4" />
-          <span>إجمالي القوة الفعلية: {employees.length} موظف</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenReport && (
+            <button
+              onClick={onOpenReport}
+              className="bg-[#9E1A24] hover:bg-[#85151e] text-white px-4 py-2 rounded-2xl text-xs font-black flex items-center gap-2 shadow transition-all hover:scale-105 active:scale-95"
+              title="تقرير PDF لكل الموظفين مقسّم حسب الفرع (شامل رقم البصمة)"
+            >
+              <SvgIcons.Print className="w-4 h-4" />
+              <span>تقرير الموظفين PDF</span>
+            </button>
+          )}
+          <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-4 py-2 rounded-2xl text-xs font-bold flex items-center gap-2">
+            <SvgIcons.UserCheck className="w-4 h-4" />
+            <span>إجمالي القوة الفعلية: {employees.length} موظف</span>
+          </div>
         </div>
       </div>
 
