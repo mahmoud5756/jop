@@ -483,7 +483,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                     )}
                     {show('graduation_year') && (
                       <div>
-                        <span className="text-stone-500 block">{lbl('graduation_year')}:</span>
+                        <span className="text-stone-500 block">{applicant.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'}:</span>
                         <span className="font-semibold font-mono">{applicant.graduation_year || '—'}</span>
                       </div>
                     )}

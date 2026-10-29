@@ -464,7 +464,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         return false;
       }
       if (req('graduation_year') && !formData.graduation_year?.trim()) {
-        setErrorMessage(`يرجى إدخال ${lbl('graduation_year')}`);
+        setErrorMessage(`يرجى إدخال ${formData.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'}`);
         return false;
       }
       const err2 = validateCustomFields(fieldConfig, 'job', customData) ||
@@ -1285,10 +1285,10 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
                 {show('graduation_year') && (
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-stone-700">{lbl('graduation_year')} <Req k="graduation_year" /></label>
+                  <label className="block text-xs font-bold text-stone-700">{formData.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'} <Req k="graduation_year" /></label>
                   <input
                     type="text"
-                    placeholder="مثال: 2023"
+                    placeholder={formData.still_studying ? 'مثال: الفرقة الثالثة' : 'مثال: 2023'}
                     value={formData.graduation_year || ''}
                     onChange={e => setFormData(prev => ({ ...prev, graduation_year: e.target.value }))}
                     className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono"

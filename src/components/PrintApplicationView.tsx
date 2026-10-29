@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { calcAge, formatAge, formatDuration } from '../utils/age';
+import { formatDuration } from '../utils/age';
 import { Applicant, FormFieldConfig } from '../types';
 import { SvgIcons } from './BobWichLogo';
 import { ApiService } from '../services/api';
@@ -183,9 +183,6 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                   <div className="flex items-center gap-1.5">
                     <span className="font-bold text-stone-700 min-w-18">{lbl('birth_date')}:</span>
                     <span className="border-b border-stone-400 flex-1 font-mono text-stone-900 pb-0.5">{applicant.birth_date || '____ / ____ / ______'}</span>
-                    {calcAge(applicant.birth_date) !== null && (
-                      <span className="font-bold text-stone-800 whitespace-nowrap">(السن: {formatAge(applicant.birth_date)})</span>
-                    )}
                   </div>
                   )}
                   {show('emergency_phone') && (
@@ -345,7 +342,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                   )}
                   {show('graduation_year') && (
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-stone-700 min-w-14">التخرج:</span>
+                    <span className="font-bold text-stone-700 min-w-14">{applicant.still_studying ? 'السنة الدراسية الحالية:' : 'سنة التخرج:'}</span>
                     <span className="border-b border-stone-400 flex-1 text-stone-900 pb-0.5">{applicant.graduation_year || '—'}</span>
                   </div>
                   )}

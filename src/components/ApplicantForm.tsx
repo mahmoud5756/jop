@@ -1099,12 +1099,12 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('graduation_year')}</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{formData.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'}</label>
                     <input
                       type="text"
                       value={formData.graduation_year}
                       onChange={e => setFormData(prev => ({ ...prev, graduation_year: e.target.value }))}
-                      placeholder="مثال: 2024"
+                      placeholder={formData.still_studying ? 'مثال: الفرقة الثالثة' : 'مثال: 2024'}
                       className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm font-mono"
                     />
                   </div>
