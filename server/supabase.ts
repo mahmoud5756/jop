@@ -165,6 +165,8 @@ CREATE TABLE IF NOT EXISTS applicants (
     position_id TEXT,
     position_name TEXT NOT NULL,
     experience_years INTEGER DEFAULT 0,
+    current_salary NUMERIC,
+    expected_salary NUMERIC,
     restaurant_experience BOOLEAN DEFAULT TRUE,
     last_job TEXT,
     leaving_reason TEXT,
@@ -197,6 +199,8 @@ CREATE TABLE IF NOT EXISTS applicant_experiences (
     applicant_id TEXT NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
     workplace TEXT NOT NULL,
     position TEXT NOT NULL,
+    duration_years INTEGER DEFAULT 0,
+    duration_months INTEGER DEFAULT 0,
     date_from TEXT,
     date_to TEXT,
     leaving_reason TEXT

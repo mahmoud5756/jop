@@ -117,6 +117,8 @@ export const BUILT_IN_FIELDS: BuiltInFieldDef[] = [
   { key: 'position_name', label: 'الوظيفة المتقدم إليها', section: 'job', type: 'select', locked: true, requiredLocked: true, defaultRequired: true },
   { key: 'restaurant_experience', label: 'خبرة سابقة في مجال المطاعم', section: 'job', type: 'checkbox', defaultRequired: false },
   { key: 'experience_years', label: 'إجمالي سنوات الخبرة', section: 'job', type: 'number', defaultRequired: false },
+  { key: 'current_salary', label: 'المرتب الحالي', section: 'job', type: 'number', defaultRequired: false },
+  { key: 'expected_salary', label: 'المرتب المتوقع', section: 'job', type: 'number', defaultRequired: false },
   { key: 'last_job', label: 'آخر وظيفة / مكان عمل', section: 'job', type: 'text', defaultRequired: false },
   { key: 'leaving_reason', label: 'سبب ترك العمل السابق', section: 'job', type: 'text', defaultRequired: false },
 
@@ -127,7 +129,7 @@ export const BUILT_IN_FIELDS: BuiltInFieldDef[] = [
   { key: 'still_studying', label: 'ما زال طالبًا / يدرس حاليًا', section: 'education', type: 'checkbox', defaultRequired: false },
 
   // ---------------- الخبرات والمهارات ----------------
-  { key: 'experiences', label: 'جدول الخبرات السابقة', section: 'experience', type: 'text', defaultRequired: false, hint: 'جدول (مكان العمل / المسمى / من / إلى / سبب الترك)' },
+  { key: 'experiences', label: 'جدول الخبرات السابقة', section: 'experience', type: 'text', defaultRequired: false, hint: 'جدول (مكان العمل / المسمى / مدة الخبرة بالسنوات والشهور / سبب الترك)' },
   { key: 'skills', label: 'المهارات الشخصية والمهنية', section: 'experience', type: 'select', defaultRequired: true, hasOptions: true, multi: true, hint: 'قائمة المهارات المتعددة + خانة "مهارة أخرى"' },
 
   // ---------------- أوقات العمل ----------------

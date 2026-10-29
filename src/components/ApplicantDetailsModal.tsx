@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { calcAge, formatAge, formatDuration } from '../utils/age';
 import { Applicant, CurrentUser, Employee, FormFieldConfig } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
@@ -365,7 +366,12 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                     {show('birth_date') && (
                       <div>
                         <span className="text-stone-500 block">{lbl('birth_date')}:</span>
-                        <span className="font-semibold">{applicant.birth_date || '—'}</span>
+                        <span className="font-semibold">
+                          {applicant.birth_date || '—'}
+                          {calcAge(applicant.birth_date) !== null && (
+                            <span className="text-emerald-700 mr-1">({formatAge(applicant.birth_date)})</span>
+                          )}
+                        </span>
                       </div>
                     )}
                     {show('marital_status') && (
@@ -414,6 +420,22 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                       <div>
                         <span className="text-stone-500 block">{lbl('experience_years')}:</span>
                         <span className="font-semibold">{applicant.experience_years} سنة</span>
+                      </div>
+                    )}
+                    {show('current_salary') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('current_salary')}:</span>
+                        <span className="font-semibold">
+                          {applicant.current_salary ? `${Number(applicant.current_salary).toLocaleString('ar-EG')} ج.م` : '—'}
+                        </span>
+                      </div>
+                    )}
+                    {show('expected_salary') && (
+                      <div>
+                        <span className="text-stone-500 block">{lbl('expected_salary')}:</span>
+                        <span className="font-semibold">
+                          {applicant.expected_salary ? `${Number(applicant.expected_salary).toLocaleString('ar-EG')} ج.م` : '—'}
+                        </span>
                       </div>
                     )}
                     {show('restaurant_experience') && (

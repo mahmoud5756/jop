@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { calcAge, formatAge, totalExperienceYears } from '../utils/age';
 import {
   Applicant,
   ApplicantExperience,
@@ -81,6 +82,8 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
     position_id: initialData?.position_id || '',
     position_name: initialData?.position_name || '',
     experience_years: initialData?.experience_years ?? '',
+    current_salary: initialData?.current_salary ?? '',
+    expected_salary: initialData?.expected_salary ?? '',
     restaurant_experience: initialData?.restaurant_experience,
     last_job: initialData?.last_job || '',
     leaving_reason: initialData?.leaving_reason || '',
@@ -115,8 +118,8 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
             applicant_id: initialData?.id || '',
             workplace: '',
             position: '',
-            date_from: '',
-            date_to: '',
+            duration_years: '',
+            duration_months: '',
             leaving_reason: '',
           },
         ]
@@ -306,8 +309,8 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
         applicant_id: initialData?.id || '',
         workplace: '',
         position: '',
-        date_from: '',
-        date_to: '',
+        duration_years: '',
+        duration_months: '',
         leaving_reason: '',
       },
     ]);
@@ -422,6 +425,13 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
         applicant_signature_name: formData.full_name,
         custom_data: customData,
         experiences: experiences.filter(exp => exp.workplace || exp.position),
+        // لو إجمالي سنوات الخبرة فاضي، بنحسبه تلقائي من مدد الخبرات
+        experience_years:
+          formData.experience_years === '' || formData.experience_years === undefined
+            ? Math.round(totalExperienceYears(experiences))
+            : formData.experience_years,
+        current_salary: formData.current_salary === '' ? null : formData.current_salary,
+        expected_salary: formData.expected_salary === '' ? null : formData.expected_salary,
         assets: assets.filter(a => a.asset_name),
         documents,
         interviews,
@@ -715,6 +725,9 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     onChange={e => setFormData(prev => ({ ...prev, birth_date: e.target.value }))}
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
                   />
+                  {calcAge(formData.birth_date) !== null && (
+                    <p className="text-xs font-bold text-emerald-700 mt-1">السن: {formatAge(formData.birth_date)}</p>
+                  )}
                 </div>
                 )}
 
@@ -903,6 +916,34 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     max="40"
                     value={formData.experience_years}
                     onChange={e => setFormData(prev => ({ ...prev, experience_years: e.target.value }))}
+                    className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
+                  />
+                </div>
+                )}
+
+                {/* Current Salary */}
+                {show('current_salary') && (
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('current_salary')} (ج.م)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.current_salary ?? ''}
+                    onChange={e => setFormData(prev => ({ ...prev, current_salary: e.target.value }))}
+                    className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
+                  />
+                </div>
+                )}
+
+                {/* Expected Salary */}
+                {show('expected_salary') && (
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('expected_salary')} (ج.م)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.expected_salary ?? ''}
+                    onChange={e => setFormData(prev => ({ ...prev, expected_salary: e.target.value }))}
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
                   />
                 </div>
@@ -1260,26 +1301,30 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                           />
                         </div>
 
-                        <div>
-                          <label className="block font-bold text-stone-700 mb-1">من (سنة/شهر)</label>
-                          <input
-                            type="text"
-                            value={exp.date_from}
-                            onChange={e => updateExperienceRow(idx, 'date_from', e.target.value)}
-                            placeholder="مثال: 2022"
-                            className="w-full bg-white rounded-lg p-2 border border-stone-300 focus:outline-none focus:ring-1 focus:ring-[#9E1A24] font-mono"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-bold text-stone-700 mb-1">إلى (سنة/شهر)</label>
-                          <input
-                            type="text"
-                            value={exp.date_to}
-                            onChange={e => updateExperienceRow(idx, 'date_to', e.target.value)}
-                            placeholder="مثال: 2024 أو حتى الآن"
-                            className="w-full bg-white rounded-lg p-2 border border-stone-300 focus:outline-none focus:ring-1 focus:ring-[#9E1A24] font-mono"
-                          />
+                        <div className="lg:col-span-2">
+                          <label className="block font-bold text-stone-700 mb-1">مدة الخبرة</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              max="50"
+                              value={exp.duration_years ?? ''}
+                              onChange={e => updateExperienceRow(idx, 'duration_years', e.target.value)}
+                              placeholder="0"
+                              className="w-full bg-white rounded-lg p-2 border border-stone-300 focus:outline-none focus:ring-1 focus:ring-[#9E1A24] font-mono text-center"
+                            />
+                            <span className="text-stone-600 font-bold whitespace-nowrap">سنة</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="11"
+                              value={exp.duration_months ?? ''}
+                              onChange={e => updateExperienceRow(idx, 'duration_months', e.target.value)}
+                              placeholder="0"
+                              className="w-full bg-white rounded-lg p-2 border border-stone-300 focus:outline-none focus:ring-1 focus:ring-[#9E1A24] font-mono text-center"
+                            />
+                            <span className="text-stone-600 font-bold whitespace-nowrap">شهر</span>
+                          </div>
                         </div>
 
                         <div className="sm:col-span-2 lg:col-span-5">

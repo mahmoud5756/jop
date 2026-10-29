@@ -22,8 +22,12 @@ export interface ApplicantExperience {
   applicant_id: string;
   workplace: string;
   position: string;
-  date_from: string;
-  date_to: string;
+  /** مدة الخبرة: عدد السنوات + عدد الشهور (بدل من/إلى) */
+  duration_years?: number | string;
+  duration_months?: number | string;
+  /** قديم — للسجلات القديمة اللي اتسجلت بنظام (من/إلى) */
+  date_from?: string;
+  date_to?: string;
   leaving_reason: string;
 }
 
@@ -107,6 +111,10 @@ export interface Applicant {
   position_id?: string;
   position_name: string;
   experience_years: number | string;
+  /** المرتب الحالي (ج.م) */
+  current_salary?: number | string | null;
+  /** المرتب المتوقع (ج.م) */
+  expected_salary?: number | string | null;
   restaurant_experience: boolean;
   last_job: string;
   leaving_reason: string;

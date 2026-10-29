@@ -873,6 +873,8 @@ class SupabaseDataAccessLayer {
       position_id: payload.position_id || '',
       position_name: payload.position_name || 'عضو فريق خدمة وويتر (Team Member / Host)',
       experience_years: Number(payload.experience_years) || 0,
+      current_salary: toSalary(payload.current_salary),
+      expected_salary: toSalary(payload.expected_salary),
       restaurant_experience: Boolean(payload.restaurant_experience),
       last_job: payload.last_job || '',
       leaving_reason: payload.leaving_reason || '',
@@ -924,6 +926,8 @@ class SupabaseDataAccessLayer {
           applicant_id: id,
           workplace: exp.workplace || '',
           position: exp.position || '',
+          duration_years: Number(exp.duration_years) || 0,
+          duration_months: Number(exp.duration_months) || 0,
           date_from: exp.date_from || '',
           date_to: exp.date_to || '',
           leaving_reason: exp.leaving_reason || '',
@@ -1101,6 +1105,8 @@ class SupabaseDataAccessLayer {
       position_id: payload.position_id !== undefined ? payload.position_id : current.position_id,
       position_name: payload.position_name !== undefined ? payload.position_name : current.position_name,
       experience_years: payload.experience_years !== undefined ? Number(payload.experience_years) : current.experience_years,
+      current_salary: payload.current_salary !== undefined ? toSalary(payload.current_salary) : (current.current_salary ?? null),
+      expected_salary: payload.expected_salary !== undefined ? toSalary(payload.expected_salary) : (current.expected_salary ?? null),
       restaurant_experience: payload.restaurant_experience !== undefined ? Boolean(payload.restaurant_experience) : current.restaurant_experience,
       last_job: payload.last_job !== undefined ? payload.last_job : current.last_job,
       leaving_reason: payload.leaving_reason !== undefined ? payload.leaving_reason : current.leaving_reason,
@@ -1151,6 +1157,8 @@ class SupabaseDataAccessLayer {
             applicant_id: id,
             workplace: e.workplace || '',
             position: e.position || '',
+            duration_years: Number(e.duration_years) || 0,
+            duration_months: Number(e.duration_months) || 0,
             date_from: e.date_from || '',
             date_to: e.date_to || '',
             leaving_reason: e.leaving_reason || '',
@@ -2539,6 +2547,13 @@ class SupabaseDataAccessLayer {
 
     return { success: true };
   }
+}
+
+/** يحوّل قيمة المرتب لرقم، أو null لو فاضية/غلط */
+function toSalary(v: any): number | null {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = Number(v);
+  return isNaN(n) || n < 0 ? null : n;
 }
 
 export const db = new SupabaseDataAccessLayer();

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { calcAge, formatAge } from '../utils/age';
 import {
   Applicant,
   ApplicantExperience,
@@ -97,6 +98,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
     position_id: '',
     position_name: '',
     experience_years: '',
+    current_salary: '',
+    expected_salary: '',
     restaurant_experience: undefined,
     last_job: '',
     leaving_reason: '',
@@ -126,8 +129,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
       applicant_id: '',
       workplace: '',
       position: '',
-      date_from: '',
-      date_to: '',
+      duration_years: '',
+      duration_months: '',
       leaving_reason: '',
     },
   ]);
@@ -319,8 +322,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         applicant_id: '',
         workplace: '',
         position: '',
-        date_from: '',
-        date_to: '',
+        duration_years: '',
+        duration_months: '',
         leaving_reason: '',
       },
     ]);
@@ -474,8 +477,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
       if (show('experiences') && formData.restaurant_experience) {
         for (const exp of experiences) {
           if (exp.workplace.trim() || exp.position.trim()) {
-            if (!exp.workplace.trim() || !exp.position.trim() || !exp.date_from || !exp.date_to || !exp.leaving_reason.trim()) {
-              setErrorMessage('يرجى استكمال كافة بيانات الخبرات السابقة (مكان العمل، المسمى، تاريخ البداية والنهاية، وسبب الترك)');
+            if (!exp.workplace.trim() || !exp.position.trim() || (!(Number(exp.duration_years) > 0) && !(Number(exp.duration_months) > 0)) || !exp.leaving_reason.trim()) {
+              setErrorMessage('يرجى استكمال كافة بيانات الخبرات السابقة (مكان العمل، المسمى، مدة الخبرة بالسنوات أو الشهور، وسبب الترك)');
               return false;
             }
           }
@@ -586,6 +589,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         applicant_signature_name: formData.full_name,
         // تطبيع الإجابات: الحقول التي لم يملأها المتقدم تُحفظ كقيم صريحة
         experience_years: Number(formData.experience_years) || 0,
+        current_salary: formData.current_salary === '' || formData.current_salary == null ? null : Number(formData.current_salary),
+        expected_salary: formData.expected_salary === '' || formData.expected_salary == null ? null : Number(formData.expected_salary),
         restaurant_experience: formData.restaurant_experience === true,
         still_studying: formData.still_studying === true,
         custom_data: customData,
@@ -688,6 +693,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     position_id: '',
                     position_name: '',
                     experience_years: 0,
+                    current_salary: '',
+                    expected_salary: '',
                     restaurant_experience: undefined,
                     last_job: '',
                     leaving_reason: '',
@@ -706,7 +713,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     applicant_signature_name: '',
                     declaration_date: new Date().toISOString().split('T')[0],
                   });
-                  setExperiences([{ id: 'exp_1', applicant_id: '', workplace: '', position: '', date_from: '', date_to: '', leaving_reason: '' }]);
+                  setExperiences([{ id: 'exp_1', applicant_id: '', workplace: '', position: '', duration_years: '', duration_months: '', leaving_reason: '' }]);
                   setDocuments([]);
                   setBirthDay('');
                   setBirthMonth('');
@@ -969,6 +976,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     ))}
                   </select>
                 </div>
+                {calcAge(formData.birth_date) !== null && (
+                  <p className="text-xs font-bold text-emerald-700">السن: {formatAge(formData.birth_date)}</p>
+                )}
               </div>
               )}
 
@@ -1172,6 +1182,36 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               </div>
               )}
 
+              {/* Current salary */}
+              {show('current_salary') && (
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-stone-700">{lbl('current_salary')} (ج.م) <Req k="current_salary" /></label>
+                <input
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={formData.current_salary ?? ''}
+                  onChange={e => setFormData(prev => ({ ...prev, current_salary: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
+                />
+              </div>
+              )}
+
+              {/* Expected salary */}
+              {show('expected_salary') && (
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-stone-700">{lbl('expected_salary')} (ج.م) <Req k="expected_salary" /></label>
+                <input
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={formData.expected_salary ?? ''}
+                  onChange={e => setFormData(prev => ({ ...prev, expected_salary: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
+                />
+              </div>
+              )}
+
               {/* Last job */}
               {show('last_job') && (
               <div className="space-y-1">
@@ -1357,22 +1397,30 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-stone-600 mb-1">المدة (من - إلى)</label>
-                        <div className="flex gap-2">
+                        <label className="block text-[11px] font-bold text-stone-600 mb-1">مدة الخبرة</label>
+                        <div className="flex items-center gap-2">
                           <input
-                            type="text"
-                            placeholder="من (مثال: 2022)"
-                            value={exp.date_from}
-                            onChange={e => handleUpdateExperience(idx, 'date_from', e.target.value)}
-                            className="w-1/2 px-3 py-2 rounded-lg border border-stone-300 text-xs bg-white"
+                            type="number"
+                            min={0}
+                            max={50}
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={exp.duration_years ?? ''}
+                            onChange={e => handleUpdateExperience(idx, 'duration_years', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-stone-300 text-xs bg-white text-center"
                           />
+                          <span className="text-[11px] font-bold text-stone-600 whitespace-nowrap">سنة</span>
                           <input
-                            type="text"
-                            placeholder="إلى (مثال: 2024)"
-                            value={exp.date_to}
-                            onChange={e => handleUpdateExperience(idx, 'date_to', e.target.value)}
-                            className="w-1/2 px-3 py-2 rounded-lg border border-stone-300 text-xs bg-white"
+                            type="number"
+                            min={0}
+                            max={11}
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={exp.duration_months ?? ''}
+                            onChange={e => handleUpdateExperience(idx, 'duration_months', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-stone-300 text-xs bg-white text-center"
                           />
+                          <span className="text-[11px] font-bold text-stone-600 whitespace-nowrap">شهر</span>
                         </div>
                       </div>
                       <div>

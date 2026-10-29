@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { calcAge, formatAge, formatDuration } from '../utils/age';
 import { Applicant, FormFieldConfig } from '../types';
 import { SvgIcons } from './BobWichLogo';
 import { ApiService } from '../services/api';
@@ -85,8 +86,8 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
       applicant_id: applicant.id,
       workplace: '',
       position: '',
-      date_from: '',
-      date_to: '',
+      duration_years: '',
+      duration_months: '',
       leaving_reason: '',
     });
   }
@@ -182,6 +183,9 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                   <div className="flex items-center gap-1.5">
                     <span className="font-bold text-stone-700 min-w-18">{lbl('birth_date')}:</span>
                     <span className="border-b border-stone-400 flex-1 font-mono text-stone-900 pb-0.5">{applicant.birth_date || '____ / ____ / ______'}</span>
+                    {calcAge(applicant.birth_date) !== null && (
+                      <span className="font-bold text-stone-800 whitespace-nowrap">(السن: {formatAge(applicant.birth_date)})</span>
+                    )}
                   </div>
                   )}
                   {show('emergency_phone') && (
@@ -267,6 +271,22 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                   <div className="flex items-center gap-1.5">
                     <span className="font-bold text-stone-700 min-w-26">{lbl('experience_years')}:</span>
                     <span className="border-b border-stone-400 flex-1 text-stone-900 pb-0.5">{applicant.experience_years} سنة</span>
+                  </div>
+                  )}
+                  {show('current_salary') && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-stone-700 min-w-26">{lbl('current_salary')}:</span>
+                    <span className="border-b border-stone-400 flex-1 font-mono text-stone-900 pb-0.5">
+                      {applicant.current_salary ? `${Number(applicant.current_salary).toLocaleString('en-US')} ج.م` : '________________'}
+                    </span>
+                  </div>
+                  )}
+                  {show('expected_salary') && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-stone-700 min-w-26">{lbl('expected_salary')}:</span>
+                    <span className="border-b border-stone-400 flex-1 font-mono text-stone-900 pb-0.5">
+                      {applicant.expected_salary ? `${Number(applicant.expected_salary).toLocaleString('en-US')} ج.م` : '________________'}
+                    </span>
                   </div>
                   )}
                   <div className="flex items-center gap-2.5">
@@ -392,8 +412,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <tr className="bg-red-50/80 text-[#9E1A24] font-bold border-b border-stone-300">
                       <th className="py-1 px-2 border-l border-stone-300 w-1/4">مكان العمل</th>
                       <th className="py-1 px-2 border-l border-stone-300 w-1/4">الوظيفة</th>
-                      <th className="py-1 px-2 border-l border-stone-300 w-16">من</th>
-                      <th className="py-1 px-2 border-l border-stone-300 w-16">إلى</th>
+                      <th className="py-1 px-2 border-l border-stone-300 w-28">مدة الخبرة</th>
                       <th className="py-1 px-2">سبب ترك العمل</th>
                     </tr>
                   </thead>
@@ -402,8 +421,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <tr key={idx} className="border-b border-stone-200 h-5.5">
                         <td className="py-0.5 px-2 border-l border-stone-300 text-stone-800">{exp.workplace || ''}</td>
                         <td className="py-0.5 px-2 border-l border-stone-300 text-stone-800">{exp.position || ''}</td>
-                        <td className="py-0.5 px-2 border-l border-stone-300 text-stone-800 font-mono text-[11px]">{exp.date_from || ''}</td>
-                        <td className="py-0.5 px-2 border-l border-stone-300 text-stone-800 font-mono text-[11px]">{exp.date_to || ''}</td>
+                        <td className="py-0.5 px-2 border-l border-stone-300 text-stone-800 text-[11px]">{formatDuration(exp)}</td>
                         <td className="py-0.5 px-2 text-stone-800">{exp.leaving_reason || ''}</td>
                       </tr>
                     ))}
