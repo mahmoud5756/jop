@@ -1099,17 +1099,6 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{formData.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'}</label>
-                    <input
-                      type="text"
-                      value={formData.graduation_year}
-                      onChange={e => setFormData(prev => ({ ...prev, graduation_year: e.target.value }))}
-                      placeholder={formData.still_studying ? 'مثال: الفرقة الثالثة' : 'مثال: 2024'}
-                      className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm font-mono"
-                    />
-                  </div>
-
-                  <div>
                     <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('still_studying')}</label>
                     <div className="flex gap-4 mt-2">
                       <label
@@ -1121,7 +1110,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                           type="radio"
                           name="still_studying"
                           checked={formData.still_studying === true}
-                          onChange={() => setFormData(prev => ({ ...prev, still_studying: true }))}
+                          onChange={() => setFormData(prev => ({ ...prev, still_studying: true, graduation_year: prev.still_studying === true ? prev.graduation_year : '' }))}
                           className="text-[#9E1A24]"
                         />
                         <span>نعم</span>
@@ -1135,13 +1124,26 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                           type="radio"
                           name="still_studying"
                           checked={formData.still_studying === false}
-                          onChange={() => setFormData(prev => ({ ...prev, still_studying: false }))}
+                          onChange={() => setFormData(prev => ({ ...prev, still_studying: false, graduation_year: prev.still_studying === false ? prev.graduation_year : '' }))}
                           className="text-[#9E1A24]"
                         />
                         <span>لا</span>
                       </label>
                     </div>
                   </div>
+
+                  {formData.still_studying !== undefined && formData.still_studying !== null && (
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{formData.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'}</label>
+                    <input
+                      type="text"
+                      value={formData.graduation_year}
+                      onChange={e => setFormData(prev => ({ ...prev, graduation_year: e.target.value }))}
+                      placeholder={formData.still_studying ? 'مثال: الفرقة الثالثة' : 'مثال: 2024'}
+                      className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm font-mono"
+                    />
+                  </div>
+                  )}
                 </div>
               </div>
 

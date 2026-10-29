@@ -463,7 +463,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         setErrorMessage(`يرجى إدخال ${lbl('specialization')}`);
         return false;
       }
-      if (req('graduation_year') && !formData.graduation_year?.trim()) {
+      if (req('graduation_year') && (!show('still_studying') || formData.still_studying !== undefined) && !formData.graduation_year?.trim()) {
         setErrorMessage(`يرجى إدخال ${formData.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'}`);
         return false;
       }
@@ -1283,19 +1283,6 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 </div>
                 )}
 
-                {show('graduation_year') && (
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-stone-700">{formData.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'} <Req k="graduation_year" /></label>
-                  <input
-                    type="text"
-                    placeholder={formData.still_studying ? 'مثال: الفرقة الثالثة' : 'مثال: 2023'}
-                    value={formData.graduation_year || ''}
-                    onChange={e => setFormData(prev => ({ ...prev, graduation_year: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono"
-                  />
-                </div>
-                )}
-
                 {show('still_studying') && (
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-stone-700">{lbl('still_studying', 'هل ما زلت تدرس؟')}</label>
@@ -1305,7 +1292,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                         type="radio"
                         name="still_studying"
                         checked={formData.still_studying === true}
-                        onChange={() => setFormData(prev => ({ ...prev, still_studying: true }))}
+                        onChange={() => setFormData(prev => ({ ...prev, still_studying: true, graduation_year: prev.still_studying === true ? prev.graduation_year : '' }))}
                         className="accent-[#9E1A24] w-4 h-4"
                       />
                       نعم
@@ -1315,12 +1302,25 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                         type="radio"
                         name="still_studying"
                         checked={formData.still_studying === false}
-                        onChange={() => setFormData(prev => ({ ...prev, still_studying: false }))}
+                        onChange={() => setFormData(prev => ({ ...prev, still_studying: false, graduation_year: prev.still_studying === false ? prev.graduation_year : '' }))}
                         className="accent-[#9E1A24] w-4 h-4"
                       />
                       لا
                     </label>
                   </div>
+                </div>
+                )}
+
+                {show('graduation_year') && (!show('still_studying') || formData.still_studying !== undefined) && (
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-stone-700">{formData.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'} <Req k="graduation_year" /></label>
+                  <input
+                    type="text"
+                    placeholder={formData.still_studying ? 'مثال: الفرقة الثالثة' : 'مثال: 2023'}
+                    value={formData.graduation_year || ''}
+                    onChange={e => setFormData(prev => ({ ...prev, graduation_year: e.target.value }))}
+                    className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono"
+                  />
                 </div>
                 )}
               </div>
