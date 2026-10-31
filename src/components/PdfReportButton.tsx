@@ -20,18 +20,18 @@ interface PdfReportButtonProps<T> {
 const printStyles = `
 @page { size: A4 landscape; margin: 11mm; }
 @media print {
-  html, body { background: #fff !important; }
-  body.pdf-report-printing * { visibility: hidden !important; }
-  body.pdf-report-printing #pdf-report-root,
-  body.pdf-report-printing #pdf-report-root * { visibility: visible !important; }
-  body.pdf-report-printing .pdf-report-overlay {
-    position: static !important; inset: auto !important; display: block !important;
-    overflow: visible !important; width: auto !important; height: auto !important;
-    padding: 0 !important; background: #fff !important;
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  body.pdf-report-printing > *:not(#pdf-report-print-root-container) { display: none !important; }
+  body.pdf-report-printing > #pdf-report-print-root-container {
+    display: block !important; position: static !important; visibility: visible !important;
+    overflow: visible !important; width: 100% !important; height: auto !important;
+    margin: 0 !important; padding: 0 !important; background: #fff !important;
   }
+  body.pdf-report-printing > #pdf-report-print-root-container,
+  body.pdf-report-printing > #pdf-report-print-root-container * { visibility: visible !important; }
   body.pdf-report-printing #pdf-report-root {
-    position: absolute !important; inset: 0 auto auto 0 !important;
-    width: 100% !important; max-width: none !important; margin: 0 !important;
+    display: block !important; position: static !important; inset: auto !important;
+    width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important;
     overflow: visible !important; border: 0 !important; box-shadow: none !important;
     border-radius: 0 !important; background: #fff !important;
   }
@@ -79,7 +79,25 @@ export function PdfReportButton<T>({
   }, [isOpen, title]);
 
   const print = () => {
-    window.print();
+    const source = document.getElementById('pdf-report-root');
+    if (!source) {
+      window.print();
+      return;
+    }
+
+    document.getElementById('pdf-report-print-root-container')?.remove();
+    const printContainer = document.createElement('div');
+    printContainer.id = 'pdf-report-print-root-container';
+    printContainer.appendChild(source.cloneNode(true));
+    document.body.appendChild(printContainer);
+    document.body.classList.add('pdf-report-printing');
+
+    const cleanup = () => {
+      printContainer.remove();
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    requestAnimationFrame(() => window.print());
   };
 
   return (
