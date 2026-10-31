@@ -64,7 +64,33 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
 
   const skillsList = applicant.skills || [];
   const printStyles = `
+    @page {
+      size: A4 portrait;
+      margin: 12mm 14mm;
+    }
     @media print {
+      .print-root .print-document-sheet {
+        width: 182mm !important;
+        max-width: 182mm !important;
+        margin: 0 auto !important;
+        box-sizing: border-box !important;
+      }
+      .print-root .application-photo-box {
+        width: 40mm !important;
+        height: 60mm !important;
+        min-width: 40mm !important;
+        min-height: 60mm !important;
+        flex: 0 0 40mm !important;
+        box-sizing: border-box !important;
+      }
+      .print-root .application-photo-box img {
+        display: block !important;
+        width: 40mm !important;
+        height: 60mm !important;
+        max-width: none !important;
+        max-height: none !important;
+        object-fit: cover !important;
+      }
       .print-root .print-first-page-intro {
         break-inside: avoid;
         page-break-inside: avoid;
@@ -142,7 +168,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
       </div>
 
       {/* Printable Document Container - Strictly A4 210mm x 297mm per page */}
-      <div className="bg-white text-stone-900 w-full max-w-[210mm] shadow-2xl print:shadow-none font-sans text-right dir-rtl my-16 print:my-0 rounded-lg print:rounded-none overflow-hidden">
+      <div className="print-document-sheet bg-white text-stone-900 w-full max-w-[210mm] shadow-2xl print:shadow-none font-sans text-right dir-rtl my-16 print:my-0 rounded-lg print:rounded-none overflow-hidden">
         
         {/* ================= PAGE 1 ================= */}
         <div className="p-6 sm:p-8 print:p-0 min-h-[297mm] print:min-h-[297mm] print:h-[297mm] print-page flex flex-col justify-between relative border-b-4 border-dashed border-stone-300 print:border-none page-break-after">
@@ -170,12 +196,16 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
               </div>
 
               {/* Photo Box (4x6 cm) */}
-              <div className="w-20 h-26 border-2 border-stone-400 rounded-sm flex flex-col items-center justify-center bg-stone-50 overflow-hidden text-center p-1">
+              <div
+                className="application-photo-box relative flex flex-col flex-shrink-0 items-center justify-center rounded-sm bg-stone-50 overflow-hidden text-center"
+                style={{ width: '40mm', height: '60mm', minWidth: '40mm', minHeight: '60mm', boxSizing: 'border-box', boxShadow: 'inset 0 0 0 0.5mm #78716c' }}
+              >
                 {applicant.photo_url ? (
                   <img
                     src={applicant.photo_url}
                     alt={applicant.full_name}
-                    className="w-full h-full object-cover"
+                    className="block"
+                    style={{ width: '40mm', height: '60mm', objectFit: 'cover', maxWidth: 'none', maxHeight: 'none' }}
                     referrerPolicy="no-referrer"
                   />
                 ) : (
