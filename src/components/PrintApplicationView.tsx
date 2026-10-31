@@ -76,17 +76,17 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
         box-sizing: border-box !important;
       }
       .print-root .application-photo-box {
-        width: 40mm !important;
-        height: 60mm !important;
-        min-width: 40mm !important;
-        min-height: 60mm !important;
-        flex: 0 0 40mm !important;
+        width: 30mm !important;
+        height: 40mm !important;
+        min-width: 30mm !important;
+        min-height: 40mm !important;
+        flex: 0 0 30mm !important;
         box-sizing: border-box !important;
       }
       .print-root .application-photo-box img {
         display: block !important;
-        width: 40mm !important;
-        height: 60mm !important;
+        width: 30mm !important;
+        height: 40mm !important;
         max-width: none !important;
         max-height: none !important;
         object-fit: cover !important;
@@ -195,22 +195,22 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                 </div>
               </div>
 
-              {/* Photo Box (4x6 cm) */}
+              {/* Photo Box (3x4 cm) */}
               <div
                 className="application-photo-box relative flex flex-col flex-shrink-0 items-center justify-center rounded-sm bg-stone-50 overflow-hidden text-center"
-                style={{ width: '40mm', height: '60mm', minWidth: '40mm', minHeight: '60mm', boxSizing: 'border-box', boxShadow: 'inset 0 0 0 0.5mm #78716c' }}
+                style={{ width: '30mm', height: '40mm', minWidth: '30mm', minHeight: '40mm', boxSizing: 'border-box', boxShadow: 'inset 0 0 0 0.5mm #78716c' }}
               >
                 {applicant.photo_url ? (
                   <img
                     src={applicant.photo_url}
                     alt={applicant.full_name}
                     className="block"
-                    style={{ width: '40mm', height: '60mm', objectFit: 'cover', maxWidth: 'none', maxHeight: 'none' }}
+                    style={{ width: '30mm', height: '40mm', objectFit: 'cover', maxWidth: 'none', maxHeight: 'none' }}
                     referrerPolicy="no-referrer"
                   />
                 ) : (
                   <div className="text-[9px] text-stone-500 font-medium leading-tight">
-                    صورة شخصية<br />4×6 سم
+                    صورة شخصية<br />3×4 سم
                   </div>
                 )}
               </div>
