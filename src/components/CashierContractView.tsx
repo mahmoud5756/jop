@@ -1,4 +1,5 @@
 import React from 'react';
+import { Square } from 'lucide-react';
 import { Employee } from '../types';
 import { SvgIcons } from './BobWichLogo';
 
@@ -109,7 +110,7 @@ export const CashierContractView: React.FC<CashierContractViewProps> = ({
                   <span className="border-b border-stone-400 font-semibold px-1">{employee.branch_name || '__________________________'}</span>
                   ، وأن يبدأ العمل اعتبارًا من: <span className="border-b border-stone-400 font-mono px-1">{employee.hire_date || '____ / ____ / ______'}</span>.
                 </p>
-                <p>مدة العقد:  ☐ غير محددة    ☐ محددة من ____ / ____ / ______ إلى ____ / ____ / ______.</p>
+                <p>مدة العقد: <span className="inline-flex items-center gap-1"><Square className="h-3 w-3" aria-hidden="true" /> غير محددة</span>　<span className="inline-flex items-center gap-1"><Square className="h-3 w-3" aria-hidden="true" /> محددة من ____ / ____ / ______ إلى ____ / ____ / ______.</span></p>
                 <p>يلتزم الطرف الثاني بساعات وأيام العمل ونظام الورديات والتعليمات الداخلية المعتمدة لدى الشركة.</p>
               </div>
             </div>

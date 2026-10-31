@@ -300,7 +300,7 @@ export function allVisibleCustomFields(config: FormFieldConfig[]): FormFieldConf
 
 /** تحويل قيمة حقل مخصص إلى نص للعرض / الطباعة */
 export function formatCustomValue(field: FormFieldConfig, value: any): string {
-  if (field.type === 'declaration') return value ? 'موافق ✓' : 'لم يوافق';
+  if (field.type === 'declaration') return value ? 'موافق' : 'لم يوافق';
   if (field.type === 'checkbox') return value ? 'نعم' : 'لا';
   if (value === undefined || value === null || value === '') return '—';
   return String(value);

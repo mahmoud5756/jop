@@ -8,7 +8,18 @@ import { isDepartedStatus } from '../utils/employeeStatus';
 import { isNewHire, MANAGER_REQUEST_LABELS } from '../utils/managerRequests';
 import { StaffRequestModal } from './StaffRequestModal';
 import { RequestStatusBadge, requestSummaryLine } from './ManagerRequestBadge';
-import { Users, Building2, AlertTriangle, CheckCircle2, FileWarning, MessageCircle, RefreshCw, Upload, Loader2, UserPlus, ThumbsUp, ThumbsDown, ClipboardList } from 'lucide-react';
+import { PdfReportButton } from './PdfReportButton';
+import { Users, Building2, AlertTriangle, CheckCircle2, FileWarning, MessageCircle, RefreshCw, Upload, Loader2, UserPlus, ThumbsUp, ThumbsDown, ClipboardList, PartyPopper, UserRoundPlus } from 'lucide-react';
+
+type BranchReportRow = {
+  section: string;
+  item: string;
+  code: string;
+  required: string | number;
+  current: string | number;
+  shortage: string | number;
+  details: string;
+};
 
 interface Props {
   currentUser: CurrentUser;
@@ -80,7 +91,7 @@ export const BranchDashboardView: React.FC<Props> = ({ currentUser }) => {
     setReviewingId(emp.id);
     try {
       await ApiService.createManagerRequest({ request_type: 'new_hire_review', employee_id: emp.id, review_result: 'تمام' });
-      showFlash(`تم تأكيد ${emp.full_name} — تمام ✅`);
+      showFlash(`تم تأكيد ${emp.full_name} — تمام`);
       await load();
     } catch (err: any) {
       showFlash(err.message || 'فشل حفظ التقييم');
@@ -195,6 +206,27 @@ export const BranchDashboardView: React.FC<Props> = ({ currentUser }) => {
 
   if (!overview) return null;
 
+  const reportRows: BranchReportRow[] = [
+    ...overview.positions.map(position => ({
+      section: 'التغطية الوظيفية',
+      item: position.position_name,
+      code: '—',
+      required: position.required_count,
+      current: position.current_count,
+      shortage: position.shortage,
+      details: position.shortage > 0 ? `احتياج عدد ${position.shortage}` : 'مكتمل',
+    })),
+    ...overview.employees_missing_docs.map(employee => ({
+      section: 'مستندات ناقصة',
+      item: employee.full_name,
+      code: employee.employee_code,
+      required: '—',
+      current: '—',
+      shortage: '—',
+      details: employee.missing.join('، '),
+    })),
+  ];
+
   return (
     <div className="space-y-6" dir="rtl">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -206,6 +238,20 @@ export const BranchDashboardView: React.FC<Props> = ({ currentUser }) => {
           <p className="text-xs text-stone-500 mt-1">مين معاك فعليًا في كل وظيفة، واي الناقص من الوظائف والمستندات.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <PdfReportButton<BranchReportRow>
+            title={`تقرير متابعة فرع ${overview.branch_name}`}
+            subtitle={`الموظفون الحاليون: ${overview.total_current} · المطلوب: ${overview.total_required} · الشواغر: ${overview.total_shortage} · مستندات ناقصة: ${overview.employees_missing_docs.length}`}
+            rows={reportRows}
+            columns={[
+              { label: 'القسم', value: row => row.section },
+              { label: 'الوظيفة / الموظف', value: row => row.item },
+              { label: 'كود الموظف', value: row => row.code },
+              { label: 'المطلوب', value: row => row.required },
+              { label: 'الموجود', value: row => row.current },
+              { label: 'الشاغر', value: row => row.shortage },
+              { label: 'التفاصيل', value: row => row.details },
+            ]}
+          />
           <button
             onClick={() => setStaffModal({})}
             className="flex items-center gap-1.5 text-xs font-black bg-[#9E1A24] hover:bg-[#85151e] text-white px-3.5 py-2 rounded-xl transition-all shadow-sm"
@@ -236,7 +282,7 @@ export const BranchDashboardView: React.FC<Props> = ({ currentUser }) => {
       {newHires.length > 0 && (
         <div className="bg-white border border-amber-300 rounded-2xl overflow-hidden shadow-xs">
           <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 font-black text-amber-900 text-sm flex items-center gap-2">
-            <span>👋</span>
+            <UserRoundPlus className="h-4 w-4" aria-hidden="true" />
             موظفين جدد نزلوا فرعك — قوللنا هل هم تمام؟ ({newHires.length})
           </div>
           <div className="divide-y divide-stone-100">
@@ -369,7 +415,7 @@ export const BranchDashboardView: React.FC<Props> = ({ currentUser }) => {
         {overview.employees_missing_docs.length === 0 ? (
           <div className="p-6 text-center text-xs text-emerald-700 font-bold flex items-center justify-center gap-1.5">
             <CheckCircle2 className="w-4 h-4" />
-            كل الموظفين مستنداتهم مكتملة 🎉
+            كل الموظفين مستنداتهم مكتملة <PartyPopper className="h-4 w-4 text-emerald-600" aria-hidden="true" />
           </div>
         ) : (
           <div className="divide-y divide-stone-100">

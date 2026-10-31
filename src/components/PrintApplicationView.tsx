@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Check } from 'lucide-react';
 import { formatDuration } from '../utils/age';
 import { Applicant, FormFieldConfig } from '../types';
 import { SvgIcons } from './BobWichLogo';
@@ -14,6 +15,8 @@ import {
   declarationText,
   isDeclarationAccepted,
 } from '../formFields';
+
+const PrintCheckmark = () => <Check className="h-2.5 w-2.5" strokeWidth={4} aria-hidden="true" />;
 
 interface PrintApplicationViewProps {
   applicant: Applicant;
@@ -243,7 +246,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     {opts('marital_status').map(opt => (
                       <label key={opt} className="flex items-center gap-1">
                         <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.marital_status === opt ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                          {applicant.marital_status === opt ? '✓' : ''}
+                          {applicant.marital_status === opt ? <PrintCheckmark /> : null}
                         </span>
                         <span>{opt}</span>
                       </label>
@@ -257,7 +260,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     {opts('military_status').map(opt => (
                       <span key={opt} className="flex items-center gap-1">
                         <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.military_status === opt ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                          {applicant.military_status === opt ? '✓' : ''}
+                          {applicant.military_status === opt ? <PrintCheckmark /> : null}
                         </span>
                         <span>{opt}</span>
                       </span>
@@ -313,13 +316,13 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <span className="font-bold text-stone-700">خبرة سابقة بمطاعم:</span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.restaurant_experience ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.restaurant_experience ? '✓' : ''}
+                        {applicant.restaurant_experience ? <PrintCheckmark /> : null}
                       </span>
                       <span>نعم</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${!applicant.restaurant_experience ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {!applicant.restaurant_experience ? '✓' : ''}
+                        {!applicant.restaurant_experience ? <PrintCheckmark /> : null}
                       </span>
                       <span>لا</span>
                     </span>
@@ -374,13 +377,13 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <span className="font-bold text-stone-700">ما زلت تدرس؟</span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.still_studying ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.still_studying ? '✓' : ''}
+                        {applicant.still_studying ? <PrintCheckmark /> : null}
                       </span>
                       <span>نعم</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${!applicant.still_studying ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {!applicant.still_studying ? '✓' : ''}
+                        {!applicant.still_studying ? <PrintCheckmark /> : null}
                       </span>
                       <span>لا</span>
                     </span>
@@ -401,7 +404,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       return (
                         <div key={skill} className="flex items-center gap-1">
                           <span className={`w-3 h-3 border border-stone-600 rounded-xs flex items-center justify-center text-[9px] ${isChecked ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                            {isChecked ? '✓' : ''}
+                            {isChecked ? <PrintCheckmark /> : null}
                           </span>
                           <span className="text-stone-800 truncate">{skill}</span>
                         </div>
@@ -411,7 +414,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                   <div className="mt-1.5 pt-1 border-t border-stone-200 flex items-center gap-1.5">
                     <span className="flex items-center gap-1">
                       <span className={`w-3 h-3 border border-stone-600 rounded-xs flex items-center justify-center text-[9px] ${Boolean(applicant.custom_skill) ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {Boolean(applicant.custom_skill) ? '✓' : ''}
+                        {Boolean(applicant.custom_skill) ? <PrintCheckmark /> : null}
                       </span>
                       <span className="font-bold text-stone-700 text-[11px]">أخرى:</span>
                     </span>
@@ -462,13 +465,13 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <span className="font-bold text-stone-700">الورديات المتاحة:</span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.shift_morning ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.shift_morning ? '✓' : ''}
+                        {applicant.shift_morning ? <PrintCheckmark /> : null}
                       </span>
                       <span>صباحية</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.shift_night ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.shift_night ? '✓' : ''}
+                        {applicant.shift_night ? <PrintCheckmark /> : null}
                       </span>
                       <span>ليلية</span>
                     </span>
@@ -480,13 +483,13 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <span className="font-bold text-stone-700">وسيلة مواصلات خاصة؟</span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.can_work_shifts ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.can_work_shifts ? '✓' : ''}
+                        {applicant.can_work_shifts ? <PrintCheckmark /> : null}
                       </span>
                       <span>نعم</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${!applicant.can_work_shifts ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {!applicant.can_work_shifts ? '✓' : ''}
+                        {!applicant.can_work_shifts ? <PrintCheckmark /> : null}
                       </span>
                       <span>لا</span>
                     </span>
@@ -500,13 +503,13 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <span className="font-bold text-stone-700">ساعات إضافية عند الحاجة؟</span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.can_work_overtime ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.can_work_overtime ? '✓' : ''}
+                        {applicant.can_work_overtime ? <PrintCheckmark /> : null}
                       </span>
                       <span>نعم</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${!applicant.can_work_overtime ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {!applicant.can_work_overtime ? '✓' : ''}
+                        {!applicant.can_work_overtime ? <PrintCheckmark /> : null}
                       </span>
                       <span>لا</span>
                     </span>
@@ -518,13 +521,13 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <span className="font-bold text-stone-700">العمل في العطلات الرسمية؟</span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.can_work_holidays ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.can_work_holidays ? '✓' : ''}
+                        {applicant.can_work_holidays ? <PrintCheckmark /> : null}
                       </span>
                       <span>نعم</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${!applicant.can_work_holidays ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {!applicant.can_work_holidays ? '✓' : ''}
+                        {!applicant.can_work_holidays ? <PrintCheckmark /> : null}
                       </span>
                       <span>لا</span>
                     </span>
@@ -542,25 +545,25 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
               <div className="border border-stone-300 border-t-0 p-2.5 text-xs bg-white flex items-center justify-around">
                 <span className="flex items-center gap-1.5">
                   <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${hasDocumentType('الوجه') || (hasDocumentType('قومي') && !hasDocumentType('الظهر')) ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                    {hasDocumentType('الوجه') || (hasDocumentType('قومي') && !hasDocumentType('الظهر')) ? '✓' : ''}
+                    {hasDocumentType('الوجه') || (hasDocumentType('قومي') && !hasDocumentType('الظهر')) ? <PrintCheckmark /> : null}
                   </span>
                   <span>صورة البطاقة (وش)</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${hasDocumentType('الظهر') ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                    {hasDocumentType('الظهر') ? '✓' : ''}
+                    {hasDocumentType('الظهر') ? <PrintCheckmark /> : null}
                   </span>
                   <span>صورة البطاقة (ظهر)</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${hasDocumentType('شخصية') || Boolean(applicant.photo_url) ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                    {hasDocumentType('شخصية') || Boolean(applicant.photo_url) ? '✓' : ''}
+                    {hasDocumentType('شخصية') || Boolean(applicant.photo_url) ? <PrintCheckmark /> : null}
                   </span>
                   <span>صور شخصية</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${hasDocumentType('صحية') ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                    {hasDocumentType('صحية') ? '✓' : ''}
+                    {hasDocumentType('صحية') ? <PrintCheckmark /> : null}
                   </span>
                   <span>شهادة صحية – إن وجدت</span>
                 </span>
@@ -758,19 +761,19 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <span className="font-bold text-stone-700 min-w-22">المقابلة الأولى:</span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.hr_decision?.first_interview_status === 'مقبول' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.hr_decision?.first_interview_status === 'مقبول' ? '✓' : ''}
+                        {applicant.hr_decision?.first_interview_status === 'مقبول' ? <PrintCheckmark /> : null}
                       </span>
                       <span>مقبول</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.hr_decision?.first_interview_status === 'مرفوض' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.hr_decision?.first_interview_status === 'مرفوض' ? '✓' : ''}
+                        {applicant.hr_decision?.first_interview_status === 'مرفوض' ? <PrintCheckmark /> : null}
                       </span>
                       <span>مرفوض</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.hr_decision?.first_interview_status === 'إعادة مقابلة' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.hr_decision?.first_interview_status === 'إعادة مقابلة' ? '✓' : ''}
+                        {applicant.hr_decision?.first_interview_status === 'إعادة مقابلة' ? <PrintCheckmark /> : null}
                       </span>
                       <span>إعادة</span>
                     </span>
@@ -788,13 +791,13 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                     <span className="font-bold text-stone-700 min-w-22">المقابلة الثانية:</span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.hr_decision?.second_interview_status === 'حضر' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.hr_decision?.second_interview_status === 'حضر' ? '✓' : ''}
+                        {applicant.hr_decision?.second_interview_status === 'حضر' ? <PrintCheckmark /> : null}
                       </span>
                       <span>حضر</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.hr_decision?.second_interview_status === 'لم يحضر' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                        {applicant.hr_decision?.second_interview_status === 'لم يحضر' ? '✓' : ''}
+                        {applicant.hr_decision?.second_interview_status === 'لم يحضر' ? <PrintCheckmark /> : null}
                       </span>
                       <span>لم يحضر</span>
                     </span>
@@ -822,19 +825,19 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
                       <span className="font-bold text-stone-900 text-xs">قرار التوظيف:</span>
                       <span className="flex items-center gap-1">
                         <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.status === 'مقبول' || applicant.hr_decision?.hiring_decision === 'قبول' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                          {applicant.status === 'مقبول' || applicant.hr_decision?.hiring_decision === 'قبول' ? '✓' : ''}
+                          {applicant.status === 'مقبول' || applicant.hr_decision?.hiring_decision === 'قبول' ? <PrintCheckmark /> : null}
                         </span>
                         <span className="font-bold">قبول</span>
                       </span>
                       <span className="flex items-center gap-1">
                         <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.status === 'مرفوض' || applicant.hr_decision?.hiring_decision === 'رفض' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                          {applicant.status === 'مرفوض' || applicant.hr_decision?.hiring_decision === 'رفض' ? '✓' : ''}
+                          {applicant.status === 'مرفوض' || applicant.hr_decision?.hiring_decision === 'رفض' ? <PrintCheckmark /> : null}
                         </span>
                         <span className="font-bold">رفض</span>
                       </span>
                       <span className="flex items-center gap-1">
                         <span className={`w-3.5 h-3.5 border border-stone-600 rounded-xs flex items-center justify-center text-[10px] ${applicant.status === 'قائمة انتظار' || applicant.hr_decision?.hiring_decision === 'قائمة انتظار' ? 'bg-[#9E1A24] text-white font-bold' : ''}`}>
-                          {applicant.status === 'قائمة انتظار' || applicant.hr_decision?.hiring_decision === 'قائمة انتظار' ? '✓' : ''}
+                          {applicant.status === 'قائمة انتظار' || applicant.hr_decision?.hiring_decision === 'قائمة انتظار' ? <PrintCheckmark /> : null}
                         </span>
                         <span className="font-bold">قائمة انتظار</span>
                       </span>

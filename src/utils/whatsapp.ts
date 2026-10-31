@@ -74,9 +74,9 @@ export const buildWhatsAppMessage = (
         `السلام عليكم ${name}،`,
         `شكرًا لتقديمك على وظيفة ${position} في BOB WICH.`,
         `يسعدنا ندعوك لمقابلة شخصية:`,
-        `📅 ${formatDateAr(ctx.interviewDate)}`,
-        `🕒 ${formatTimeAr(ctx.interviewTime)}`,
-        `📍 ${ctx.interviewPlace?.trim() || `فرع ${branch}`}`,
+        `تاريخ المقابلة: ${formatDateAr(ctx.interviewDate)}`,
+        `الوقت: ${formatTimeAr(ctx.interviewTime)}`,
+        `المكان: ${ctx.interviewPlace?.trim() || `فرع ${branch}`}`,
         `برجاء تأكيد حضورك بالرد على الرسالة دي.`,
       ].join('\n');
     case 'documents': {
@@ -92,7 +92,7 @@ export const buildWhatsAppMessage = (
     case 'accepted':
       return [
         `السلام عليكم ${name}،`,
-        `يسعدنا نبلغك إن طلبك لوظيفة ${position} في BOB WICH (فرع ${branch}) اتقبل 🎉`,
+        `يسعدنا نبلغك إن طلبك لوظيفة ${position} في BOB WICH (فرع ${branch}) اتقبل.`,
         `هنتواصل معاك لتحديد موعد المباشرة.`,
       ].join('\n');
     case 'rejected':

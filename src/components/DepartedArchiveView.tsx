@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Employee, Applicant, Branch, JobPosition, CurrentUser } from '../types';
 import { SvgIcons } from './BobWichLogo';
 import { RESIGNED_STATUS, TERMINATED_STATUS, separationDateOf, serviceDuration } from '../utils/employeeStatus';
+import { PdfReportButton } from './PdfReportButton';
+import { DoorOpen, Undo2, X } from 'lucide-react';
 
 interface DepartedArchiveViewProps {
   /** المستقيلين ومنهيي التعاقد فقط (App بيفلترهم من كل الموظفين) */
@@ -93,7 +95,7 @@ export const DepartedArchiveView: React.FC<DepartedArchiveViewProps> = ({
       {/* Header */}
       <div>
         <h2 className="text-2xl sm:text-3xl font-black text-stone-900 flex items-center gap-2">
-          <span>🚪</span>
+          <DoorOpen className="h-5 w-5 text-stone-500" aria-hidden="true" />
           <span>أرشيف المستقيلين</span>
         </h2>
         <p className="text-xs sm:text-sm text-stone-500 mt-1">
@@ -141,7 +143,7 @@ export const DepartedArchiveView: React.FC<DepartedArchiveViewProps> = ({
                 onClick={() => setSearchTerm('')}
                 className="absolute left-3 top-3 text-xs text-stone-400 hover:text-stone-700"
               >
-                ✕
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -181,8 +183,27 @@ export const DepartedArchiveView: React.FC<DepartedArchiveViewProps> = ({
           </select>
         </div>
 
-        <div className="text-xs text-stone-400 font-mono text-left pt-2 border-t border-stone-100">
-          عرض {filtered.length} من {safe.length}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-100 pt-2">
+          <div className="text-xs text-stone-400 font-mono text-left">
+            عرض {filtered.length} من {safe.length}
+          </div>
+          <PdfReportButton<Employee>
+            title="أرشيف المستقيلين ومنهيي التعاقد"
+            subtitle="النتائج المطابقة للفلاتر الحالية"
+            rows={filtered}
+            columns={[
+              { label: 'الاسم', value: employee => employee.full_name },
+              { label: 'كود الموظف', value: employee => employee.employee_code },
+              { label: 'الهاتف', value: employee => employee.phone },
+              { label: 'الوظيفة', value: employee => employee.position_name },
+              { label: 'الفرع', value: employee => employee.branch_name },
+              { label: 'نوع الخروج', value: employee => employee.status === RESIGNED_STATUS ? 'استقالة' : 'إنهاء تعاقد' },
+              { label: 'تاريخ المباشرة', value: employee => formatDate(employee.hire_date) },
+              { label: 'تاريخ الخروج', value: employee => formatDate(separationDateOf(employee)) },
+              { label: 'مدة الخدمة', value: employee => serviceDuration(employee.hire_date, separationDateOf(employee)) },
+              { label: 'السبب', value: employee => employee.separation_reason || '—' },
+            ]}
+          />
         </div>
       </div>
 
@@ -191,7 +212,7 @@ export const DepartedArchiveView: React.FC<DepartedArchiveViewProps> = ({
         {filtered.length === 0 ? (
           <div className="text-center py-16 px-4 space-y-3">
             <div className="w-16 h-16 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center mx-auto text-3xl">
-              🚪
+              <DoorOpen className="h-8 w-8" aria-hidden="true" />
             </div>
             <h3 className="text-lg font-bold text-stone-800">
               {safe.length === 0 ? 'الأرشيف فاضي' : 'مفيش نتائج مطابقة'}
@@ -327,7 +348,7 @@ export const DepartedArchiveView: React.FC<DepartedArchiveViewProps> = ({
                               className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 px-2.5 py-1.5 rounded-lg font-bold transition-all text-[11px]"
                               title="رجّع الموظف للشغل (نشط)"
                             >
-                              ↩ إعادة تعيين
+                              <span className="inline-flex items-center gap-1"><Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> إعادة تعيين</span>
                             </button>
                           )}
                           {canManage && (

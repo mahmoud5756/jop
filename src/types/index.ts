@@ -54,9 +54,10 @@ export interface Interview {
   applicant_id: string;
   interview_number: 1 | 2 | 3;
   interview_date: string;
+  interview_time?: string;
   interviewer_name: string;
   interviewer_role?: string;
-  status: 'مقبول' | 'مرفوض' | 'إعادة مقابلة' | 'حضر' | 'لم يحضر';
+  status: 'مجدولة' | 'مقبول' | 'مرفوض' | 'إعادة مقابلة' | 'حضر' | 'لم يحضر';
   evaluation: number; // 1 to 5
   notes: string;
   created_at: string;

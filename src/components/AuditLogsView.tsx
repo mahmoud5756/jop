@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuditLog } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
+import { PdfReportButton } from './PdfReportButton';
 
 export const AuditLogsView: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -52,7 +53,7 @@ export const AuditLogsView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl sm:text-3xl font-black text-stone-900 flex items-center gap-2">
             <span>سجل العمليات والتدقيق (Audit Logs)</span>
@@ -61,6 +62,20 @@ export const AuditLogsView: React.FC = () => {
             سجل إلكتروني دقيق لجميع التعديلات، إدخال الطلبات، القرارات، وعمليات التحويل للموظفين
           </p>
         </div>
+        <PdfReportButton<AuditLog>
+          title="سجل العمليات والتدقيق"
+          subtitle="النتائج المطابقة للبحث الحالي"
+          rows={filteredLogs}
+          disabled={loading}
+          columns={[
+            { label: 'التاريخ والوقت', value: log => new Date(log.timestamp).toLocaleString('ar-EG') },
+            { label: 'المستخدم', value: log => log.performed_by },
+            { label: 'الدور الوظيفي', value: log => log.user_role },
+            { label: 'نوع العملية', value: log => log.action },
+            { label: 'النوع والسجل المتأثر', value: log => `${log.entity_type}${log.entity_code ? ` · ${log.entity_code}` : ''}${log.entity_name ? ` · ${log.entity_name}` : ''}` },
+            { label: 'التفاصيل', value: log => log.details || '—' },
+          ]}
+        />
       </div>
 
       {/* Search Bar */}

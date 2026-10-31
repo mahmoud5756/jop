@@ -181,7 +181,7 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
                 )}
               </select>
               <p className="text-[10px] text-stone-500">
-                الرتب بتتضاف لكل وظيفة من شاشة "الفروع والوظائف ← المسميات الوظيفية ← تعديل".
+                الرتب بتتضاف لكل وظيفة من شاشة "الفروع والوظائف" ثم "المسميات الوظيفية" ثم "تعديل".
               </p>
             </div>
 

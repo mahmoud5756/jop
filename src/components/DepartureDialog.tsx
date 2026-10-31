@@ -1,3 +1,4 @@
+import { Archive } from 'lucide-react';
 import React, { useRef, useState } from 'react';
 import { useAccessibleDialog } from './useAccessibleDialog';
 import { Employee } from '../types';
@@ -60,7 +61,7 @@ export const DepartureDialog: React.FC<DepartureDialogProps> = ({
       >
         <div>
           <h3 id="departure-dialog-title" className="text-lg font-black text-stone-900 flex items-center gap-2">
-            <span>🗄️</span>
+            <Archive className="w-5 h-5" aria-hidden="true" />
             <span>{isResign ? 'تسجيل استقالة' : 'تسجيل إنهاء تعاقد'}</span>
           </h3>
           <p className="text-xs text-stone-500 mt-1 leading-relaxed">

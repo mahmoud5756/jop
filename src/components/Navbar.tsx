@@ -1,3 +1,4 @@
+import { Crown, Briefcase, Store, LockKeyhole, LogOut, Inbox, FolderKanban, Archive, Building2, ReceiptText, ClipboardList, UserRound } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
 import { BobWichLogo, SvgIcons } from './BobWichLogo';
 import { CurrentUser, Applicant, Employee } from '../types';
@@ -92,11 +93,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'admin':
-        return <span className="bg-red-100 text-[#9E1A24] text-[10px] font-black px-2 py-0.5 rounded-full border border-red-200">👑 مدير النظام</span>;
+        return <span className="bg-red-100 text-[#9E1A24] text-[10px] font-black px-2 py-0.5 rounded-full border border-red-200"><Crown className="inline-block w-3.5 h-3.5 ml-1" aria-hidden="true" />مدير النظام</span>;
       case 'hr':
-        return <span className="bg-amber-100 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-200">💼 الموارد البشرية</span>;
+        return <span className="bg-amber-100 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-200"><Briefcase className="inline-block w-3.5 h-3.5 ml-1" aria-hidden="true" />الموارد البشرية</span>;
       case 'manager':
-        return <span className="bg-blue-100 text-blue-900 text-[10px] font-black px-2 py-0.5 rounded-full border border-blue-200">🏪 مدير فرع</span>;
+        return <span className="bg-blue-100 text-blue-900 text-[10px] font-black px-2 py-0.5 rounded-full border border-blue-200"><Store className="inline-block w-3.5 h-3.5 ml-1" aria-hidden="true" />مدير فرع</span>;
       default:
         return <span className="bg-stone-100 text-stone-700 text-[10px] font-bold px-2 py-0.5 rounded-full">مستخدم</span>;
     }
@@ -255,7 +256,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }}
                       className="w-full text-right px-4 py-2.5 hover:bg-stone-50 text-stone-700 font-bold flex items-center gap-2 transition-colors cursor-pointer"
                     >
-                      <span>🔒</span>
+                      <span><LockKeyhole className="w-4 h-4" aria-hidden="true" /></span>
                       <span>تغيير كلمة المرور</span>
                     </button>
                   )}
@@ -270,7 +271,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }}
                     className="w-full text-right px-4 py-2.5 hover:bg-red-50 text-red-700 font-bold flex items-center gap-2 transition-colors cursor-pointer"
                   >
-                    <span>🚪</span>
+                    <span><LogOut className="w-4 h-4" aria-hidden="true" /></span>
                     <span>تسجيل الخروج</span>
                   </button>
                 </div>
@@ -334,7 +335,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              <span className="text-base">🏪</span>
+              <Store className="w-4 h-4" aria-hidden="true" />
               <span>متابعة الفرع</span>
             </button>
           )}
@@ -360,7 +361,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              <span className="text-base">📨</span>
+              <span className="text-base"><Inbox className="w-4 h-4" aria-hidden="true" /></span>
               <span>طلبات المديرين</span>
               {pendingRequestsCount > 0 && (
                 <span className="bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono" title="طلبات جديدة">
@@ -380,7 +381,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              <span className="text-base">🗂️</span>
+              <span className="text-base"><FolderKanban className="w-4 h-4" aria-hidden="true" /></span>
               <span>تسجيل الموظفين الحاليين</span>
               {newStaffCount > 0 && (
                 <span className="bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono" title="تسجيلات جديدة">
@@ -399,7 +400,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              <span className="text-base">🗄️</span>
+              <span className="text-base"><Archive className="w-4 h-4" aria-hidden="true" /></span>
               <span>أرشيف المرفوضين</span>
               {rejectedCount > 0 && (
                 <span className="bg-stone-700 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono">
@@ -418,7 +419,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              <span className="text-base">🚪</span>
+              <span className="text-base"><LogOut className="w-4 h-4" aria-hidden="true" /></span>
               <span>أرشيف المستقيلين</span>
               {departedCount > 0 && (
                 <span className="bg-stone-700 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full font-mono">
@@ -449,7 +450,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              <span className="text-base">🏢</span>
+              <span className="text-base"><Building2 className="w-4 h-4" aria-hidden="true" /></span>
               <span>إدارة الفروع والوظائف</span>
             </button>
           )}
@@ -463,7 +464,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              <span className="text-base">🧾</span>
+              <span className="text-base"><ReceiptText className="w-4 h-4" aria-hidden="true" /></span>
               <span>بيانات الشركة (السجل التجاري والضريبي)</span>
             </button>
           )}
@@ -477,7 +478,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              <span className="text-base">📝</span>
+              <span className="text-base"><ClipboardList className="w-4 h-4" aria-hidden="true" /></span>
               <span>إعدادات نموذج التقديم</span>
             </button>
           )}
@@ -491,7 +492,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              <span className="text-base">👤</span>
+              <span className="text-base"><UserRound className="w-4 h-4" aria-hidden="true" /></span>
               <span>إدارة المستخدمين</span>
             </button>
           )}

@@ -31,7 +31,7 @@ export function formatDuration(exp: {
     if (m) parts.push(m === 1 ? 'شهر' : m === 2 ? 'شهران' : m <= 10 ? `${m} شهور` : `${m} شهرًا`);
     return parts.join(' و ');
   }
-  if (exp.date_from || exp.date_to) return `${exp.date_from || ''}${exp.date_to ? ' → ' + exp.date_to : ''}`;
+  if (exp.date_from || exp.date_to) return `${exp.date_from || ''}${exp.date_to ? ' إلى ' + exp.date_to : ''}`;
   return '';
 }
 

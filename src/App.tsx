@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { X } from 'lucide-react';
 import {
   Applicant,
   Employee,
@@ -232,15 +233,15 @@ export function App() {
             const known = knownRequestIdsRef.current;
             const fresh = reqs.filter(r => !known.has(r.id) && r.status === 'جديد');
             if (fresh.length === 1) {
-              const msg = `🔔 طلب جديد من فرع ${fresh[0].branch_name}: ${MANAGER_REQUEST_LABELS[fresh[0].request_type]}`;
+              const msg = `طلب جديد من فرع ${fresh[0].branch_name}: ${MANAGER_REQUEST_LABELS[fresh[0].request_type]}`;
               showToast(msg, 10000);
               playNotificationSound();
-              showSystemNotification('طلب جديد من فرع', msg.replace('🔔 ', ''));
+              showSystemNotification('طلب جديد من فرع', msg);
             } else if (fresh.length > 1) {
-              const msg = `🔔 وصل ${fresh.length} طلبات جديدة من مديري الفروع`;
+              const msg = `وصل ${fresh.length} طلبات جديدة من مديري الفروع`;
               showToast(msg, 10000);
               playNotificationSound();
-              showSystemNotification('طلبات جديدة', msg.replace('🔔 ', ''));
+              showSystemNotification('طلبات جديدة', msg);
             }
           }
           knownRequestIdsRef.current = new Set(reqs.map(r => r.id));
@@ -258,15 +259,15 @@ export function App() {
         if (fresh.length === 1) {
           const a = fresh[0];
           const label = a.applicant_category === 'internal_staff' ? 'تسجيل موظف حالي' : 'طلب جديد';
-          const msg = `🔔 وصل ${label}: ${a.full_name} — ${a.position_name}`;
+          const msg = `وصل ${label}: ${a.full_name} — ${a.position_name}`;
           showToast(msg, 10000);
           playNotificationSound();
           showSystemNotification(label, `${a.full_name} — ${a.position_name}`);
         } else if (fresh.length > 1) {
-          const msg = `🔔 وصل ${fresh.length} طلبات جديدة`;
+          const msg = `وصل ${fresh.length} طلبات جديدة`;
           showToast(msg, 10000);
           playNotificationSound();
-          showSystemNotification('طلبات جديدة', msg.replace('🔔 ', ''));
+          showSystemNotification('طلبات جديدة', msg);
         }
       }
       knownApplicantIdsRef.current = new Set(appsList.map(a => a.id));
@@ -583,8 +584,8 @@ export function App() {
           <div className="fixed bottom-6 left-6 z-70 bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-stone-700 flex items-center gap-3 animate-in slide-in-from-bottom-5">
             <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
             <span className="text-xs sm:text-sm font-bold">{toastMessage}</span>
-            <button onClick={() => setToastMessage(null)} className="text-stone-400 hover:text-white mr-2 text-xs cursor-pointer">
-              ✕
+            <button onClick={() => setToastMessage(null)} className="text-stone-400 hover:text-white mr-2 text-xs cursor-pointer" aria-label="إغلاق التنبيه">
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
         )}
@@ -627,8 +628,8 @@ export function App() {
           <div className="fixed bottom-6 left-6 z-70 bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-stone-700 flex items-center gap-3 animate-in slide-in-from-bottom-5">
             <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
             <span className="text-xs sm:text-sm font-bold">{toastMessage}</span>
-            <button onClick={() => setToastMessage(null)} className="text-stone-400 hover:text-white mr-2 text-xs cursor-pointer">
-              ✕
+            <button onClick={() => setToastMessage(null)} className="text-stone-400 hover:text-white mr-2 text-xs cursor-pointer" aria-label="إغلاق التنبيه">
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
         )}
@@ -648,8 +649,8 @@ export function App() {
         <div className="fixed bottom-6 left-6 z-70 bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-stone-700 flex items-center gap-3 animate-in slide-in-from-bottom-5 print:hidden">
           <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
           <span className="text-xs sm:text-sm font-bold">{toastMessage}</span>
-          <button onClick={() => setToastMessage(null)} className="text-stone-400 hover:text-white mr-2 text-xs cursor-pointer">
-            ✕
+          <button onClick={() => setToastMessage(null)} className="text-stone-400 hover:text-white mr-2 text-xs cursor-pointer" aria-label="إغلاق التنبيه">
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
       )}

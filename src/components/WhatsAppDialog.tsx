@@ -1,3 +1,4 @@
+import { MessageCircle } from 'lucide-react';
 import React, { useMemo, useRef, useState } from 'react';
 import { useAccessibleDialog } from './useAccessibleDialog';
 import { Applicant } from '../types';
@@ -64,7 +65,7 @@ export const WhatsAppDialog: React.FC<WhatsAppDialogProps> = ({ applicant: singl
         <div>
           {recipients.length > 1 && <p className="text-[11px] font-bold text-emerald-700 mb-1">المستلم {recipientIndex + 1} من {recipients.length}</p>}
           <h3 className="text-lg font-black text-stone-900 flex items-center gap-2">
-            <span>💬</span>
+            <MessageCircle className="w-5 h-5" aria-hidden="true" />
             <span id="whatsapp-dialog-title">رسالة واتساب</span>
           </h3>
           <p className="text-xs text-stone-500 mt-1">

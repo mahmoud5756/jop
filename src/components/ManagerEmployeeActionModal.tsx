@@ -1,3 +1,4 @@
+import { ArrowLeftRight, ClipboardList, Ban, Scale } from 'lucide-react';
 import React, { useState } from 'react';
 import { Employee, Branch, ManagerRequestType } from '../types';
 import { ApiService } from '../services/api';
@@ -15,11 +16,11 @@ interface Props {
   onSent: (message: string) => void;
 }
 
-const ACTIONS: { type: EmployeeActionType; label: string; icon: string; hint: string; danger?: boolean }[] = [
-  { type: 'transfer', label: 'نقل لفرع تاني', icon: '🔁', hint: 'الموارد البشرية بتراجع وبتنفّذ النقل' },
-  { type: 'resignation', label: 'استقالة', icon: '📝', hint: 'الموظف قدّم استقالة وهيمشي في يوم معيّن' },
-  { type: 'termination', label: 'طلب إنهاء تعاقد', icon: '⛔', hint: 'إنت عايز الموظف يمشي — القرار للموارد البشرية', danger: true },
-  { type: 'investigation', label: 'تحويل للتحقيق', icon: '⚖️', hint: 'مخالفة تستدعي تحقيق رسمي', danger: true },
+const ACTIONS: { type: EmployeeActionType; label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; hint: string; danger?: boolean }[] = [
+  { type: 'transfer', label: 'نقل لفرع تاني', icon: ArrowLeftRight, hint: 'الموارد البشرية بتراجع وبتنفّذ النقل' },
+  { type: 'resignation', label: 'استقالة', icon: ClipboardList, hint: 'الموظف قدّم استقالة وهيمشي في يوم معيّن' },
+  { type: 'termination', label: 'طلب إنهاء تعاقد', icon: Ban, hint: 'إنت عايز الموظف يمشي — القرار للموارد البشرية', danger: true },
+  { type: 'investigation', label: 'تحويل للتحقيق', icon: Scale, hint: 'مخالفة تستدعي تحقيق رسمي', danger: true },
 ];
 
 /**
@@ -110,7 +111,7 @@ export const ManagerEmployeeActionModal: React.FC<Props> = ({ employee, branches
                     : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
                 }`}
               >
-                <span>{a.icon}</span>
+                <a.icon className="w-5 h-5" aria-hidden="true" />
                 {a.label}
               </button>
             ))}

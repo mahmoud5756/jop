@@ -472,7 +472,22 @@ export function createApp() {
       res.status(201).json({ data: interview, message: 'تم تسجيل المقابلة بنجاح' });
     } catch (err: any) {
       console.error('API POST /api/applicants/:id/interviews error:', err);
-      res.status(500).json({ error: err.message || 'فشل تسجيل المقابلة' });
+      res.status(err.statusCode || 500).json({ error: err.message || 'فشل تسجيل المقابلة' });
+    }
+  });
+
+  app.patch('/api/applicants/:id/interviews/:interviewId', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
+    const applicantId = req.params.id;
+    const interviewId = req.params.interviewId;
+    const performedBy = req.user?.name || 'مسؤول المقابلات';
+    const userRole = req.user?.role || 'hr';
+
+    try {
+      const interview = await db.updateInterview(applicantId, interviewId, req.body, performedBy, userRole);
+      res.json({ data: interview, message: 'تم تحديث موعد / نتيجة المقابلة' });
+    } catch (err: any) {
+      console.error('API PATCH /api/applicants/:id/interviews/:interviewId error:', err);
+      res.status(err.statusCode || 500).json({ error: err.message || 'فشل تحديث المقابلة' });
     }
   });
 

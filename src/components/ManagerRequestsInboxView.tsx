@@ -1,8 +1,10 @@
+import { ReceiptText, ArrowLeftRight, UserRoundPlus, Scale, Ban, ClipboardList, FileText } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { ManagerRequest, ManagerRequestStatus, CurrentUser } from '../types';
 import { ApiService } from '../services/api';
 import { MANAGER_REQUEST_LABELS } from '../utils/managerRequests';
 import { RequestStatusBadge, requestSummaryLine } from './ManagerRequestBadge';
+import { PdfReportButton } from './PdfReportButton';
 
 interface Props {
   requests: ManagerRequest[];
@@ -11,13 +13,13 @@ interface Props {
   showToast: (msg: string) => void;
 }
 
-const TYPE_ICON: Record<string, string> = {
-  staff_request: '🧾',
-  transfer: '🔁',
-  new_hire_review: '👋',
-  investigation: '⚖️',
-  termination: '⛔',
-  resignation: '📝',
+const TYPE_ICON: Record<string, React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = {
+  staff_request: ReceiptText,
+  transfer: ArrowLeftRight,
+  new_hire_review: UserRoundPlus,
+  investigation: Scale,
+  termination: Ban,
+  resignation: ClipboardList,
 };
 
 type Filter = ManagerRequestStatus | 'الكل';
@@ -31,7 +33,7 @@ export const ManagerRequestsInboxView: React.FC<Props> = ({ requests, onChanged,
   const [filter, setFilter] = useState<Filter>('جديد');
   const [busyId, setBusyId] = useState<string | null>(null);
   // ملاحظة الموارد البشرية لكل طلب (بتتبعت مع القرار)
-  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState<Record<string, React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>>>({});
   const [branchFilter, setBranchFilter] = useState('الكل');
 
   const branches = useMemo(() => Array.from(new Set<string>(requests.map(r => r.branch_name))).sort((a, b) => a.localeCompare(b, 'ar')), [requests]);
@@ -91,20 +93,39 @@ export const ManagerRequestsInboxView: React.FC<Props> = ({ requests, onChanged,
             طلبات موظفين، نقل، استقالات، إنهاء تعاقد، تحقيقات، وتقييم الموظفين الجدد — كل الطلبات من مديري الفروع بتوصل هنا.
           </p>
         </div>
-        {branches.length > 1 && (
-          <select
-            value={branchFilter}
-            onChange={e => setBranchFilter(e.target.value)}
-            className="bg-white rounded-xl px-3 py-2 border border-stone-300 text-xs font-bold text-stone-700"
-          >
-            <option value="الكل">كل الفروع</option>
-            {branches.map(b => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <PdfReportButton<ManagerRequest>
+            title="طلبات مديري الفروع"
+            subtitle={`الحالة: ${filter} · الفرع: ${branchFilter}`}
+            rows={visible}
+            columns={[
+              { label: 'تاريخ الطلب', value: request => new Date(request.created_at).toLocaleString('ar-EG') },
+              { label: 'الفرع', value: request => request.branch_name },
+              { label: 'نوع الطلب', value: request => MANAGER_REQUEST_LABELS[request.request_type] },
+              { label: 'الموظف / تفاصيل الطلب', value: request => requestSummaryLine(request) },
+              { label: 'كود الموظف', value: request => request.employee_code || '—' },
+              { label: 'الحالة', value: request => request.status },
+              { label: 'الأولوية', value: request => request.urgent ? 'مستعجل' : 'عادي' },
+              { label: 'مقدم الطلب', value: request => request.requested_by },
+              { label: 'السبب', value: request => request.reason || '—' },
+              { label: 'ملاحظة الموارد البشرية', value: request => request.hr_note || '—' },
+            ]}
+          />
+          {branches.length > 1 && (
+            <select
+              value={branchFilter}
+              onChange={e => setBranchFilter(e.target.value)}
+              className="bg-white rounded-xl px-3 py-2 border border-stone-300 text-xs font-bold text-stone-700"
+            >
+              <option value="الكل">كل الفروع</option>
+              {branches.map(b => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -140,7 +161,7 @@ export const ManagerRequestsInboxView: React.FC<Props> = ({ requests, onChanged,
               >
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-lg">{TYPE_ICON[r.request_type]}</span>
+                    {React.createElement(TYPE_ICON[r.request_type] || FileText, { className: "w-5 h-5", "aria-hidden": true })}
                     <span className="font-black text-stone-900 text-sm">{MANAGER_REQUEST_LABELS[r.request_type]}</span>
                     <span className="bg-stone-100 text-stone-700 text-[11px] font-bold px-2 py-0.5 rounded-full">فرع {r.branch_name}</span>
                     {r.urgent && <span className="bg-amber-100 text-amber-800 text-[11px] font-black px-2 py-0.5 rounded-full">مستعجل</span>}

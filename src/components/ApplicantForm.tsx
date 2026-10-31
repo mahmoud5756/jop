@@ -1,3 +1,4 @@
+import { UserRound, Briefcase, GraduationCap, ClipboardList, Paperclip, Scale, X, Check, Star } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { calcAge, formatAge, totalExperienceYears } from '../utils/age';
 import {
@@ -389,9 +390,10 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
         applicant_id: initialData?.id || '',
         interview_number: (prev.length + 1) as any,
         interview_date: new Date().toISOString().split('T')[0],
+        interview_time: '',
         interviewer_name: currentUser.name,
-        status: 'مقبول',
-        evaluation: 5,
+        status: 'مجدولة',
+        evaluation: 0,
         notes: '',
         created_at: new Date().toISOString(),
       },
@@ -519,14 +521,14 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
   };
 
   const tabs = [
-    { id: 1, label: '1. البيانات الشخصية', icon: '👤' },
-    { id: 2, label: '2. الوظيفة المطلوبة', icon: '💼' },
-    { id: 3, label: '3. التعليم والمهارات', icon: '🎓' },
-    { id: 4, label: '4. الخبرات السابقة', icon: '📋' },
-    { id: 5, label: '5. أوقات العمل والمرفقات', icon: '📎' },
-    { id: 6, label: '6. إقرار المتقدم والعهدة', icon: '⚖️' },
+    { id: 1, label: '1. البيانات الشخصية', icon: UserRound },
+    { id: 2, label: '2. الوظيفة المطلوبة', icon: Briefcase },
+    { id: 3, label: '3. التعليم والمهارات', icon: GraduationCap },
+    { id: 4, label: '4. الخبرات السابقة', icon: ClipboardList },
+    { id: 5, label: '5. أوقات العمل والمرفقات', icon: Paperclip },
+    { id: 6, label: '6. إقرار المتقدم والعهدة', icon: Scale },
     ...(currentUser.role === 'admin' || currentUser.role === 'hr' || currentUser.role === 'manager'
-      ? [{ id: 7, label: '7. إدارة HR والمقابلات والقرار', icon: '⭐' }]
+      ? [{ id: 7, label: '7. إدارة HR والمقابلات والقرار', icon: Star }]
       : []),
   ];
 
@@ -590,7 +592,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
               <span>{errorMessage}</span>
             </div>
             <button aria-label="إغلاق رسالة الخطأ" onClick={() => setErrorMessage(null)} className="text-red-500 hover:text-red-800 text-xs font-bold">
-              ✕
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         )}
@@ -616,7 +618,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   : 'text-stone-600 hover:bg-stone-100'
               }`}
             >
-              <span>{tab.icon}</span>
+              <tab.icon className="w-4 h-4" aria-hidden="true" />
               <span>{tab.label}</span>
             </button>
           ))}
@@ -1132,7 +1134,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                             checked ? 'bg-[#9E1A24] text-white border-[#9E1A24]' : 'border-stone-400 bg-white'
                           }`}
                         >
-                          {checked ? '✓' : ''}
+                          {checked ? <Check className="h-3 w-3" aria-hidden="true" /> : null}
                         </div>
                         <span className="text-xs sm:text-sm">{skill}</span>
                       </div>
@@ -1891,7 +1893,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     className="bg-red-50 hover:bg-red-100 text-[#9E1A24] border border-[#9E1A24] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1"
                   >
                     <SvgIcons.Plus className="w-3.5 h-3.5" />
-                    <span>+ إضافة مقابلة</span>
+                    <span>إضافة مقابلة</span>
                   </button>
                 </div>
 
@@ -1924,9 +1926,9 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                         <div>
-                          <label className="block font-bold text-stone-700 mb-1">تاريخ المقابلة</label>
+                          <label className="block font-bold text-stone-700 mb-1">تاريخ الموعد</label>
                           <SharedDateInput
                             value={interview.interview_date}
                             onChange={e => {
@@ -1938,6 +1940,23 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                               });
                             }}
                             className="w-full bg-white rounded-lg p-2 border border-stone-300 font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-stone-700 mb-1">وقت المقابلة</label>
+                          <SharedInput
+                            type="time"
+                            value={interview.interview_time || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setInterviews(prev => {
+                                const copy = [...prev];
+                                copy[idx].interview_time = val;
+                                return copy;
+                              });
+                            }}
+                            className="w-full bg-white rounded-lg p-2 border border-stone-300"
                           />
                         </div>
 
@@ -1961,7 +1980,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         <div className="col-span-2">
                           <label className="block font-bold text-stone-700 mb-1">حالة المقابلة</label>
                           <div className="flex gap-2">
-                            {(['مقبول', 'مرفوض', 'إعادة مقابلة', 'حضر', 'لم يحضر'] as const).map(st => (
+                            {(['مجدولة', 'حضر', 'لم يحضر', 'مقبول', 'مرفوض', 'إعادة مقابلة'] as const).map(st => (
                               <button
                                 key={st}
                                 type="button"
@@ -1969,6 +1988,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                                   setInterviews(prev => {
                                     const copy = [...prev];
                                     copy[idx].status = st;
+                                    if (st === 'مجدولة') copy[idx].evaluation = 0;
                                     return copy;
                                   });
                                   if (idx === 0) {
@@ -2034,7 +2054,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     { val: 'قائمة انتظار', label: 'قائمة انتظار', bg: 'bg-amber-600 hover:bg-amber-700' },
                     { val: 'رفض', label: 'رفض الطلب', bg: 'bg-red-700 hover:bg-red-800' },
                   ].map(decision => {
-                    // القرار بيتحوّل لحالة الطلب الرسمية (رفض ← مرفوض) عشان الطلب المرفوض
+                    // القرار بيتحوّل لحالة الطلب الرسمية (رفض تتحول إلى مرفوض) عشان الطلب المرفوض
                     // يظهر في أرشيف المرفوضين ويتعدّ صح في الإحصائيات.
                     const decisionToStatus: Record<string, string> = {
                       'قبول': 'مقبول',

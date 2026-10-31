@@ -26,6 +26,7 @@ import { hashPassword, verifyPassword } from './auth.js';
 import { getSupabase, uploadToSupabaseStorage } from './supabase.js';
 import { isDepartedStatus } from '../src/utils/employeeStatus.js';
 import { getMissingDocuments } from '../src/utils/applicantDocuments.js';
+import { applicantStatusFromInterview } from '../src/utils/interviewStatus.js';
 
 /**
  * Escapes characters that are structurally significant in PostgREST filter
@@ -74,20 +75,6 @@ function normalizeApplicantStatus(status: any): any {
   if (s === 'رفض') return 'مرفوض';
   if (s === 'قبول') return 'مقبول';
   return s;
-}
-
-/**
- * حالة المتقدم المقابلة لنتيجة مقابلة معيّنة.
- * "لم يحضر" مش بتغيّر حالة المتقدم (بيفضل زي ما هو).
- */
-function applicantStatusFromInterview(status?: string): string | null {
-  switch (status) {
-    case 'مقبول': return 'مقبول';
-    case 'حضر': return 'حضر المقابلة';
-    case 'إعادة مقابلة': return 'إعادة مقابلة';
-    case 'مرفوض': return 'مرفوض';
-    default: return null;
-  }
 }
 
 /** آخر مقابلة = أعلى رقم مقابلة، ولو متساوية الأحدث تاريخًا ثم إنشاءً */
@@ -1418,10 +1405,11 @@ class SupabaseDataAccessLayer {
         applicant_id: applicantId,
         interview_number: Number.isFinite(num) && num > 0 ? num : idx + 1,
         interview_date: it.interview_date || now.split('T')[0],
+        interview_time: it.interview_time || null,
         interviewer_name: it.interviewer_name || performedBy || 'HR',
         interviewer_role: it.interviewer_role || '',
-        status: it.status || 'مقبول',
-        evaluation: Number.isFinite(ev) && ev >= 1 && ev <= 5 ? Math.round(ev) : 5,
+        status: it.status || 'مجدولة',
+        evaluation: Number.isFinite(ev) && ev >= 0 && ev <= 5 ? Math.round(ev) : (it.status === 'مجدولة' ? 0 : 5),
         notes: it.notes || '',
         created_at: it.created_at || now,
         updated_at: now,
@@ -1442,16 +1430,30 @@ class SupabaseDataAccessLayer {
     const supabase = getSupabase();
     const id = 'int_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     const now = new Date().toISOString();
+    const allowedStatuses: Interview['status'][] = ['مجدولة', 'مقبول', 'مرفوض', 'إعادة مقابلة', 'حضر', 'لم يحضر'];
+    const interviewStatus = interviewData.status || 'مجدولة';
+    const interviewDate = typeof interviewData.interview_date === 'string' ? interviewData.interview_date.trim() : '';
+    const interviewerName = typeof interviewData.interviewer_name === 'string' ? interviewData.interviewer_name.trim() : '';
+    if (!interviewDate || !interviewerName || !allowedStatuses.includes(interviewStatus)) {
+      const error: any = new Error('تاريخ الموعد واسم المسؤول وحالة صحيحة للمقابلة مطلوبة');
+      error.statusCode = 400;
+      throw error;
+    }
+    const requestedEvaluation = Number(interviewData.evaluation);
+    const evaluation = Number.isFinite(requestedEvaluation) && requestedEvaluation >= 0 && requestedEvaluation <= 5
+      ? Math.round(requestedEvaluation)
+      : (interviewStatus === 'مجدولة' ? 0 : 5);
 
     const interview: Interview = {
       id,
       applicant_id: applicantId,
       interview_number: interviewData.interview_number,
-      interview_date: interviewData.interview_date || now.split('T')[0],
-      interviewer_name: interviewData.interviewer_name || performedBy,
+      interview_date: interviewDate,
+      interview_time: typeof interviewData.interview_time === 'string' ? interviewData.interview_time.trim() || undefined : undefined,
+      interviewer_name: interviewerName || performedBy,
       interviewer_role: interviewData.interviewer_role,
-      status: interviewData.status,
-      evaluation: interviewData.evaluation || 5,
+      status: interviewStatus,
+      evaluation,
       notes: interviewData.notes || '',
       created_at: now,
       updated_at: now,
@@ -1466,7 +1468,7 @@ class SupabaseDataAccessLayer {
     // Update applicant status automatically (مش بنغيّر حالة اللي اتحوّل لموظف)
     const currentApplicant = await this.getApplicantById(applicantId);
     const latestInterview = pickLatestInterview(currentApplicant?.interviews as any[]);
-    const latestInterviewStatus = applicantStatusFromInterview(latestInterview?.status);
+    const latestInterviewStatus = applicantStatusFromInterview(latestInterview?.status, Number(latestInterview?.interview_number));
     if (latestInterviewStatus && !currentApplicant?.is_converted_to_employee) {
       await supabase
         .from('applicants')
@@ -1481,11 +1483,81 @@ class SupabaseDataAccessLayer {
       `تسجيل مقابلة ${interview.interview_number}`,
       performedBy,
       userRole,
-      `تم تسجيل نتيجة المقابلة رقم (${interview.interview_number}) بحالة "${interview.status}" وتقييم (${interview.evaluation}/5)`,
+      `تم تسجيل موعد / نتيجة المقابلة رقم (${interview.interview_number}) بحالة "${interview.status}"${interview.interview_time ? ` في ${interview.interview_date} الساعة ${interview.interview_time}` : ` بتاريخ ${interview.interview_date}`}`,
       { entity_code: applicant?.application_code, entity_name: applicant?.full_name }
     );
 
     return interview;
+  }
+
+  public async updateInterview(
+    applicantId: string,
+    interviewId: string,
+    interviewData: Partial<Interview>,
+    performedBy: string,
+    userRole: UserRole
+  ): Promise<Interview> {
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+    const allowedStatuses: Interview['status'][] = ['مجدولة', 'مقبول', 'مرفوض', 'إعادة مقابلة', 'حضر', 'لم يحضر'];
+    const { data: existing, error: findError } = await supabase
+      .from('interviews')
+      .select('*')
+      .eq('id', interviewId)
+      .eq('applicant_id', applicantId)
+      .maybeSingle();
+    if (findError) throw new Error(`فشل العثور على المقابلة: ${findError.message}`);
+    if (!existing) {
+      const error: any = new Error('المقابلة غير موجودة');
+      error.statusCode = 404;
+      throw error;
+    }
+    if (interviewData.status && !allowedStatuses.includes(interviewData.status)) {
+      const error: any = new Error('حالة المقابلة غير صالحة');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const requestedEvaluation = Number(interviewData.evaluation);
+    const payload = {
+      interview_date: interviewData.interview_date?.trim() || existing.interview_date,
+      interview_time: interviewData.interview_time === undefined
+        ? existing.interview_time || null
+        : interviewData.interview_time.trim() || null,
+      interviewer_name: interviewData.interviewer_name?.trim() || existing.interviewer_name,
+      status: interviewData.status || existing.status || 'مجدولة',
+      evaluation: Number.isFinite(requestedEvaluation) && requestedEvaluation >= 0 && requestedEvaluation <= 5
+        ? Math.round(requestedEvaluation)
+        : Number(existing.evaluation) || 0,
+      notes: interviewData.notes === undefined ? existing.notes || '' : interviewData.notes,
+      updated_at: now,
+    };
+    const { data: updated, error: updateError } = await supabase
+      .from('interviews')
+      .update(payload)
+      .eq('id', interviewId)
+      .eq('applicant_id', applicantId)
+      .select('*')
+      .single();
+    if (updateError) throw new Error(`فشل تحديث المقابلة: ${updateError.message}`);
+
+    const applicant = await this.getApplicantById(applicantId);
+    const latestInterview = pickLatestInterview(applicant?.interviews as any[]);
+    const nextStatus = applicantStatusFromInterview(latestInterview?.status, Number(latestInterview?.interview_number));
+    if (nextStatus && !applicant?.is_converted_to_employee) {
+      await supabase.from('applicants').update({ status: nextStatus, updated_at: now }).eq('id', applicantId);
+    }
+    const freshApplicant = await this.getApplicantById(applicantId);
+    await this.addAuditLog(
+      'interview',
+      applicantId,
+      'تعديل موعد / نتيجة مقابلة',
+      performedBy,
+      userRole,
+      `تم تحديث المقابلة رقم (${updated.interview_number}) إلى "${updated.status}"${updated.interview_time ? ` في ${updated.interview_date} الساعة ${updated.interview_time}` : ` بتاريخ ${updated.interview_date}`}`,
+      { entity_code: freshApplicant?.application_code, entity_name: freshApplicant?.full_name }
+    );
+    return updated as Interview;
   }
 
   // =========================================================================

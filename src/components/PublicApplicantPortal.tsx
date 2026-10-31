@@ -1,3 +1,4 @@
+import { ArrowLeft, ArrowRight, Check, PartyPopper, LockKeyhole, Plus, X, Rocket } from 'lucide-react';
 import React, { useState, useEffect, useMemo } from 'react';
 import { calcAge, formatAge } from '../utils/age';
 import {
@@ -646,7 +647,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
           {/* Header */}
           <div className="bg-[#9E1A24] p-8 text-center text-white relative">
             <div className="w-20 h-20 mx-auto bg-white rounded-full flex items-center justify-center shadow-lg mb-4">
-              <span className="text-4xl">🎉</span>
+              <PartyPopper className="w-10 h-10" aria-hidden="true" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-black mb-2">تم استلام طلب التوظيف بنجاح!</h1>
             <p className="text-amber-200 text-sm font-medium">
@@ -811,7 +812,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 >
                   <div className="flex items-center gap-1">
                     <span>{tab.num}</span>
-                    {!isAccessible && <span className="text-[10px]">🔒</span>}
+                    {!isAccessible && <span className="text-[10px]"><LockKeyhole className="w-3 h-3" aria-hidden="true" /></span>}
                   </div>
                   <span className="hidden sm:block text-xs truncate max-w-full">{tab.label}</span><span className="sm:hidden text-[10px]">{tab.num === currentStep ? tab.label : ""}</span>
                 </button>
@@ -1154,7 +1155,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                         className="absolute top-3 left-3 text-red-500 hover:text-red-700 text-xs font-bold p-1"
                         title="حذف هذا السطر"
                       >
-                        ✕
+                        <X className="w-4 h-4" aria-hidden="true" />
                       </button>
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1240,7 +1241,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                           : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                       }`}
                     >
-                      <span>{isSelected ? '✓' : '+'}</span>
+                      <span>{isSelected ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}</span>
                       <span>{skill}</span>
                     </button>
                   );
@@ -1358,7 +1359,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 </div>
                 {documents.find(d => d.document_type === 'صورة بطاقة الرقم القومي - الوجه') ? (
                   <div className="flex items-center justify-between bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 text-xs text-emerald-800 font-bold">
-                    <span className="truncate">✓ تم رفع وش البطاقة</span>
+                    <span className="truncate inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> تم رفع وش البطاقة</span>
                     <button
                       type="button"
                       onClick={() => setDocuments(prev => prev.filter(d => d.document_type !== 'صورة بطاقة الرقم القومي - الوجه'))}
@@ -1393,7 +1394,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 </div>
                 {documents.find(d => d.document_type === 'صورة بطاقة الرقم القومي - الظهر') ? (
                   <div className="flex items-center justify-between bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 text-xs text-emerald-800 font-bold">
-                    <span className="truncate">✓ تم رفع ظهر البطاقة</span>
+                    <span className="truncate inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> تم رفع ظهر البطاقة</span>
                     <button
                       type="button"
                       onClick={() => setDocuments(prev => prev.filter(d => d.document_type !== 'صورة بطاقة الرقم القومي - الظهر'))}
@@ -1429,7 +1430,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 </div>
                 {documents.find(d => d.document_type === 'شهادة صحية') ? (
                   <div className="flex items-center justify-between bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 text-xs text-emerald-800 font-bold">
-                    <span className="truncate">✓ تم رفع الشهادة الصحية</span>
+                    <span className="truncate inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" /> تم رفع الشهادة الصحية</span>
                     <button
                       type="button"
                       onClick={() => setDocuments(prev => prev.filter(d => d.document_type !== 'شهادة صحية'))}
@@ -1580,7 +1581,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 ) : (
                   <>
                     <span>إرسال طلب التوظيف الآن</span>
-                    <span className="text-xl">🚀</span>
+                    <Rocket className="w-5 h-5" aria-hidden="true" />
                   </>
                 )}
               </button>
@@ -1596,7 +1597,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               onClick={handlePrev}
               className="min-h-12 px-5 py-3 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 font-bold text-xs sm:text-sm transition-all"
             >
-              ← الخطوة السابقة
+              <ArrowLeft className="inline h-4 w-4" aria-hidden="true" /> الخطوة السابقة
             </button>
           ) : (
             <div></div>
@@ -1609,7 +1610,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               className="min-h-12 px-6 py-3 rounded-xl bg-[#9E1A24] hover:bg-[#80141D] text-white font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center gap-2"
             >
               <span>متابعة للخطوة التالية</span>
-              <span>→</span>
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </button>
           )}
         </div>

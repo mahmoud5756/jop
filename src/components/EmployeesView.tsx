@@ -7,8 +7,9 @@ import { ManagerEmployeeActionModal } from './ManagerEmployeeActionModal';
 import { isDepartedStatus } from '../utils/employeeStatus';
 import { ApiService } from '../services/api';
 import { exportExcel } from '../utils/exportExcel';
-import { Download } from 'lucide-react';
+import { Download, LockKeyhole } from 'lucide-react';
 import { ListLoadingSkeleton } from './ApplicantFormControls';
+import { PdfReportButton } from './PdfReportButton';
 
 interface EmployeesViewProps {
   isLoading?: boolean;
@@ -152,6 +153,20 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
               <span>تقرير الموظفين PDF</span>
             </button>
           )}
+          <PdfReportButton<Employee>
+            title="قائمة الموظفين المعينين"
+            subtitle="النتائج المطابقة للبحث وحالة الموظف المحددة"
+            rows={filteredEmployees}
+            columns={[
+              { label: 'الاسم', value: employee => employee.full_name },
+              { label: 'كود الموظف', value: employee => employee.employee_code },
+              { label: 'الهاتف', value: employee => employee.phone },
+              { label: 'الوظيفة', value: employee => employee.position_name },
+              { label: 'الفرع', value: employee => employee.branch_name },
+              { label: 'الحالة', value: employee => employee.status },
+              { label: 'تاريخ التعيين', value: employee => employee.hire_date || '—' },
+            ]}
+          />
           <button type="button" onClick={() => exportExcel('الموظفون', ['الاسم','كود الموظف','الهاتف','الوظيفة','الفرع','الحالة','تاريخ التعيين'], filteredEmployees.map(e => [e.full_name,e.employee_code,e.phone,e.position_name,e.branch_name,e.status,e.hire_date]), 'قائمة_الموظفين')} disabled={!filteredEmployees.length} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-700 text-white px-4 py-2 text-xs font-bold disabled:opacity-50"><Download className="w-4 h-4"/>تصدير Excel ({filteredEmployees.length})</button>
           <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-4 py-2 rounded-2xl text-xs font-bold flex items-center gap-2">
             <SvgIcons.UserCheck className="w-4 h-4" />
@@ -259,7 +274,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                             className="block mt-0.5 text-[10px] font-bold text-amber-700"
                             title="مدير الفرع مايشوفش راتب الموظف ده"
                           >
-                            🔒 مخفي عن مدير الفرع
+                            <span className="inline-flex items-center gap-1"><LockKeyhole className="h-3 w-3" aria-hidden="true" /> مخفي عن مدير الفرع</span>
                           </span>
                         )}
                       </td>

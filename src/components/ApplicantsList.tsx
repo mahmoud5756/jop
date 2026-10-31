@@ -3,8 +3,9 @@ import { Applicant, Branch, JobPosition, CurrentUser } from '../types';
 import { SvgIcons } from './BobWichLogo';
 import { getMissingDocuments } from '../utils/applicantDocuments';
 import { exportExcel } from '../utils/exportExcel';
-import { CalendarDays, Download } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Download, MessageCircle, X } from 'lucide-react';
 import { ListLoadingSkeleton } from './ApplicantFormControls';
+import { PdfReportButton } from './PdfReportButton';
 
 interface ApplicantsListProps {
   applicants: Applicant[];
@@ -149,7 +150,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
     finally { setIsBulkSaving(false); }
   };
   const upcomingInterviews = safeApplicants.flatMap(app => (app.interviews || [])
-    .filter(interview => String(interview.interview_date || '') >= new Date().toISOString().slice(0, 10))
+    .filter(interview => interview.status === 'مجدولة' && String(interview.interview_date || '') >= new Date().toISOString().slice(0, 10))
     .map(interview => ({ app, interview })))
     .sort((a, b) => String(a.interview.interview_date).localeCompare(String(b.interview.interview_date)) || Number(a.interview.interview_number) - Number(b.interview.interview_number));
   // Statistics counters
@@ -315,7 +316,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
                 onClick={() => setSearchTerm('')}
                 className="absolute left-3 top-3 text-xs text-stone-400 hover:text-stone-700"
               >
-                ✕
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -429,12 +430,48 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
 
       <div className="flex flex-wrap items-center gap-2 bg-white border border-stone-200 rounded-2xl p-3">
         <button type="button" onClick={exportFiltered} disabled={!filteredApplicants.length} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><Download className="h-4 w-4" />تصدير Excel ({filteredApplicants.length})</button>
+        <PdfReportButton<Applicant>
+          title={title}
+          subtitle="النتائج المطابقة للفلاتر الحالية"
+          rows={filteredApplicants}
+          columns={[
+            { label: 'الاسم', value: applicant => applicant.full_name },
+            { label: 'كود الطلب', value: applicant => applicant.application_code },
+            { label: 'الرقم القومي', value: applicant => applicant.national_id },
+            { label: 'الهاتف', value: applicant => applicant.phone },
+            { label: 'الوظيفة', value: applicant => applicant.position_name },
+            { label: 'الفرع', value: applicant => applicant.branch_name },
+            { label: 'الحالة', value: applicant => applicant.status },
+            { label: 'تاريخ التقديم', value: applicant => String(applicant.created_at || '').slice(0, 10) },
+          ]}
+        />
         <button type="button" onClick={() => setShowUpcoming(v => !v)} className="inline-flex items-center gap-2 rounded-xl bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 border border-sky-200"><CalendarDays className="h-4 w-4" />{showUpcoming ? 'إخفاء' : 'عرض'} المقابلات القادمة ({upcomingInterviews.length})</button>
         {selectedIds.length > 0 && <span className="text-xs font-bold text-stone-600">تم تحديد {selectedIds.length}</span>}
         {onBulkStatusChange && <><select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="rounded-xl border border-stone-300 px-3 py-2 text-xs"><option value="">تغيير حالة المحددين إلى...</option>{['طلب جديد','تحت المراجعة','حضر المقابلة','إعادة مقابلة','مقبول','قائمة انتظار','مرفوض'].map(st => <option key={st} value={st}>{st}</option>)}</select><button type="button" disabled={!bulkStatus || !selectedIds.length || isBulkSaving} onClick={runBulkStatus} className="rounded-xl bg-[#9E1A24] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{isBulkSaving ? 'جارٍ الحفظ...' : 'تطبيق الحالة'}</button></>}
         {onBulkWhatsApp && <button type="button" disabled={!selectedApplicants.length} onClick={() => onBulkWhatsApp(selectedApplicants)} className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 border border-emerald-200 disabled:opacity-50">إرسال واتساب للمحددين</button>}
       </div>
-      {showUpcoming && <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4"><h3 className="font-black text-sky-950 mb-3">جدول المقابلات القادمة بالأيام</h3>{upcomingInterviews.length ? <div className="space-y-3">{Array.from(new Set(upcomingInterviews.map(x => x.interview.interview_date))).map(day => <section key={day} className="rounded-xl bg-white p-3"><h4 className="font-bold text-sky-900 mb-2">{new Date(`${day}T00:00:00`).toLocaleDateString('ar-EG',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</h4><ul className="space-y-2">{upcomingInterviews.filter(x => x.interview.interview_date === day).map(({app,interview}) => <li key={interview.id} className="flex flex-wrap justify-between gap-2 border-t pt-2 text-xs"><button type="button" onClick={() => onView(app)} className="font-bold text-[#9E1A24] underline">{app.full_name}</button><span>مقابلة {interview.interview_number} · {interview.interviewer_name}</span><span>{interview.status}</span></li>)}</ul></section>)}</div> : <p className="text-xs text-stone-600">لا توجد مقابلات قادمة مسجلة.</p>}</div>}
+      {showUpcoming && (
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h3 className="font-black text-sky-950">جدول المقابلات القادمة بالأيام</h3>
+            <PdfReportButton<{ app: Applicant; interview: NonNullable<Applicant['interviews']>[number] }>
+              title="المقابلات القادمة"
+              subtitle={title}
+              rows={upcomingInterviews}
+              columns={[
+                { label: 'التاريخ والوقت', value: item => `${item.interview.interview_date}${item.interview.interview_time ? ` · ${item.interview.interview_time}` : ''}` },
+                { label: 'المتقدم', value: item => item.app.full_name },
+                { label: 'كود الطلب', value: item => item.app.application_code },
+                { label: 'الوظيفة / الفرع', value: item => `${item.app.position_name} / ${item.app.branch_name}` },
+                { label: 'رقم المقابلة', value: item => item.interview.interview_number },
+                { label: 'المقابل', value: item => item.interview.interviewer_name },
+                { label: 'الحالة', value: item => item.interview.status },
+              ]}
+            />
+          </div>
+          {upcomingInterviews.length ? <div className="space-y-3">{Array.from(new Set(upcomingInterviews.map(x => x.interview.interview_date))).map(day => <section key={day} className="rounded-xl bg-white p-3"><h4 className="font-bold text-sky-900 mb-2">{new Date(`${day}T00:00:00`).toLocaleDateString('ar-EG',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</h4><ul className="space-y-2">{upcomingInterviews.filter(x => x.interview.interview_date === day).map(({app,interview}) => <li key={interview.id} className="flex flex-wrap justify-between gap-2 border-t pt-2 text-xs"><button type="button" onClick={() => onView(app)} className="font-bold text-[#9E1A24] underline">{app.full_name}</button><span>{interview.interview_time ? `${interview.interview_time} · ` : ''}مقابلة {interview.interview_number} · {interview.interviewer_name}</span><span>{interview.status}</span></li>)}</ul></section>)}</div> : <p className="text-xs text-stone-600">لا توجد مقابلات قادمة مسجلة.</p>}
+        </div>
+      )}
       {/* Main Table */}
       <div className="bg-white rounded-3xl border border-stone-200 shadow-xs overflow-hidden">
         {filteredApplicants.length === 0 ? (
@@ -512,7 +549,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
                                 className="mt-1 inline-block bg-amber-50 text-amber-800 border border-amber-200 rounded px-1.5 py-0.5 text-[10px] font-bold"
                                 title="مستندات أساسية لسه ماترفعتش"
                               >
-                                ⚠ ناقص: {missing.join('، ')}
+                        <span className="inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" aria-hidden="true" /> ناقص: {missing.join('، ')}</span>
                               </div>
                             ) : null;
                           })()}
@@ -539,7 +576,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
                           className="ml-1.5 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 rounded-md px-1.5 py-0.5 text-[11px] font-sans transition-all align-middle"
                           title="رسالة واتساب جاهزة"
                         >
-                          💬
+                            <MessageCircle className="h-4 w-4" aria-hidden="true" />
                         </button>
                       )}
                       {app.phone}

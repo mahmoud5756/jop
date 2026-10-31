@@ -1,3 +1,4 @@
+import { Check, MessageCircle, Undo2, X } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
 import { calcAge, formatAge, formatDuration } from '../utils/age';
 import { Applicant, CurrentUser, Employee, FormFieldConfig } from '../types';
@@ -100,9 +101,10 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
   const canAddInterview = currentUser.role === 'admin' || currentUser.role === 'hr';
   const emptyInterviewForm = () => ({
     interview_date: new Date().toISOString().split('T')[0],
+    interview_time: '',
     interviewer_name: currentUser.name,
-    status: 'مقبول' as 'مقبول' | 'مرفوض' | 'إعادة مقابلة' | 'حضر' | 'لم يحضر',
-    evaluation: 5,
+    status: 'مجدولة' as 'مجدولة' | 'مقبول' | 'مرفوض' | 'إعادة مقابلة' | 'حضر' | 'لم يحضر',
+    evaluation: 0,
     notes: '',
   });
   const [showInterviewForm, setShowInterviewForm] = useState(false);
@@ -120,11 +122,15 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
     try {
       const nextNumber =
         Math.max(0, ...(applicant.interviews || []).map(i => Number(i.interview_number) || 0)) + 1;
-      await ApiService.addInterview(
-        applicant.id,
-        { ...interviewForm, interview_number: nextNumber as any },
-        currentUser,
-      );
+      if (interviewForm.id) {
+        await ApiService.updateInterview(applicant.id, interviewForm.id, interviewForm, currentUser);
+      } else {
+        await ApiService.addInterview(
+          applicant.id,
+          { ...interviewForm, interview_number: nextNumber as any },
+          currentUser,
+        );
+      }
       const fresh = await ApiService.getApplicantById(applicant.id);
       onInterviewAdded?.(fresh);
       setShowInterviewForm(false);
@@ -320,7 +326,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition-all"
                 title="رسالة واتساب جاهزة للمتقدم"
               >
-                <span>💬</span>
+                <MessageCircle className="w-4 h-4" aria-hidden="true" />
                 <span>واتساب</span>
               </button>
             )}
@@ -352,7 +358,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                 className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
                 title="رجّع الطلب لقائمة المتقدمين (تحت المراجعة)"
               >
-                <span>↩ استرجاع من الأرشيف</span>
+                <span><Undo2 className="inline-block w-4 h-4 ml-1" aria-hidden="true" />استرجاع من الأرشيف</span>
               </button>
             )}
 
@@ -548,7 +554,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                   <div className="flex flex-wrap gap-1.5">
                     {(applicant.skills || []).map(skill => (
                       <span key={skill} className="bg-white border border-stone-300 text-stone-800 px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">
-                        ✓ {skill}
+                        <span className="inline-flex items-center gap-1"><Check className="h-3 w-3 text-emerald-700" aria-hidden="true" /> {skill}</span>
                       </span>
                     ))}
                     {applicant.custom_skill && (
@@ -621,7 +627,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
                       >
                         <span className="font-bold text-stone-700">{decl.label}</span>
                         <span className={`font-bold whitespace-nowrap ${accepted ? 'text-emerald-700' : 'text-red-700'}`}>
-                          {accepted ? '✓ تمت الموافقة' : '✗ لم يوافق'}
+                          {accepted ? <span className="inline-flex items-center gap-1"><Check className="h-3 w-3" aria-hidden="true" /> تمت الموافقة</span> : <span className="inline-flex items-center gap-1"><X className="h-3 w-3" aria-hidden="true" /> لم يوافق</span>}
                         </span>
                       </div>
                     );

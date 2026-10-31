@@ -1,3 +1,4 @@
+import { Check, X, ExternalLink } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAccessibleDialog } from './useAccessibleDialog';
 import QRCode from 'qrcode';
@@ -133,7 +134,7 @@ export const SharePortalModal: React.FC<SharePortalModalProps> = ({ isOpen, onCl
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white font-bold transition-all text-sm"
           >
-            ✕
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -208,7 +209,7 @@ export const SharePortalModal: React.FC<SharePortalModalProps> = ({ isOpen, onCl
                       : 'bg-[#9E1A24] hover:bg-[#80141D] text-white shadow-xs'
                 }`}
               >
-                <span>{copied ? '✓ تم النسخ!' : 'نسخ الرابط'}</span>
+                <span className="inline-flex items-center gap-1">{copied && <Check className="h-3.5 w-3.5" aria-hidden="true" />}{copied ? 'تم النسخ!' : 'نسخ الرابط'}</span>
               </button>
             </div>
           </div>
@@ -225,7 +226,7 @@ export const SharePortalModal: React.FC<SharePortalModalProps> = ({ isOpen, onCl
               className="px-3 py-1.5 rounded-xl bg-white hover:bg-amber-100 border border-amber-300 text-stone-900 font-bold flex items-center gap-1 transition-all"
             >
               <span>فتح البوابة في نافذة جديدة</span>
-              <span>↗</span>
+              <ExternalLink className="w-4 h-4" aria-hidden="true" />
             </a>
           </div>
 

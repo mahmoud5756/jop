@@ -672,6 +672,24 @@ export class ApiService {
     return json.data;
   }
 
+  static async updateInterview(
+    applicantId: string,
+    interviewId: string,
+    interview: Partial<Interview>,
+    _user?: CurrentUser
+  ): Promise<Interview> {
+    const res = await fetch(`/api/applicants/${applicantId}/interviews/${interviewId}`, {
+      method: 'PATCH',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(interview),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error || 'فشل تحديث موعد أو نتيجة المقابلة');
+    }
+    return json.data;
+  }
+
   // Convert to Employee
   static async convertToEmployee(
     applicantId: string,

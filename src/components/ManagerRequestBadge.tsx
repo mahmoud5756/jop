@@ -30,7 +30,7 @@ export const requestSummaryLine = (r: ManagerRequest): string => {
         r.effective_date ? ` — مطلوب قبل ${r.effective_date}` : ''
       }`;
     case 'transfer':
-      return `${r.employee_name} (${r.employee_position}) ← فرع ${r.target_branch}${
+      return `${r.employee_name} (${r.employee_position}) إلى فرع ${r.target_branch}${
         r.effective_date ? ` — من ${r.effective_date}` : ''
       }`;
     case 'new_hire_review':

@@ -1,3 +1,5 @@
+import { ArrowLeft } from 'lucide-react';
+import { TriangleAlert } from 'lucide-react';
 import React, { useState } from 'react';
 import { ApiService } from '../services/api';
 import { CurrentUser } from '../types';
@@ -67,7 +69,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToPubl
         <div className="bg-white py-8 px-6 shadow-xl rounded-3xl sm:px-10 border border-stone-200/80">
           {errorMessage && (
             <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-3">
-              <span className="text-lg flex-shrink-0">⚠️</span>
+              <TriangleAlert className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
               <p className="font-medium leading-relaxed">{errorMessage}</p>
             </div>
           )}
@@ -129,7 +131,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToPubl
               ) : (
                 <>
                   <span>تسجيل الدخول إلى النظام</span>
-                  <span>←</span>
+                  <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                 </>
               )}
             </button>
@@ -145,7 +147,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToPubl
                 className="inline-flex items-center gap-1 text-xs font-bold text-[#9E1A24] hover:underline"
               >
                 <span>الانتقال إلى استمارة التقديم على وظيفة</span>
-                <span>←</span>
+                <ArrowLeft className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           )}

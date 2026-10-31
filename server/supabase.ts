@@ -224,14 +224,16 @@ CREATE TABLE IF NOT EXISTS interviews (
     applicant_id TEXT NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
     interview_number INTEGER DEFAULT 1,
     interview_date TEXT NOT NULL,
+    interview_time TEXT,
     interviewer_name TEXT NOT NULL,
     interviewer_role TEXT,
-    status TEXT DEFAULT 'مقبول',
-    evaluation INTEGER DEFAULT 5,
+    status TEXT DEFAULT 'مجدولة',
+    evaluation INTEGER DEFAULT 0,
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_time TEXT;
 
 -- 8. جدول العهدة المسلمة للموظف (Applicant Assets)
 CREATE TABLE IF NOT EXISTS applicant_assets (

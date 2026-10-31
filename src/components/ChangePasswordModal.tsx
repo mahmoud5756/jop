@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Check, LockKeyhole, X } from 'lucide-react';
 import { ApiService } from '../services/api';
 import { CurrentUser } from '../types';
 
@@ -59,14 +60,14 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-stone-200 overflow-hidden">
         <div className="bg-[#9E1A24] p-5 text-white flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xl">🔒</span>
+            <LockKeyhole className="h-5 w-5" aria-hidden="true" />
             <h3 className="font-bold text-lg">تغيير كلمة المرور</h3>
           </div>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all"
           >
-            ✕
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -83,7 +84,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
 
           {successMsg && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl font-bold">
-              ✓ {successMsg}
+              <span className="inline-flex items-center gap-1.5"><Check className="h-4 w-4" aria-hidden="true" /> {successMsg}</span>
             </div>
           )}
 

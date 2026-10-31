@@ -1,3 +1,5 @@
+import { ExternalLink, ArrowUpDown } from 'lucide-react';
+import { RotateCcw, RotateCw } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Applicant, ApplicantDocument } from '../types';
 import { SvgIcons } from './BobWichLogo';
@@ -314,10 +316,10 @@ export const DocumentsPrintView: React.FC<DocumentsPrintViewProps> = ({ applican
       className={`print:hidden absolute z-10 flex gap-1 ${outside ? '-top-7 left-0' : 'top-1 left-1'}`}
     >
       <button type="button" onClick={() => rotate(key, -90)} className={ctrlBtn} title="تدوير 90° لليسار">
-        ↺
+        <RotateCcw className="w-4 h-4" aria-hidden="true" />
       </button>
       <button type="button" onClick={() => rotate(key, 90)} className={ctrlBtn} title="تدوير 90° لليمين">
-        ↻
+        <RotateCw className="w-4 h-4" aria-hidden="true" />
       </button>
       <button type="button" onClick={() => zoom(key, 0.15)} className={ctrlBtn} title="تكبير الصورة">
         +
@@ -631,7 +633,7 @@ export const DocumentsPrintView: React.FC<DocumentsPrintViewProps> = ({ applican
                     rel="noreferrer"
                     className="bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 px-2.5 py-1 rounded-lg font-bold"
                   >
-                    {doc.document_type || 'PDF'} ↗
+                    {doc.document_type || 'PDF'} <ExternalLink className="inline-block w-3.5 h-3.5" aria-hidden="true" />
                   </a>
                 ))}
               </div>
@@ -716,11 +718,11 @@ export const DocumentsPrintView: React.FC<DocumentsPrintViewProps> = ({ applican
               className="bg-stone-100 hover:bg-stone-200 disabled:opacity-40 text-stone-700 px-3 py-1.5 rounded-lg font-bold"
               title="لو الوش والظهر اترفعوا بالعكس"
             >
-              ⇅ تبديل الوش والظهر
+              <ArrowUpDown className="inline-block w-4 h-4" aria-hidden="true" /> تبديل الوش والظهر
             </button>
             <p className="text-[11px] text-stone-500 leading-relaxed">
               في نافذة الطباعة اختر ورق <strong>A4</strong> وتأكد إن <strong>Scale = 100%</strong>{' '}
-              (مش «Fit to page») عشان مقاس البطاقة يطلع حقيقي. على كل صورة: <strong>اسحبها</strong> بالماوس أو صباعك لتحريكها لفوق/تحت/جنب، و<strong>+ −</strong> للتكبير، و↻ للتدوير، و⟲ للرجوع للوضع الأصلي.
+              (مش «Fit to page») عشان مقاس البطاقة يطلع حقيقي. على كل صورة: <strong>اسحبها</strong> بالماوس أو صباعك لتحريكها لفوق/تحت/جنب، واستخدم أدوات التكبير والتصغير والتدوير وإعادة الضبط.
             </p>
           </div>
         </div>

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Applicant, CurrentUser, Employee } from '../types';
 import { SvgIcons } from './BobWichLogo';
 import { serviceDuration } from '../utils/employeeStatus';
+import { AlertTriangle, LockKeyhole } from 'lucide-react';
 
 interface EmployeesReportViewProps {
   employees: Employee[];
@@ -281,7 +282,7 @@ export const EmployeesReportView: React.FC<EmployeesReportViewProps> = ({
         {canSeeSalary && (
           <label className="flex items-center gap-1.5 text-xs font-bold text-amber-800 cursor-pointer select-none">
             <input type="checkbox" checked={showSalary} onChange={e => setShowSalary(e.target.checked)} />
-            الراتب 🔒
+            <span className="inline-flex items-center gap-1">الراتب <LockKeyhole className="h-3 w-3" aria-hidden="true" /></span>
           </label>
         )}
 
@@ -513,7 +514,7 @@ export const EmployeesReportView: React.FC<EmployeesReportViewProps> = ({
                               ) : (
                                 <span style={{ fontSize: '7.4pt', color: '#b45309', fontWeight: 800 }}>غير مسجّل</span>
                               )}
-                              {isDup && <div style={{ fontSize: '6pt', color: '#b91c1c', fontWeight: 800, marginTop: '0.5mm' }}>⚠ مكرر</div>}
+                              {isDup && <div style={{ fontSize: '6pt', color: '#b91c1c', fontWeight: 800, marginTop: '0.5mm', display: 'flex', alignItems: 'center', gap: '1mm' }}><AlertTriangle style={{ width: '6px', height: '6px' }} aria-hidden="true" /> مكرر</div>}
                             </td>
 
                             <td style={td}>
