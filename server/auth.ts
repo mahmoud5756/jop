@@ -2,20 +2,15 @@ import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { CurrentUser, UserRole } from '../src/types';
 import { getSupabase } from './supabase.js';
+import { activeUserFromRecord } from './permissions.js';
+export { requireRole } from './permissions.js';
 
 // Server-side JWT Secret (persistent or fallback generated)
-const JWT_SECRET = process.env.JWT_SECRET || 'BOB_WICH_SECURE_AUTH_SECRET_2026_PROD_KEY_998127361';
-
-if (!process.env.JWT_SECRET) {
-  // This fallback value is checked into source control, so anyone who can read
-  // this code can forge a valid login token for ANY user (including admin).
-  // Set a long random JWT_SECRET in your Vercel project's Environment
-  // Variables (Project Settings → Environment Variables) and redeploy.
-  console.warn(
-    '⚠️  تحذير أمني: JWT_SECRET غير مضبوط في متغيرات البيئة، النظام يستخدم قيمة احتياطية ثابتة مكتوبة في الكود. ' +
-    'يرجى ضبط JWT_SECRET بقيمة عشوائية طويلة في إعدادات Vercel في أقرب وقت.'
-  );
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : crypto.randomBytes(64).toString('hex'));
+if (!JWT_SECRET) {
+  throw new Error('إعداد أمني مطلوب: عيّن JWT_SECRET إلى قيمة عشوائية طويلة قبل تشغيل التطبيق في الإنتاج.');
 }
+if (!process.env.JWT_SECRET) console.warn('تنبيه: JWT_SECRET مؤقت لهذه العملية المحلية؛ الجلسات لن تستمر بعد إعادة تشغيل الخادم.');
 
 export interface TokenPayload {
   userId: string;
@@ -65,7 +60,7 @@ function base64UrlDecode(str: string): string {
   return Buffer.from(str, 'base64').toString('utf-8');
 }
 
-export function generateToken(user: CurrentUser, expiresInHours = 24 * 7): string {
+export function generateToken(user: CurrentUser, expiresInHours = 12): string {
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
   const payload: TokenPayload = {
@@ -128,57 +123,36 @@ export function verifyToken(token: string): TokenPayload | null {
 }
 
 // 3. Express Authentication Middleware
-export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export async function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers['authorization'];
-  let token = '';
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.substring(7).trim();
-  }
-
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
   if (!token) {
-    return res.status(401).json({
-      error: 'غير مصرح: يرجى تسجيل الدخول للوصول إلى لوحة التحكم',
-      code: 'UNAUTHORIZED',
-    });
+    return res.status(401).json({ error: 'غير مصرح: يرجى تسجيل الدخول للوصول إلى لوحة التحكم', code: 'UNAUTHORIZED' });
   }
 
   const payload = verifyToken(token);
-  if (!payload) {
-    return res.status(401).json({
-      error: 'جلسة تسجيل الدخول منتهية أو غير صالحة. يرجى تسجيل الدخول مجددًا',
-      code: 'INVALID_TOKEN',
-    });
+  if (!payload || typeof payload.userId !== 'string' || !payload.userId) {
+    return res.status(401).json({ error: 'جلسة تسجيل الدخول منتهية أو غير صالحة. يرجى تسجيل الدخول مجددًا', code: 'INVALID_TOKEN' });
   }
 
-  req.user = {
-    id: payload.userId,
-    username: payload.username,
-    name: payload.name,
-    role: payload.role,
-    email: payload.email,
-    branch: payload.branch,
-  };
-
-  next();
-}
-
-// 4. Role Authorization Middleware
-export function requireRole(allowedRoles: UserRole[]) {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'يرجى تسجيل الدخول أولاً', code: 'UNAUTHORIZED' });
+  try {
+    // Resolve role, branch and active state from the database on every request;
+    // JWT claims alone are not sufficient for revocation or role changes.
+    const { data, error } = await getSupabase().from('users')
+      .select('id, username, name, email, role, branch, is_active')
+      .eq('id', payload.userId)
+      .maybeSingle();
+    if (error) throw error;
+    const currentUser = activeUserFromRecord(data);
+    if (!currentUser) {
+      return res.status(401).json({ error: 'الحساب غير نشط أو لم يعد موجودًا. يرجى التواصل مع مسؤول النظام.', code: 'ACCOUNT_DISABLED' });
     }
-
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        error: `غير مصرح: هذه العملية تتطلب صلاحيات (${allowedRoles.join(' أو ')})`,
-        code: 'FORBIDDEN',
-      });
-    }
-
-    next();
-  };
+    req.user = currentUser;
+    return next();
+  } catch (err) {
+    console.error('Authentication user-state lookup failed:', (err as Error).message);
+    return res.status(503).json({ error: 'تعذر التحقق من حالة الحساب الآن. يرجى المحاولة لاحقًا.', code: 'AUTH_CHECK_UNAVAILABLE' });
+  }
 }
 
 // 5. Rate Limiter for Public Endpoints
@@ -188,10 +162,9 @@ export function requireRole(allowedRoles: UserRole[]) {
 // a plain in-memory Map (the previous approach) resets constantly on Vercel,
 // since each request can land on a different/fresh container.
 //
-// Falls back to the old in-memory counter if the Supabase call fails (e.g.
-// the migration hasn't been run yet, or the DB is briefly unreachable), so
-// this never hard-blocks legitimate traffic while you're rolling it out —
-// it just means the limiter is best-effort until the migration is applied.
+// Local development uses an in-memory fallback if the database limiter is not
+// available. Production fails closed: apply migration_rate_limit.sql before
+// deployment so serverless instances share a persistent counter.
 interface RateLimitRecord {
   count: number;
   resetTime: number;
@@ -251,10 +224,11 @@ export function createRateLimiter(maxRequests = 10, windowMs = 60 * 1000, messag
 
       return next();
     } catch (err) {
-      // Migration not applied yet, or Supabase briefly unreachable —
-      // fall back to the best-effort in-memory limiter instead of failing
-      // the request outright.
-      console.warn(`Rate limiter falling back to in-memory mode for ${clientKey}:`, (err as Error).message);
+      // Fail closed in production; use a process-local fallback only for local development.
+      console.warn(`Rate limiter backend failed for ${clientKey}:`, (err as Error).message);
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(503).json({ error: 'خدمة التحقق من معدل الطلبات غير متاحة مؤقتًا. يرجى المحاولة لاحقًا.' });
+      }
       if (!checkRateLimitInMemory(clientKey, maxRequests, windowMs)) {
         return res.status(429).json({ error: message });
       }

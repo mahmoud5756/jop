@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useAccessibleDialog } from './useAccessibleDialog';
 import QRCode from 'qrcode';
 import { SvgIcons, BobWichHeaderLogo } from './BobWichLogo';
 
@@ -14,6 +15,8 @@ export const SharePortalModal: React.FC<SharePortalModalProps> = ({ isOpen, onCl
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useAccessibleDialog(dialogRef, onClose, isOpen);
 
   // Compute public link
   const publicUrl = typeof window !== 'undefined'
@@ -111,7 +114,7 @@ export const SharePortalModal: React.FC<SharePortalModalProps> = ({ isOpen, onCl
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/70 backdrop-blur-xs font-sans dir-rtl" dir="rtl">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="share-portal-title" tabIndex={-1} className="bg-white rounded-3xl shadow-2xl max-w-xl w-full border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95">
         
         {/* Modal Header */}
         <div className={`${isStaff ? 'bg-[#92400E]' : 'bg-[#9E1A24]'} px-6 py-5 text-white flex items-center justify-between`}>
@@ -120,13 +123,13 @@ export const SharePortalModal: React.FC<SharePortalModalProps> = ({ isOpen, onCl
               <SvgIcons.Share className="w-5 h-5 text-amber-300" />
             </div>
             <div>
-              <h3 className="text-lg font-black">{isStaff ? 'رابط وQR Code تسجيل الموظفين الحاليين' : 'رابط التقديم والـ QR Code للجمهور'}</h3>
+              <h3 id="share-portal-title" className="text-lg font-black">{isStaff ? 'رابط وQR Code تسجيل الموظفين الحاليين' : 'رابط التقديم والـ QR Code للجمهور'}</h3>
               <p className="text-xs text-amber-200">
                 {isStaff ? 'شارك هذا اللينك مع الموظفين الحاليين فقط لتسجيل بياناتهم في النظام الجديد' : 'شارك هذا الرابط أو الكود في الفروع ومواقع التواصل'}
               </p>
             </div>
           </div>
-          <button
+          <button aria-label="إغلاق نافذة مشاركة الرابط"
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white font-bold transition-all text-sm"
           >

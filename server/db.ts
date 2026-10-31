@@ -734,6 +734,19 @@ class SupabaseDataAccessLayer {
     return this.formatApplicantRow(data);
   }
 
+  public async getApplicantByPhone(
+    phone: string,
+    excludeId?: string,
+    category?: string
+  ): Promise<Applicant | null> {
+    if (!phone) return null;
+    let query = getSupabase().from('applicants').select('*').eq('phone', phone.trim());
+    if (category) query = query.eq('applicant_category', category);
+    if (excludeId) query = query.neq('id', excludeId);
+    const { data, error } = await query.limit(1).maybeSingle();
+    if (error) throw new Error(`فشل التحقق من رقم الهاتف في قاعدة البيانات: ${error.message}`);
+    return data ? this.formatApplicantRow(data) : null;
+  }
   public async getApplicantByNationalId(
     nationalId: string,
     excludeId?: string,
@@ -817,6 +830,21 @@ class SupabaseDataAccessLayer {
     if (nationalId.length !== 14 || !/^\d{14}$/.test(nationalId)) {
       return { success: false, error: 'الرقم القومي يجب أن يتكون من 14 رقمًا صحيحًا' };
     }
+    if (!/^[23]\d{13}$/.test(nationalId)) {
+      return { success: false, error: 'الرقم القومي غير صحيح: يجب أن يبدأ برقم القرن 2 أو 3' };
+    }
+    const century = nationalId[0] === '2' ? 1900 : 2000;
+    const birthYear = century + Number(nationalId.slice(1, 3));
+    const birthMonth = Number(nationalId.slice(3, 5));
+    const birthDay = Number(nationalId.slice(5, 7));
+    const birthCheck = new Date(Date.UTC(birthYear, birthMonth - 1, birthDay));
+    if (birthCheck.getUTCFullYear() !== birthYear || birthCheck.getUTCMonth() !== birthMonth - 1 || birthCheck.getUTCDate() !== birthDay || birthCheck.getTime() > Date.now()) {
+      return { success: false, error: 'الرقم القومي يحتوي على تاريخ ميلاد غير صحيح' };
+    }
+    const cleanPhone = String(payload.phone || '').trim();
+    if (!/^01[0125]\d{8}$/.test(cleanPhone)) {
+      return { success: false, error: 'رقم الهاتف يجب أن يكون رقم موبايل مصريًا صحيحًا من 11 رقمًا ويبدأ بـ 010 أو 011 أو 012 أو 015' };
+    }
 
     // تصنيف مصدر الطلب — لازم يتحدد قبل فحص التكرار عشان الفحص يبقى داخل
     // نفس التصنيف بس (متقدم جديد ≠ موظف حالي)
@@ -830,6 +858,10 @@ class SupabaseDataAccessLayer {
         success: false,
         error: `هذا الرقم القومي مسجل بالفعل في النظام للمتقدم "${existing.full_name}" بكود (${existing.application_code})`
       };
+    }
+    const existingPhone = await this.getApplicantByPhone(cleanPhone, undefined, applicant_category);
+    if (existingPhone) {
+      return { success: false, error: `رقم الهاتف مسجل بالفعل في النظام للمتقدم "${existingPhone.full_name}" بكود (${existingPhone.application_code})` };
     }
 
     if (!payload.full_name || !payload.full_name.trim()) {
@@ -859,7 +891,7 @@ class SupabaseDataAccessLayer {
       application_code,
       full_name: payload.full_name.trim(),
       national_id: nationalId,
-      phone: (payload.phone || '').trim(),
+      phone: cleanPhone,
       birth_date: payload.birth_date || '',
       emergency_phone: payload.emergency_phone || '',
       emergency_contact_name: payload.emergency_contact_name || '',
@@ -1432,12 +1464,13 @@ class SupabaseDataAccessLayer {
     }
 
     // Update applicant status automatically (مش بنغيّر حالة اللي اتحوّل لموظف)
-    const newApplicantStatus = applicantStatusFromInterview(interview.status);
     const currentApplicant = await this.getApplicantById(applicantId);
-    if (newApplicantStatus && !currentApplicant?.is_converted_to_employee) {
+    const latestInterview = pickLatestInterview(currentApplicant?.interviews as any[]);
+    const latestInterviewStatus = applicantStatusFromInterview(latestInterview?.status);
+    if (latestInterviewStatus && !currentApplicant?.is_converted_to_employee) {
       await supabase
         .from('applicants')
-        .update({ status: newApplicantStatus, updated_at: now })
+        .update({ status: latestInterviewStatus, updated_at: now })
         .eq('id', applicantId);
     }
 

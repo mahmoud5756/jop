@@ -1,7 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Applicant, Branch, JobPosition, CurrentUser } from '../types';
 import { SvgIcons } from './BobWichLogo';
 import { getMissingDocuments } from '../utils/applicantDocuments';
+import { exportExcel } from '../utils/exportExcel';
+import { CalendarDays, Download } from 'lucide-react';
+import { ListLoadingSkeleton } from './ApplicantFormControls';
 
 interface ApplicantsListProps {
   applicants: Applicant[];
@@ -20,6 +23,9 @@ interface ApplicantsListProps {
   onReject?: (applicant: Applicant) => void;
   /** فتح رسالة واتساب جاهزة للمتقدم */
   onWhatsApp?: (applicant: Applicant) => void;
+  onBulkStatusChange?: (applicantIds: string[], status: Applicant['status']) => Promise<void> | void;
+  onBulkWhatsApp?: (applicants: Applicant[]) => void;
+  isLoading?: boolean;
   /** تخصيصات النصوص عند استخدام نفس الشاشة لأرشيف منفصل (مثل تسجيل الموظفين الحاليين) */
   title?: string;
   subtitle?: string;
@@ -63,6 +69,9 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
   onPrintDocs,
   onReject,
   onWhatsApp,
+  onBulkStatusChange,
+  onBulkWhatsApp,
+  isLoading = false,
   title = 'سجل طلبات التوظيف الإلكترونية',
   subtitle = 'إدارة ومتابعة طلبات التوظيف، فحص المستندات، وإجراء المقابلات لجميع فروع BOB WICH',
   shareButtonLabel = 'رابط التقديم والـ QR Code',
@@ -76,6 +85,16 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
   const [groupTab, setGroupTab] = useState<GroupTab>('all');
   const [docsFilter, setDocsFilter] = useState<'all' | 'missing' | 'complete'>('all');
   const [filterConverted, setFilterConverted] = useState<'all' | 'converted' | 'applicants_only'>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState('');
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [showUpcoming, setShowUpcoming] = useState(false);
+
+  useEffect(() => { setPage(1); }, [searchTerm, dateFrom, dateTo, selectedBranch, selectedPosition, selectedStatus, groupTab, docsFilter, filterConverted]);
 
   // Filtered list calculation
   const safeApplicants = useMemo(() => Array.isArray(applicants) ? applicants : [], [applicants]);
@@ -90,6 +109,8 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
         (app.phone && app.phone.includes(q)) ||
         (app.application_code && app.application_code.toLowerCase().includes(q));
 
+      const createdDate = String(app.created_at || '').slice(0, 10);
+      const matchesDate = (!dateFrom || createdDate >= dateFrom) && (!dateTo || createdDate <= dateTo);
       const matchesBranch = selectedBranch === 'all' || app.branch_name === selectedBranch;
       const matchesPosition = selectedPosition === 'all' || app.position_name === selectedPosition;
       const matchesStatus = selectedStatus === 'all' || app.status === selectedStatus;
@@ -105,10 +126,32 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
         matchesConverted = !app.is_converted_to_employee;
       }
 
-      return matchesSearch && matchesBranch && matchesPosition && matchesStatus && matchesGroup && matchesDocs && matchesConverted;
+      return matchesSearch && matchesDate && matchesBranch && matchesPosition && matchesStatus && matchesGroup && matchesDocs && matchesConverted;
     });
-  }, [safeApplicants, searchTerm, selectedBranch, selectedPosition, selectedStatus, groupTab, docsFilter, filterConverted]);
+  }, [safeApplicants, searchTerm, dateFrom, dateTo, selectedBranch, selectedPosition, selectedStatus, groupTab, docsFilter, filterConverted]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredApplicants.length / pageSize));
+  const visibleApplicants = filteredApplicants.slice((page - 1) * pageSize, page * pageSize);
+  const visibleIds = visibleApplicants.map(a => a.id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
+  const selectedApplicants = safeApplicants.filter(a => selectedIds.includes(a.id));
+  const exportFiltered = () => exportExcel('المتقدمون',
+    ['الاسم', 'كود الطلب', 'الرقم القومي', 'الهاتف', 'الوظيفة', 'الفرع', 'الحالة', 'تاريخ التقديم'],
+    filteredApplicants.map(a => [a.full_name, a.application_code, a.national_id, a.phone, a.position_name, a.branch_name, a.status, String(a.created_at || '').slice(0, 10)]),
+    'قائمة_المتقدمين');
+  const setVisibleSelected = (checked: boolean) => setSelectedIds(prev => checked
+    ? [...new Set([...prev, ...visibleIds])]
+    : prev.filter(id => !visibleIds.includes(id)));
+  const runBulkStatus = async () => {
+    if (!bulkStatus || selectedIds.length === 0 || !onBulkStatusChange) return;
+    setIsBulkSaving(true);
+    try { await onBulkStatusChange(selectedIds, bulkStatus as Applicant['status']); setSelectedIds([]); setBulkStatus(''); }
+    finally { setIsBulkSaving(false); }
+  };
+  const upcomingInterviews = safeApplicants.flatMap(app => (app.interviews || [])
+    .filter(interview => String(interview.interview_date || '') >= new Date().toISOString().slice(0, 10))
+    .map(interview => ({ app, interview })))
+    .sort((a, b) => String(a.interview.interview_date).localeCompare(String(b.interview.interview_date)) || Number(a.interview.interview_number) - Number(b.interview.interview_number));
   // Statistics counters
   const stats = useMemo(() => {
     const total = safeApplicants.length;
@@ -153,6 +196,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
     }
   };
 
+  if (isLoading) return <ListLoadingSkeleton rows={7} label="جاري تحميل قائمة المتقدمين" />;
   return (
     <div className="space-y-6">
       {/* Header & Quick Action */}
@@ -339,6 +383,10 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
           </div>
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-stone-100 pt-3">
+          <label className="text-[11px] font-bold text-stone-600">من تاريخ التقديم<input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 w-full bg-stone-50 rounded-xl px-3 py-2 border border-stone-300 text-xs" /></label>
+          <label className="text-[11px] font-bold text-stone-600">إلى تاريخ التقديم<input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 w-full bg-stone-50 rounded-xl px-3 py-2 border border-stone-300 text-xs" /></label>
+        </div>
         {/* Quick Filter Badges */}
         <div className="flex items-center justify-between text-xs pt-2 border-t border-stone-100 flex-wrap gap-2">
           <div className="flex items-center gap-2">
@@ -374,11 +422,19 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
           </div>
 
           <div className="text-stone-400 font-mono">
-            عرض {filteredApplicants.length} من {applicants.length}
+            عرض {filteredApplicants.length} من {applicants.length} · صفحة {Math.min(page, totalPages)} من {totalPages}
           </div>
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 bg-white border border-stone-200 rounded-2xl p-3">
+        <button type="button" onClick={exportFiltered} disabled={!filteredApplicants.length} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><Download className="h-4 w-4" />تصدير Excel ({filteredApplicants.length})</button>
+        <button type="button" onClick={() => setShowUpcoming(v => !v)} className="inline-flex items-center gap-2 rounded-xl bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 border border-sky-200"><CalendarDays className="h-4 w-4" />{showUpcoming ? 'إخفاء' : 'عرض'} المقابلات القادمة ({upcomingInterviews.length})</button>
+        {selectedIds.length > 0 && <span className="text-xs font-bold text-stone-600">تم تحديد {selectedIds.length}</span>}
+        {onBulkStatusChange && <><select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="rounded-xl border border-stone-300 px-3 py-2 text-xs"><option value="">تغيير حالة المحددين إلى...</option>{['طلب جديد','تحت المراجعة','حضر المقابلة','إعادة مقابلة','مقبول','قائمة انتظار','مرفوض'].map(st => <option key={st} value={st}>{st}</option>)}</select><button type="button" disabled={!bulkStatus || !selectedIds.length || isBulkSaving} onClick={runBulkStatus} className="rounded-xl bg-[#9E1A24] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{isBulkSaving ? 'جارٍ الحفظ...' : 'تطبيق الحالة'}</button></>}
+        {onBulkWhatsApp && <button type="button" disabled={!selectedApplicants.length} onClick={() => onBulkWhatsApp(selectedApplicants)} className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 border border-emerald-200 disabled:opacity-50">إرسال واتساب للمحددين</button>}
+      </div>
+      {showUpcoming && <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4"><h3 className="font-black text-sky-950 mb-3">جدول المقابلات القادمة بالأيام</h3>{upcomingInterviews.length ? <div className="space-y-3">{Array.from(new Set(upcomingInterviews.map(x => x.interview.interview_date))).map(day => <section key={day} className="rounded-xl bg-white p-3"><h4 className="font-bold text-sky-900 mb-2">{new Date(`${day}T00:00:00`).toLocaleDateString('ar-EG',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</h4><ul className="space-y-2">{upcomingInterviews.filter(x => x.interview.interview_date === day).map(({app,interview}) => <li key={interview.id} className="flex flex-wrap justify-between gap-2 border-t pt-2 text-xs"><button type="button" onClick={() => onView(app)} className="font-bold text-[#9E1A24] underline">{app.full_name}</button><span>مقابلة {interview.interview_number} · {interview.interviewer_name}</span><span>{interview.status}</span></li>)}</ul></section>)}</div> : <p className="text-xs text-stone-600">لا توجد مقابلات قادمة مسجلة.</p>}</div>}
       {/* Main Table */}
       <div className="bg-white rounded-3xl border border-stone-200 shadow-xs overflow-hidden">
         {filteredApplicants.length === 0 ? (
@@ -405,6 +461,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
             <table className="w-full text-right border-collapse text-xs">
               <thead className="bg-stone-100/80 text-stone-700 font-bold border-b border-stone-200">
                 <tr>
+                  <th className="py-3.5 px-3"><input type="checkbox" aria-label="تحديد المتقدمين في الصفحة" checked={allVisibleSelected} onChange={e => setVisibleSelected(e.target.checked)} /></th>
                   <th className="py-3.5 px-4">المتقدم</th>
                   <th className="py-3.5 px-4">الرقم القومي</th>
                   <th className="py-3.5 px-4">الوظيفة / الفرع</th>
@@ -415,8 +472,9 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {filteredApplicants.map(app => (
+                {visibleApplicants.map(app => (
                   <tr key={app.id} className="hover:bg-stone-50/80 transition-colors">
+                    <td className="py-3 px-3"><input type="checkbox" aria-label={`تحديد ${app.full_name}`} checked={selectedIds.includes(app.id)} onChange={e => setSelectedIds(prev => e.target.checked ? [...new Set([...prev, app.id])] : prev.filter(id => id !== app.id))} /></td>
                     {/* Applicant Profile */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -565,6 +623,7 @@ export const ApplicantsList: React.FC<ApplicantsListProps> = ({
           </div>
         )}
       </div>
+      {filteredApplicants.length > pageSize && <div className="flex items-center justify-center gap-3"><button type="button" disabled={page <= 1} onClick={() => setPage(p => Math.max(1,p-1))} className="rounded-xl border px-4 py-2 text-xs font-bold disabled:opacity-40">السابق</button><span className="text-xs font-bold">صفحة {page} من {totalPages}</span><button type="button" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages,p+1))} className="rounded-xl border px-4 py-2 text-xs font-bold disabled:opacity-40">التالي</button></div>}
     </div>
   );
 };

@@ -436,18 +436,19 @@ export class ApiService {
   // Storage afterwards, never through our own serverless function.
   static async getUploadSignedUrl(
     fileName: string,
-    contentType: string
+    contentType: string,
+    fileSize: number
   ): Promise<{ bucket: string; path: string; token: string; publicUrl: string | null }> {
     const res = await fetch('/api/uploads/signed-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileName, contentType }),
+      body: JSON.stringify({ fileName, contentType, fileSize }),
     });
     return await this.parseResponse(res);
   }
 
   // Public candidate submission (no auth token required)
-  static async publicApply(applicant: Partial<Applicant>): Promise<Applicant> {
+  static async publicApply(applicant: Partial<Applicant>): Promise<{ application_code: string; created_at: string }> {
     const res = await fetch('/api/applicants/public-apply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -530,6 +531,21 @@ export class ApiService {
     return await res.json();
   }
 
+  static async checkPhoneStaff(phone: string, excludeId?: string, category?: 'external' | 'internal_staff'): Promise<{ exists: boolean; applicant?: any }> {
+    if (!phone) return { exists: false };
+    const params = new URLSearchParams();
+    if (excludeId) params.set('excludeId', excludeId);
+    if (category) params.set('category', category);
+    const query = params.toString();
+    const res = await fetch(`/api/check-phone/${encodeURIComponent(phone)}${query ? `?${query}` : ''}`, { headers: this.getAuthHeaders() });
+    if (!res.ok) return { exists: false };
+    return res.json();
+  }
+  static async checkPhonePublic(phone: string, applicantCategory: 'external' | 'internal_staff' = 'external'): Promise<{ exists: boolean }> {
+    if (!phone) return { exists: false };
+    const res = await fetch('/api/check-phone-public', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, applicantCategory }) });
+    try { return await this.parseResponse(res); } catch { return { exists: false }; }
+  }
   // Alias for backward compatibility
   static async checkNationalId(
     nationalId: string,

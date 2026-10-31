@@ -13,16 +13,20 @@ import {
   FormFieldConfig
 } from '../types';
 import { ApiService } from '../services/api';
+import { SharedInput, SharedSelect, SharedDateInput, YesNoField } from './ApplicantFormControls';
+import { birthDateFromEgyptianNationalId, isValidEgyptianMobile, isValidEgyptianNationalId } from '../utils/egyptianValidation';
 import { SvgIcons } from './BobWichLogo';
 import { uploadFileDirectToStorage } from '../utils/imageCompression';
 import { CustomFieldsInputs } from './CustomFieldsRenderer';
 import { defaultFieldConfig, mergeFieldConfig, isVisible, fieldLabel, validateCustomFields, fieldOptions } from '../formFields';
+import { ApplicantEducationFields } from './ApplicantEducationFields';
 
 interface ApplicantFormProps {
   initialData?: Applicant | null;
   currentUser: CurrentUser;
   onSaveSuccess: (applicant: Applicant) => void;
   onCancel: () => void;
+  onViewDuplicate?: (id: string) => void;
   /** التصنيف الافتراضي عند إنشاء طلب جديد فقط (متقدم عادي أو موظف حالي) */
   defaultCategory?: 'external' | 'internal_staff';
 }
@@ -32,6 +36,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
   currentUser,
   onSaveSuccess,
   onCancel,
+  onViewDuplicate,
   defaultCategory = 'external',
 }) => {
   const isEditing = Boolean(initialData?.id);
@@ -42,6 +47,9 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [nationalIdDuplicateWarning, setNationalIdDuplicateWarning] = useState<string | null>(null);
+  const [duplicateApplicantId, setDuplicateApplicantId] = useState<string | null>(null);
+  const [phoneDuplicateWarning, setPhoneDuplicateWarning] = useState<string | null>(null);
+  const [duplicatePhoneApplicantId, setDuplicatePhoneApplicantId] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   // نفس إعدادات نموذج التقديم المستخدمة في البوابة العامة — بحيث تكون
@@ -176,6 +184,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
         }
       } catch (err) {
         console.error('Error loading master data:', err);
+        setErrorMessage('تعذر تحميل قائمة الفروع والوظائف؛ يرجى تحديث الصفحة أو المحاولة لاحقًا.');
       }
     }
     loadMasterData();
@@ -185,6 +194,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
   useEffect(() => {
     const id = formData.national_id?.trim();
     if (!id || id.length !== 14) {
+      setDuplicateApplicantId(null);
       setNationalIdDuplicateWarning(null);
       return;
     }
@@ -194,10 +204,10 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
         const checkCategory = isEditing ? initialData?.applicant_category : defaultCategory;
         const check = await ApiService.checkNationalId(id, initialData?.id, checkCategory);
         if (check.exists && check.applicant) {
-          setNationalIdDuplicateWarning(
-            `تنبيه: الرقم القومي مسجل مسبقًا باسم "${check.applicant.full_name}" بكود (${check.applicant.application_code})`
-          );
+          setDuplicateApplicantId(check.applicant.id);
+          setNationalIdDuplicateWarning(`تنبيه: الرقم القومي مسجل مسبقًا باسم "${check.applicant.full_name}" بكود (${check.applicant.application_code})`);
         } else {
+          setDuplicateApplicantId(null);
           setNationalIdDuplicateWarning(null);
         }
       } catch (err) {
@@ -208,6 +218,20 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
     return () => clearTimeout(timer);
   }, [formData.national_id, initialData?.id, defaultCategory, isEditing]);
 
+  useEffect(() => {
+    const phone = formData.phone?.trim() || '';
+    if (!phone || phone.length !== 11) { setPhoneDuplicateWarning(null); setDuplicatePhoneApplicantId(null); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const check = await ApiService.checkPhoneStaff(phone, initialData?.id, isEditing ? initialData?.applicant_category : defaultCategory);
+        if (check.exists && check.applicant) {
+          setDuplicatePhoneApplicantId(check.applicant.id);
+          setPhoneDuplicateWarning(`رقم الهاتف مسجل باسم "${check.applicant.full_name}" بكود (${check.applicant.application_code})`);
+        } else { setDuplicatePhoneApplicantId(null); setPhoneDuplicateWarning(null); }
+      } catch (err) { console.error(err); }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [formData.phone, initialData?.id, defaultCategory, isEditing]);
   // Handle Photo upload — uploads directly to Supabase Storage from the
   // browser (bypassing our own serverless function's ~4.5MB request-body
   // limit on Vercel entirely) and stores only the resulting short public
@@ -386,13 +410,13 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
       return;
     }
     const nid = formData.national_id?.trim() || '';
-    if (!nid || nid.length !== 14 || !/^\d{14}$/.test(nid)) {
-      setErrorMessage('الرقم القومي يجب أن يتكون من 14 رقمًا صحيحًا');
+    if (!isValidEgyptianNationalId(nid)) {
+      setErrorMessage('الرقم القومي غير صحيح: أدخل 14 رقمًا يبدأ بـ 2 أو 3 ويتضمن تاريخ ميلاد صحيحًا');
       setActiveTab(1);
       return;
     }
-    if (!formData.phone?.trim()) {
-      setErrorMessage('يرجى إدخال رقم الهاتف للتواصل');
+    if (!isValidEgyptianMobile(formData.phone || '')) {
+      setErrorMessage('يرجى إدخال رقم موبايل مصري صحيح من 11 رقمًا (010 أو 011 أو 012 أو 015)');
       setActiveTab(1);
       return;
     }
@@ -560,12 +584,12 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         {/* Error Alert */}
         {errorMessage && (
-          <div className="mb-6 bg-red-50 border-r-4 border-red-600 p-4 rounded-xl text-red-800 flex items-center justify-between text-sm shadow-xs animate-shake">
+          <div role="alert" className="mb-6 bg-red-50 border-r-4 border-red-600 p-4 rounded-xl text-red-800 flex items-center justify-between text-sm shadow-xs animate-shake">
             <div className="flex items-center gap-2 font-bold">
               <SvgIcons.AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
               <span>{errorMessage}</span>
             </div>
-            <button onClick={() => setErrorMessage(null)} className="text-red-500 hover:text-red-800 text-xs font-bold">
+            <button aria-label="إغلاق رسالة الخطأ" onClick={() => setErrorMessage(null)} className="text-red-500 hover:text-red-800 text-xs font-bold">
               ✕
             </button>
           </div>
@@ -638,7 +662,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   <label className={`inline-flex items-center gap-2 border px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-xs ${isUploadingPhoto ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-[#9E1A24] border-[#9E1A24] cursor-pointer'}`}>
                     <SvgIcons.Upload className="w-4 h-4" />
                     <span>{isUploadingPhoto ? 'جاري رفع الصورة...' : 'اختر صورة من الجهاز'}</span>
-                    <input type="file" accept="image/*" onChange={handlePhotoChange} disabled={isUploadingPhoto} className="hidden" />
+                    <SharedInput type="file" accept="image/*" onChange={handlePhotoChange} disabled={isUploadingPhoto} className="hidden" />
                   </label>
                   {formData.photo_url && (
                     <button
@@ -660,7 +684,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">
                     الاسم بالكامل <span className="text-red-600">*</span>
                   </label>
-                  <input
+                  <SharedInput
                     type="text"
                     required
                     value={formData.full_name}
@@ -679,14 +703,15 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">
                     رقم الهاتف للتواصل <span className="text-red-600">*</span>
                   </label>
-                  <input
+                  <SharedInput
                     type="tel"
                     required
                     value={formData.phone}
-                    onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value.replace(/\D/g, '') }))}
                     placeholder="مثال: 01012345678"
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm font-mono"
                   />
+                  {phoneDuplicateWarning && <p className="text-xs text-red-600 mt-1 font-bold">{phoneDuplicateWarning} {duplicatePhoneApplicantId && onViewDuplicate && <button type="button" className="underline text-[#9E1A24]" onClick={() => onViewDuplicate(duplicatePhoneApplicantId)}>فتح السجل الموجود</button>}</p>}
                 </div>
 
                 {/* National ID (14 digits) */}
@@ -694,12 +719,12 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">
                     الرقم القومي (14 رقم) <span className="text-red-600">*</span>
                   </label>
-                  <input
+                  <SharedInput
                     type="text"
                     required
                     maxLength={14}
                     value={formData.national_id}
-                    onChange={e => setFormData(prev => ({ ...prev, national_id: e.target.value.replace(/\D/g, '') }))}
+                    onChange={e => { const national_id = e.target.value.replace(/\D/g, ''); setFormData(prev => ({ ...prev, national_id, ...(!prev.birth_date && birthDateFromEgyptianNationalId(national_id) ? { birth_date: birthDateFromEgyptianNationalId(national_id)! } : {}) })); }}
                     placeholder="الرقم القومي المكون من 14 رقم"
                     className={`w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border text-sm font-mono font-bold focus:outline-none focus:ring-2 ${
                       nationalIdDuplicateWarning
@@ -707,20 +732,14 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         : 'border-stone-300 focus:ring-[#9E1A24]'
                     }`}
                   />
-                  {nationalIdDuplicateWarning && (
-                    <p className="text-xs text-red-600 mt-1 font-bold flex items-center gap-1">
-                      <SvgIcons.AlertCircle className="w-3.5 h-3.5" />
-                      <span>{nationalIdDuplicateWarning}</span>
-                    </p>
-                  )}
+                  {nationalIdDuplicateWarning && <p className="text-xs text-red-600 mt-1 font-bold flex flex-wrap items-center gap-1"><SvgIcons.AlertCircle className="w-3.5 h-3.5" /><span>{nationalIdDuplicateWarning}</span>{duplicateApplicantId && onViewDuplicate && <button type="button" className="underline text-[#9E1A24]" onClick={() => onViewDuplicate(duplicateApplicantId)}>فتح السجل الموجود</button>}</p>}
                 </div>
 
                 {/* Birth Date */}
                 {show('birth_date') && (
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('birth_date')}</label>
-                  <input
-                    type="date"
+                  <SharedDateInput
                     value={formData.birth_date}
                     onChange={e => setFormData(prev => ({ ...prev, birth_date: e.target.value }))}
                     className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
@@ -735,7 +754,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 {show('emergency_phone') && (
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('emergency_phone')}</label>
-                  <input
+                  <SharedInput
                     type="tel"
                     value={formData.emergency_phone}
                     onChange={e => setFormData(prev => ({ ...prev, emergency_phone: e.target.value }))}
@@ -749,7 +768,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 {show('emergency_contact_name') && (
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('emergency_contact_name')}</label>
-                  <input
+                  <SharedInput
                     type="text"
                     value={formData.emergency_contact_name}
                     onChange={e => setFormData(prev => ({ ...prev, emergency_contact_name: e.target.value }))}
@@ -763,7 +782,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 {show('address') && (
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('address')}</label>
-                  <input
+                  <SharedInput
                     type="text"
                     value={formData.address}
                     onChange={e => setFormData(prev => ({ ...prev, address: e.target.value }))}
@@ -787,7 +806,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                             : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100'
                         }`}
                       >
-                        <input
+                        <SharedInput
                           type="radio"
                           name="marital_status"
                           value={item}
@@ -816,7 +835,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                             : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100'
                         }`}
                       >
-                        <input
+                        <SharedInput
                           type="radio"
                           name="military_status"
                           value={item}
@@ -861,7 +880,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">
                     الفرع المراد العمل به <span className="text-red-600">*</span>
                   </label>
-                  <select
+                  <SharedSelect
                     value={formData.branch_name}
                     onChange={e => {
                       const sel = branches.find(b => b.name === e.target.value);
@@ -878,7 +897,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         {b.name}
                       </option>
                     ))}
-                  </select>
+                  </SharedSelect>
                 </div>
 
                 {/* Position Selection */}
@@ -886,7 +905,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">
                     الوظيفة المتقدم إليها <span className="text-red-600">*</span>
                   </label>
-                  <select
+                  <SharedSelect
                     value={formData.position_name}
                     onChange={e => {
                       const sel = positions.find(p => p.title === e.target.value);
@@ -903,14 +922,14 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         {p.title} ({p.department})
                       </option>
                     ))}
-                  </select>
+                  </SharedSelect>
                 </div>
 
                 {/* Experience Years */}
                 {show('experience_years') && (
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('experience_years')}</label>
-                  <input
+                  <SharedInput
                     type="number"
                     min="0"
                     max="40"
@@ -925,7 +944,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 {show('current_salary') && (
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('current_salary')} (ج.م)</label>
-                  <input
+                  <SharedInput
                     type="number"
                     min="0"
                     value={formData.current_salary ?? ''}
@@ -939,7 +958,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 {show('expected_salary') && (
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('expected_salary')} (ج.م)</label>
-                  <input
+                  <SharedInput
                     type="number"
                     min="0"
                     value={formData.expected_salary ?? ''}
@@ -961,7 +980,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                           : 'bg-stone-50 border-stone-200 text-stone-700'
                       }`}
                     >
-                      <input
+                      <SharedInput
                         type="radio"
                         name="restaurant_exp"
                         checked={formData.restaurant_experience === true}
@@ -977,7 +996,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                           : 'bg-stone-50 border-stone-200 text-stone-700'
                       }`}
                     >
-                      <input
+                      <SharedInput
                         type="radio"
                         name="restaurant_exp"
                         checked={formData.restaurant_experience === false}
@@ -994,7 +1013,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 {show('last_job') && (
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('last_job')}</label>
-                  <input
+                  <SharedInput
                     type="text"
                     value={formData.last_job}
                     onChange={e => setFormData(prev => ({ ...prev, last_job: e.target.value }))}
@@ -1008,7 +1027,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 {show('leaving_reason') && (
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('leaving_reason')}</label>
-                  <input
+                  <SharedInput
                     type="text"
                     value={formData.leaving_reason}
                     onChange={e => setFormData(prev => ({ ...prev, leaving_reason: e.target.value }))}
@@ -1068,83 +1087,20 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('qualification')}</label>
-                    <select
-                      value={formData.qualification || ''}
-                      onChange={e => setFormData(prev => ({ ...prev, qualification: e.target.value }))}
-                      className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
-                    >
-                      <option value="">اختر من القائمة</option>
-                      {opts('qualification').map(o => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                      {/* لو المؤهل المحفوظ قديم وغير موجود في القائمة الحالية نعرضه كما هو */}
-                      {formData.qualification && !opts('qualification').includes(formData.qualification) && (
-                        <option value={formData.qualification}>{formData.qualification}</option>
-                      )}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('specialization')}</label>
-                    <input
-                      type="text"
-                      value={formData.specialization}
-                      onChange={e => setFormData(prev => ({ ...prev, specialization: e.target.value }))}
-                      placeholder="مجال التخصص الدراسي"
-                      className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{lbl('still_studying')}</label>
-                    <div className="flex gap-4 mt-2">
-                      <label
-                        className={`flex-1 py-2 px-4 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
-                          formData.still_studying ? 'bg-red-50 border-[#9E1A24] text-[#9E1A24]' : 'bg-stone-50 border-stone-200'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="still_studying"
-                          checked={formData.still_studying === true}
-                          onChange={() => setFormData(prev => ({ ...prev, still_studying: true, graduation_year: prev.still_studying === true ? prev.graduation_year : '' }))}
-                          className="text-[#9E1A24]"
-                        />
-                        <span>نعم</span>
-                      </label>
-                      <label
-                        className={`flex-1 py-2 px-4 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
-                          formData.still_studying === false ? 'bg-red-50 border-[#9E1A24] text-[#9E1A24]' : 'bg-stone-50 border-stone-200'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="still_studying"
-                          checked={formData.still_studying === false}
-                          onChange={() => setFormData(prev => ({ ...prev, still_studying: false, graduation_year: prev.still_studying === false ? prev.graduation_year : '' }))}
-                          className="text-[#9E1A24]"
-                        />
-                        <span>لا</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {formData.still_studying !== undefined && formData.still_studying !== null && (
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">{formData.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'}</label>
-                    <input
-                      type="text"
-                      value={formData.graduation_year}
-                      onChange={e => setFormData(prev => ({ ...prev, graduation_year: e.target.value }))}
-                      placeholder={formData.still_studying ? 'مثال: الفرقة الثالثة' : 'مثال: 2024'}
-                      className="w-full bg-stone-50 rounded-xl px-3.5 py-2.5 border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-sm font-mono"
-                    />
-                  </div>
-                  )}
-                </div>
+                <ApplicantEducationFields
+                  qualification={formData.qualification || ''}
+                  specialization={formData.specialization || ''}
+                  stillStudying={formData.still_studying}
+                  graduationYear={formData.graduation_year || ''}
+                  qualificationLabel={lbl('qualification')}
+                  specializationLabel={lbl('specialization')}
+                  stillStudyingLabel={lbl('still_studying')}
+                  qualificationOptions={opts('qualification')}
+                  onQualificationChange={value => setFormData(prev => ({ ...prev, qualification: value }))}
+                  onSpecializationChange={value => setFormData(prev => ({ ...prev, specialization: value }))}
+                  onStillStudyingChange={answer => setFormData(prev => ({ ...prev, still_studying: answer, graduation_year: prev.still_studying === answer ? prev.graduation_year : '' }))}
+                  onGraduationYearChange={value => setFormData(prev => ({ ...prev, graduation_year: value }))}
+                />
               </div>
 
               {/* Section 5: المهارات */}
@@ -1187,7 +1143,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 {/* Custom skill */}
                 <div className="mt-4 bg-stone-50 p-4 rounded-xl border border-stone-200">
                   <label className="block text-xs font-bold text-stone-700 mb-1.5">مهارات أخرى إضافية:</label>
-                  <input
+                  <SharedInput
                     type="text"
                     value={formData.custom_skill}
                     onChange={e => setFormData(prev => ({ ...prev, custom_skill: e.target.value }))}
@@ -1283,7 +1239,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
                         <div className="lg:col-span-2">
                           <label className="block font-bold text-stone-700 mb-1">مكان العمل / الشركة</label>
-                          <input
+                          <SharedInput
                             type="text"
                             value={exp.workplace}
                             onChange={e => updateExperienceRow(idx, 'workplace', e.target.value)}
@@ -1294,7 +1250,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
                         <div>
                           <label className="block font-bold text-stone-700 mb-1">الوظيفة</label>
-                          <input
+                          <SharedInput
                             type="text"
                             value={exp.position}
                             onChange={e => updateExperienceRow(idx, 'position', e.target.value)}
@@ -1306,7 +1262,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         <div className="lg:col-span-2">
                           <label className="block font-bold text-stone-700 mb-1">مدة الخبرة</label>
                           <div className="flex items-center gap-2">
-                            <input
+                            <SharedInput
                               type="number"
                               min="0"
                               max="50"
@@ -1316,7 +1272,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                               className="w-full bg-white rounded-lg p-2 border border-stone-300 focus:outline-none focus:ring-1 focus:ring-[#9E1A24] font-mono text-center"
                             />
                             <span className="text-stone-600 font-bold whitespace-nowrap">سنة</span>
-                            <input
+                            <SharedInput
                               type="number"
                               min="0"
                               max="11"
@@ -1331,7 +1287,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
                         <div className="sm:col-span-2 lg:col-span-5">
                           <label className="block font-bold text-stone-700 mb-1">سبب ترك العمل</label>
-                          <input
+                          <SharedInput
                             type="text"
                             value={exp.leaving_reason}
                             onChange={e => updateExperienceRow(idx, 'leaving_reason', e.target.value)}
@@ -1391,7 +1347,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     <label className="block text-xs font-bold text-stone-800 mb-2">الورديات المتاحة للعمل بها:</label>
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-700">
-                        <input
+                        <SharedInput
                           type="checkbox"
                           checked={formData.shift_morning}
                           onChange={e => setFormData(prev => ({ ...prev, shift_morning: e.target.checked }))}
@@ -1400,7 +1356,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         <span>صباحية</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-700">
-                        <input
+                        <SharedInput
                           type="checkbox"
                           checked={formData.shift_night}
                           onChange={e => setFormData(prev => ({ ...prev, shift_night: e.target.checked }))}
@@ -1415,7 +1371,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     <label className="block text-xs font-bold text-stone-800 mb-2">هل يمتلك وسيلة مواصلات خاصة (موتوسيكل/عربية)؟</label>
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-700">
-                        <input
+                        <SharedInput
                           type="radio"
                           name="has_transport"
                           checked={formData.can_work_shifts === true}
@@ -1425,7 +1381,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         <span>نعم</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-700">
-                        <input
+                        <SharedInput
                           type="radio"
                           name="has_transport"
                           checked={formData.can_work_shifts === false}
@@ -1443,7 +1399,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     </label>
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-700">
-                        <input
+                        <SharedInput
                           type="radio"
                           name="can_overtime"
                           checked={formData.can_work_overtime === true}
@@ -1453,7 +1409,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         <span>نعم</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-700">
-                        <input
+                        <SharedInput
                           type="radio"
                           name="can_overtime"
                           checked={formData.can_work_overtime === false}
@@ -1471,7 +1427,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     </label>
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-700">
-                        <input
+                        <SharedInput
                           type="radio"
                           name="can_holidays"
                           checked={formData.can_work_holidays === true}
@@ -1481,7 +1437,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         <span>نعم</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-700">
-                        <input
+                        <SharedInput
                           type="radio"
                           name="can_holidays"
                           checked={formData.can_work_holidays === false}
@@ -1516,7 +1472,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     <label className={`inline-flex items-center gap-1.5 border px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${uploadingDocType === 'صورة بطاقة الرقم القومي - الوجه' ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-[#9E1A24] border-[#9E1A24] cursor-pointer'}`}>
                       <SvgIcons.Upload className="w-3.5 h-3.5" />
                       <span>{uploadingDocType === 'صورة بطاقة الرقم القومي - الوجه' ? 'جاري الرفع...' : 'رفع وش البطاقة'}</span>
-                      <input
+                      <SharedInput
                         type="file"
                         accept="image/*,.pdf"
                         onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي - الوجه')}
@@ -1533,7 +1489,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     <label className={`inline-flex items-center gap-1.5 border px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${uploadingDocType === 'صورة بطاقة الرقم القومي - الظهر' ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-[#9E1A24] border-[#9E1A24] cursor-pointer'}`}>
                       <SvgIcons.Upload className="w-3.5 h-3.5" />
                       <span>{uploadingDocType === 'صورة بطاقة الرقم القومي - الظهر' ? 'جاري الرفع...' : 'رفع ظهر البطاقة'}</span>
-                      <input
+                      <SharedInput
                         type="file"
                         accept="image/*,.pdf"
                         onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي - الظهر')}
@@ -1550,7 +1506,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     <label className={`inline-flex items-center gap-1.5 border px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${uploadingDocType === 'شهادة صحية' ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-[#9E1A24] border-[#9E1A24] cursor-pointer'}`}>
                       <SvgIcons.Upload className="w-3.5 h-3.5" />
                       <span>{uploadingDocType === 'شهادة صحية' ? 'جاري الرفع...' : 'رفع الشهادة الصحية'}</span>
-                      <input
+                      <SharedInput
                         type="file"
                         accept="image/*,.pdf"
                         onChange={e => handleDocumentUpload(e, 'شهادة صحية')}
@@ -1567,7 +1523,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                     <label className={`inline-flex items-center gap-1.5 border px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${uploadingDocType === 'أخرى' ? 'bg-stone-100 text-stone-400 border-stone-300 cursor-wait' : 'bg-white hover:bg-stone-100 text-stone-700 border-stone-300 cursor-pointer'}`}>
                       <SvgIcons.Upload className="w-3.5 h-3.5" />
                       <span>{uploadingDocType === 'أخرى' ? 'جاري الرفع...' : 'رفع مستند إضافي'}</span>
-                      <input
+                      <SharedInput
                         type="file"
                         accept="image/*,.pdf"
                         onChange={e => handleDocumentUpload(e, 'أخرى')}
@@ -1717,7 +1673,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                         <tr key={ast.id || idx} className="bg-white">
                           <td className="p-2 border-l border-stone-200 font-mono">{idx + 1}</td>
                           <td className="p-2 border-l border-stone-200">
-                            <input
+                            <SharedInput
                               type="text"
                               value={ast.asset_name}
                               onChange={e => updateAssetRow(idx, 'asset_name', e.target.value)}
@@ -1726,7 +1682,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                             />
                           </td>
                           <td className="p-2 border-l border-stone-200">
-                            <input
+                            <SharedInput
                               type="number"
                               min="1"
                               value={ast.quantity}
@@ -1735,7 +1691,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                             />
                           </td>
                           <td className="p-2 border-l border-stone-200">
-                            <select
+                            <SharedSelect
                               value={ast.condition}
                               onChange={e => updateAssetRow(idx, 'condition', e.target.value)}
                               className="w-full bg-stone-50 rounded p-1.5 text-xs border border-stone-200"
@@ -1744,10 +1700,10 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                               <option value="سليم ومستعمل">سليم ومستعمل</option>
                               <option value="جيد">جيد</option>
                               <option value="بحالة الاستلام">بحالة الاستلام</option>
-                            </select>
+                            </SharedSelect>
                           </td>
                           <td className="p-2 border-l border-stone-200">
-                            <input
+                            <SharedInput
                               type="text"
                               value={ast.notes}
                               onChange={e => updateAssetRow(idx, 'notes', e.target.value)}
@@ -1782,7 +1738,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
                 <div>
                   <label className="block font-bold text-stone-700 mb-1">اسم المتقدم المقر: <span className="text-[10px] font-normal text-stone-400">(نفس اسم المتقدم تلقائيًا)</span></label>
-                  <input
+                  <SharedInput
                     type="text"
                     value={formData.full_name}
                     readOnly
@@ -1793,8 +1749,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
                 <div>
                   <label className="block font-bold text-stone-700 mb-1">تاريخ الإقرار:</label>
-                  <input
-                    type="date"
+                  <SharedDateInput
                     value={formData.declaration_date}
                     onChange={e => setFormData(prev => ({ ...prev, declaration_date: e.target.value }))}
                     className="w-full bg-white rounded-lg p-2 border border-stone-300 text-xs font-mono"
@@ -1860,7 +1815,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 bg-red-50/30 p-5 rounded-2xl border border-red-100">
                   <div>
                     <label className="block text-xs font-bold text-stone-700 mb-1.5">الوظيفة المقترحة</label>
-                    <input
+                    <SharedInput
                       type="text"
                       value={hrDecision.proposed_position}
                       onChange={e => setHrDecision(prev => ({ ...prev, proposed_position: e.target.value }))}
@@ -1871,7 +1826,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-stone-700 mb-1.5">الراتب المقترح (ج.م)</label>
-                    <input
+                    <SharedInput
                       type="number"
                       value={hrDecision.proposed_salary}
                       onChange={e => setHrDecision(prev => ({ ...prev, proposed_salary: e.target.value }))}
@@ -1882,8 +1837,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-stone-700 mb-1.5">تاريخ استلام الطلب</label>
-                    <input
-                      type="date"
+                    <SharedDateInput
                       value={hrDecision.application_date}
                       onChange={e => setHrDecision(prev => ({ ...prev, application_date: e.target.value }))}
                       className="w-full bg-white rounded-xl px-3.5 py-2 border border-stone-300 text-xs font-mono"
@@ -1892,8 +1846,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-stone-700 mb-1.5">تاريخ مباشرة العمل</label>
-                    <input
-                      type="date"
+                    <SharedDateInput
                       value={hrDecision.joining_date}
                       onChange={e => setHrDecision(prev => ({ ...prev, joining_date: e.target.value }))}
                       className="w-full bg-white rounded-xl px-3.5 py-2 border border-stone-300 text-xs font-mono"
@@ -1902,7 +1855,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-stone-700 mb-1.5">اسم مسؤول التوظيف</label>
-                    <input
+                    <SharedInput
                       type="text"
                       value={hrDecision.recruiter_name}
                       onChange={e => setHrDecision(prev => ({ ...prev, recruiter_name: e.target.value }))}
@@ -1974,8 +1927,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
                       <div className="grid grid-cols-2 gap-3 text-xs">
                         <div>
                           <label className="block font-bold text-stone-700 mb-1">تاريخ المقابلة</label>
-                          <input
-                            type="date"
+                          <SharedDateInput
                             value={interview.interview_date}
                             onChange={e => {
                               const val = e.target.value;
@@ -1991,7 +1943,7 @@ export const ApplicantForm: React.FC<ApplicantFormProps> = ({
 
                         <div>
                           <label className="block font-bold text-stone-700 mb-1">المسؤول عن المقابلة</label>
-                          <input
+                          <SharedInput
                             type="text"
                             value={interview.interviewer_name}
                             onChange={e => {

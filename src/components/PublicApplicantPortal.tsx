@@ -9,9 +9,12 @@ import {
   FormFieldConfig
 } from '../types';
 import { ApiService } from '../services/api';
+import { SharedInput, SharedSelect, SharedDateInput, YesNoField } from './ApplicantFormControls';
+import { birthDateFromEgyptianNationalId, isValidEgyptianMobile, isValidEgyptianNationalId } from '../utils/egyptianValidation';
 import { SvgIcons, BobWichHeaderLogo } from './BobWichLogo';
 import { uploadFileDirectToStorage } from '../utils/imageCompression';
 import { CustomFieldsInputs } from './CustomFieldsRenderer';
+import PublicJobEducationStep from './PublicJobEducationStep';
 import {
   defaultFieldConfig,
   mergeFieldConfig,
@@ -29,7 +32,7 @@ import {
 
 interface PublicApplicantPortalProps {
   onGoToAdmin?: () => void;
-  onApplicationSubmitted?: (newApp: Applicant) => void;
+  onApplicationSubmitted?: (receipt: { application_code: string; created_at: string }) => void;
   /**
    * 'external' = استمارة التقديم العادية للجمهور (الافتراضي).
    * 'internal_staff' = لينك التسجيل المخصص للموظفين الحاليين اللي بيدخلوا
@@ -72,6 +75,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   const [branches, setBranches] = useState<Branch[]>([]);
   const [positions, setPositions] = useState<JobPosition[]>([]);
   const [isLoadingMaster, setIsLoadingMaster] = useState(true);
+  const [masterDataError, setMasterDataError] = useState<string | null>(null);
 
   // Steps in public form
   // 1: Personal Info & Photo
@@ -139,12 +143,24 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [nationalIdDuplicateWarning, setNationalIdDuplicateWarning] = useState<string | null>(null);
-  const [submittedApplicant, setSubmittedApplicant] = useState<Applicant | null>(null);
+  const [phoneDuplicateWarning, setPhoneDuplicateWarning] = useState(false);
+  const [submittedApplicant, setSubmittedApplicant] = useState<{
+    application_code: string; full_name: string; position_name: string; branch_name: string; phone: string; created_at: string;
+  } | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [uploadingDocType, setUploadingDocType] = useState<ApplicantDocument['document_type'] | null>(null);
 
+  useEffect(() => {
+    const phone = formData.phone?.trim() || '';
+    if (!phone || phone.length !== 11) { setPhoneDuplicateWarning(false); return; }
+    const timer = setTimeout(async () => {
+      const check = await ApiService.checkPhonePublic(phone, category);
+      setPhoneDuplicateWarning(check.exists);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [formData.phone, category]);
   // Birth date picker (day/month/year selects) — mobile-friendly replacement
-  // for the native <input type="date">, whose calendar widget forces
+  // for the native <SharedDateInput>, whose calendar widget forces
   // applicants to scroll back years one month at a time to reach their
   // birth year.
   //
@@ -205,6 +221,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         setPositions(pList.filter(p => p.is_active));
       } catch (err) {
         console.error('Failed to load branches/positions', err);
+        setMasterDataError('تعذر تحميل قائمة الفروع والوظائف الآن. يرجى تحديث الصفحة أو المحاولة لاحقًا.');
       } finally {
         setIsLoadingMaster(false);
       }
@@ -372,18 +389,19 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         setErrorMessage('يرجى كتابة الاسم الرباعي بالكامل (4 أسماء على الأقل)');
         return false;
       }
-      if (!formData.national_id?.trim() || formData.national_id.length !== 14 || !/^\d{14}$/.test(formData.national_id)) {
-        setErrorMessage('يرجى إدخال الرقم القومي الصحيح المكون من 14 رقم بالضبط');
+      if (!isValidEgyptianNationalId(formData.national_id || '')) {
+        setErrorMessage('الرقم القومي غير صحيح: أدخل 14 رقمًا يبدأ بـ 2 أو 3 ويتضمن تاريخ ميلاد صحيحًا');
         return false;
       }
       if (nationalIdDuplicateWarning) {
         setErrorMessage('الرقم القومي مسجل مسبقاً في النظام');
         return false;
       }
-      if (!formData.phone?.trim() || formData.phone.length !== 11 || !/^01[0125]\d{8}$/.test(formData.phone)) {
-        setErrorMessage('يرجى إدخال رقم هاتف محمول مصري صحيح مكون من 11 رقم (يبدأ بـ 010, 011, 012, 015)');
+      if (!isValidEgyptianMobile(formData.phone || '')) {
+        setErrorMessage('يرجى إدخال رقم موبايل مصري صحيح من 11 رقمًا (010 أو 011 أو 012 أو 015)');
         return false;
       }
+      if (phoneDuplicateWarning) { setErrorMessage('رقم الهاتف مسجل مسبقًا. يرجى التواصل مع إدارة التوظيف للمتابعة.'); return false; }
       if (show('birth_date')) {
         if (req('birth_date') && !formData.birth_date) {
           setErrorMessage(`يرجى اختيار ${lbl('birth_date')} كاملاً (اليوم والشهر والسنة)`);
@@ -601,12 +619,16 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
         is_converted_to_employee: false,
       };
 
-      const result = await ApiService.publicApply(payload);
-
-      setSubmittedApplicant(result);
-      if (onApplicationSubmitted) {
-        onApplicationSubmitted(result);
-      }
+      const receipt = await ApiService.publicApply(payload);
+      setSubmittedApplicant({
+        application_code: receipt.application_code,
+        created_at: receipt.created_at,
+        full_name: String(payload.full_name || ''),
+        position_name: String(payload.position_name || ''),
+        branch_name: String(payload.branch_name || ''),
+        phone: String(payload.phone || ''),
+      });
+      onApplicationSubmitted?.(receipt);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       console.error('Submission failed:', err);
@@ -760,9 +782,10 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
           </p>
         </div>
 
+        {masterDataError && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">{masterDataError}</div>}
         {/* Multi-step Progress Bar with Locking */}
         <div className="bg-white rounded-2xl shadow-xs border border-stone-200 p-4 mb-6">
-          <div className="grid grid-cols-5 gap-2 text-center text-xs font-bold">
+          <div className="grid grid-cols-5 gap-1 sm:gap-2 text-center text-xs font-bold">
             {[
               { num: 1, label: 'البيانات الشخصية' },
               { num: 2, label: 'الوظيفة والمؤهل' },
@@ -778,7 +801,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   type="button"
                   onClick={() => handleStepClick(tab.num)}
                   disabled={!isAccessible}
-                  className={`py-2 px-1 rounded-xl transition flex flex-col items-center justify-center gap-1 ${
+                  className={`min-h-11 py-2 px-1 rounded-xl transition flex flex-col items-center justify-center gap-1 ${
                     isCurrent
                       ? 'bg-[#9E1A24] text-white shadow-sm'
                       : isAccessible
@@ -790,11 +813,12 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     <span>{tab.num}</span>
                     {!isAccessible && <span className="text-[10px]">🔒</span>}
                   </div>
-                  <span className="text-[10px] sm:text-xs truncate max-w-full">{tab.label}</span>
+                  <span className="hidden sm:block text-xs truncate max-w-full">{tab.label}</span><span className="sm:hidden text-[10px]">{tab.num === currentStep ? tab.label : ""}</span>
                 </button>
               );
             })}
           </div>
+          <div className="flex flex-col items-start gap-1 mt-3 mb-1 text-xs font-bold text-stone-600 sm:hidden"><span>الخطوة {currentStep} من 5</span><span>{["البيانات الشخصية","الوظيفة والمؤهل","الخبرات والمهارات","المرفقات","الإقرار والإرسال"][currentStep - 1]}</span></div>
           <div className="w-full bg-stone-200 h-2 rounded-full overflow-hidden mt-3">
             <div
               className="bg-[#9E1A24] h-full transition-all duration-300 rounded-full"
@@ -860,7 +884,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${isUploadingPhoto ? 'bg-stone-100 text-stone-400 cursor-wait' : 'bg-stone-200 hover:bg-stone-300 text-stone-800 cursor-pointer'}`}>
                   <SvgIcons.Upload className="w-4 h-4" />
                   <span>{isUploadingPhoto ? 'جاري رفع الصورة...' : 'اختيار صورة من الهاتف أو الكمبيوتر'}</span>
-                  <input
+                  <SharedInput
                     type="file"
                     accept="image/*"
                     onChange={handlePhotoUpload}
@@ -879,7 +903,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className="block text-xs font-bold text-stone-700">
                   {lbl('full_name')} <span className="text-red-500">*</span>
                 </label>
-                <input
+                <SharedInput
                   type="text"
                   required
                   placeholder="مثال: محمود أحمد محمد إبراهيم"
@@ -894,7 +918,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className="block text-xs font-bold text-stone-700">
                   {lbl('national_id')} <span className="text-red-500">*</span>
                 </label>
-                <input
+                <SharedInput
                   type="text"
                   maxLength={14}
                   required
@@ -902,7 +926,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   value={formData.national_id || ''}
                   onChange={e => {
                     const val = e.target.value.replace(/\D/g, '');
-                    setFormData(prev => ({ ...prev, national_id: val }));
+                    setFormData(prev => ({ ...prev, national_id: val, ...(!prev.birth_date && birthDateFromEgyptianNationalId(val) ? { birth_date: birthDateFromEgyptianNationalId(val)! } : {}) }));
                   }}
                   className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 text-stone-900 text-sm font-mono tracking-wider ${
                     nationalIdDuplicateWarning
@@ -922,7 +946,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className="block text-xs font-bold text-stone-700">
                   {lbl('phone')} <span className="text-red-500">*</span>
                 </label>
-                <input
+                <SharedInput
                   type="tel"
                   maxLength={11}
                   required
@@ -932,8 +956,9 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     const val = e.target.value.replace(/\D/g, '');
                     setFormData(prev => ({ ...prev, phone: val }));
                   }}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono"
+                  className="w-full min-h-12 px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono"
                 />
+                {phoneDuplicateWarning && <p className="text-xs text-red-600 font-bold mt-1">هذا الرقم مسجل مسبقًا. يرجى التواصل مع إدارة التوظيف للمتابعة.</p>}
               </div>
 
               {/* Birth Date — day/month/year selects (easier to use on
@@ -945,7 +970,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   {lbl('birth_date')} <Req k="birth_date" />
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  <select
+                  <SharedSelect
                     value={birthDay}
                     onChange={e => handleBirthDatePartChange('day', e.target.value)}
                     className="w-full px-2 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm bg-white"
@@ -954,8 +979,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
                       <option key={d} value={String(d).padStart(2, '0')}>{d}</option>
                     ))}
-                  </select>
-                  <select
+                  </SharedSelect>
+                  <SharedSelect
                     value={birthMonth}
                     onChange={e => handleBirthDatePartChange('month', e.target.value)}
                     className="w-full px-2 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm bg-white"
@@ -964,8 +989,8 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     {arabicMonths.map((m, i) => (
                       <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
                     ))}
-                  </select>
-                  <select
+                  </SharedSelect>
+                  <SharedSelect
                     value={birthYear}
                     onChange={e => handleBirthDatePartChange('year', e.target.value)}
                     className="w-full px-2 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono bg-white"
@@ -974,7 +999,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     {birthYearOptions.map(y => (
                       <option key={y} value={y}>{y}</option>
                     ))}
-                  </select>
+                  </SharedSelect>
                 </div>
                 {calcAge(formData.birth_date) !== null && (
                   <p className="text-xs font-bold text-emerald-700">السن: {formatAge(formData.birth_date)}</p>
@@ -988,7 +1013,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className="block text-xs font-bold text-stone-700">
                   {lbl('address')} <Req k="address" />
                 </label>
-                <input
+                <SharedInput
                   type="text"
                   required
                   placeholder="المحافظة - المنطقة - الشارع - رقم العقار"
@@ -1003,7 +1028,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               {show('emergency_contact_name') && (
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">{lbl('emergency_contact_name')} <Req k="emergency_contact_name" /></label>
-                <input
+                <SharedInput
                   type="text"
                   placeholder="مثال: أحمد محمد (الوالد)"
                   value={formData.emergency_contact_name || ''}
@@ -1017,7 +1042,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               {show('emergency_phone') && (
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">{lbl('emergency_phone')} <Req k="emergency_phone" /></label>
-                <input
+                <SharedInput
                   type="tel"
                   maxLength={11}
                   placeholder="01XXXXXXXXX"
@@ -1035,7 +1060,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               {show('marital_status') && (
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">{lbl('marital_status')} <Req k="marital_status" /></label>
-                <select
+                <SharedSelect
                   value={formData.marital_status || ''}
                   onChange={e => setFormData(prev => ({ ...prev, marital_status: e.target.value as any }))}
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-medium bg-white"
@@ -1044,7 +1069,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   {opts('marital_status').map(o => (
                     <option key={o} value={o}>{o}</option>
                   ))}
-                </select>
+                </SharedSelect>
               </div>
               )}
 
@@ -1052,7 +1077,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               {show('military_status') && (
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">{lbl('military_status')} <Req k="military_status" /></label>
-                <select
+                <SharedSelect
                   value={formData.military_status || ''}
                   onChange={e => setFormData(prev => ({ ...prev, military_status: e.target.value as any }))}
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-medium bg-white"
@@ -1061,7 +1086,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                   {opts('military_status').map(o => (
                     <option key={o} value={o}>{o}</option>
                   ))}
-                </select>
+                </SharedSelect>
               </div>
               )}
             </div>
@@ -1078,263 +1103,20 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
         {/* STEP 2: Job & Education */}
         {currentStep === 2 && (
-          <div className="bg-white rounded-3xl shadow-sm border border-stone-200 p-6 sm:p-8 space-y-6">
-            <div className="flex items-center justify-between border-b border-stone-200 pb-4">
-              <h2 className="text-xl font-black text-stone-900 flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-[#9E1A24] text-white flex items-center justify-center text-sm font-black">2</span>
-                الوظيفة المطلوبة والمؤهل الدراسي
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Branch */}
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">
-                  {lbl('branch_name', 'الفرع المفضل للعمل به')} <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.branch_name || ''}
-                  onChange={e => {
-                    const selBranch = branches.find(b => b.name === e.target.value);
-                    setFormData(prev => ({
-                      ...prev,
-                      branch_id: selBranch?.id || '',
-                      branch_name: e.target.value,
-                    }));
-                  }}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-medium bg-white"
-                >
-                  <option value="" disabled>اختر الفرع من القائمة</option>
-                  {branches.map(b => (
-                    <option key={b.id} value={b.name}>{b.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Position */}
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">
-                  {lbl('position_name')} <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.position_name || ''}
-                  onChange={e => {
-                    const selPos = positions.find(p => p.title === e.target.value);
-                    setFormData(prev => ({
-                      ...prev,
-                      position_id: selPos?.id || '',
-                      position_name: e.target.value,
-                    }));
-                  }}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-bold text-[#9E1A24] bg-white"
-                >
-                  <option value="" disabled>اختر الوظيفة من القائمة</option>
-                  {positions.map(p => (
-                    <option key={p.id} value={p.title}>{p.title} - ({p.department})</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Restaurant experience checkbox */}
-              {show('restaurant_experience') && (
-              <div className="sm:col-span-2 p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-stone-900">{lbl('restaurant_experience', 'هل لديك خبرة سابقة في مجال المطاعم والأغذية؟')}</h4>
-                  <p className="text-xs text-stone-600">مطاعم الوجبات السريعة، الكافيهات، الفنادق، أو المطابخ</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-stone-800">
-                    <input
-                      type="radio"
-                      name="restaurant_experience"
-                      checked={formData.restaurant_experience === true}
-                      onChange={() => setFormData(prev => ({ ...prev, restaurant_experience: true }))}
-                      className="accent-[#9E1A24] w-4 h-4"
-                    />
-                    نعم
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-stone-800">
-                    <input
-                      type="radio"
-                      name="restaurant_experience"
-                      checked={formData.restaurant_experience === false}
-                      onChange={() => setFormData(prev => ({ ...prev, restaurant_experience: false }))}
-                      className="accent-[#9E1A24] w-4 h-4"
-                    />
-                    لا
-                  </label>
-                </div>
-              </div>
-              )}
-
-              {/* Total years */}
-              {show('experience_years') && (
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">{lbl('experience_years')} <Req k="experience_years" /></label>
-                <input
-                  type="number"
-                  min={0}
-                  max={30}
-                  value={formData.experience_years ?? 0}
-                  onChange={e => setFormData(prev => ({ ...prev, experience_years: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
-                />
-              </div>
-              )}
-
-              {/* Current salary */}
-              {show('current_salary') && (
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">{lbl('current_salary')} (ج.م) <Req k="current_salary" /></label>
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={formData.current_salary ?? ''}
-                  onChange={e => setFormData(prev => ({ ...prev, current_salary: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
-                />
-              </div>
-              )}
-
-              {/* Expected salary */}
-              {show('expected_salary') && (
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">{lbl('expected_salary')} (ج.م) <Req k="expected_salary" /></label>
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={formData.expected_salary ?? ''}
-                  onChange={e => setFormData(prev => ({ ...prev, expected_salary: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
-                />
-              </div>
-              )}
-
-              {/* Last job */}
-              {show('last_job') && (
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-stone-700">{lbl('last_job')} <Req k="last_job" /></label>
-                <input
-                  type="text"
-                  placeholder="مثال: كاشير في مطعم كذا"
-                  value={formData.last_job || ''}
-                  onChange={e => setFormData(prev => ({ ...prev, last_job: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
-                />
-              </div>
-              )}
-
-              {/* Leaving reason */}
-              {show('leaving_reason') && (
-              <div className="sm:col-span-2 space-y-1">
-                <label className="block text-xs font-bold text-stone-700">{lbl('leaving_reason')} <Req k="leaving_reason" /></label>
-                <input
-                  type="text"
-                  placeholder="مثال: البحث عن فرصة أفضل للتطوير، بعد المسافة..."
-                  value={formData.leaving_reason || ''}
-                  onChange={e => setFormData(prev => ({ ...prev, leaving_reason: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
-                />
-              </div>
-              )}
-            </div>
-
-            {/* الحقول الإضافية التي أضافها مدير النظام — قسم job */}
-            <CustomFieldsInputs
-              config={fieldConfig}
-              section="job"
-              values={customData}
-              onChange={handleCustomChange}
-              columns={2}
-            />
-            {/* Education Sub-section */}
-            {showEducation && (
-            <div className="pt-4 border-t border-stone-200">
-              <h3 className="text-md font-black text-stone-900 mb-3">المؤهل والتعليم:</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {show('qualification') && (
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-stone-700">{lbl('qualification')} <Req k="qualification" /></label>
-                  <select
-                    value={formData.qualification || ''}
-                    onChange={e => setFormData(prev => ({ ...prev, qualification: e.target.value as any }))}
-                    className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-medium bg-white"
-                  >
-                    <option value="" disabled>اختر من القائمة</option>
-                    {opts('qualification').map(o => (
-                      <option key={o} value={o}>{o}</option>
-                    ))}
-                  </select>
-                </div>
-                )}
-
-                {show('specialization') && (
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-stone-700">{lbl('specialization', 'التخصص / الكلية')} <Req k="specialization" /></label>
-                  <input
-                    type="text"
-                    placeholder="مثال: تجارة / سياحة وفنادق / دبلوم صنايع"
-                    value={formData.specialization || ''}
-                    onChange={e => setFormData(prev => ({ ...prev, specialization: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm"
-                  />
-                </div>
-                )}
-
-                {show('still_studying') && (
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-stone-700">{lbl('still_studying', 'هل ما زلت تدرس؟')}</label>
-                  <div className="flex gap-4 pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-stone-800">
-                      <input
-                        type="radio"
-                        name="still_studying"
-                        checked={formData.still_studying === true}
-                        onChange={() => setFormData(prev => ({ ...prev, still_studying: true, graduation_year: prev.still_studying === true ? prev.graduation_year : '' }))}
-                        className="accent-[#9E1A24] w-4 h-4"
-                      />
-                      نعم
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-stone-800">
-                      <input
-                        type="radio"
-                        name="still_studying"
-                        checked={formData.still_studying === false}
-                        onChange={() => setFormData(prev => ({ ...prev, still_studying: false, graduation_year: prev.still_studying === false ? prev.graduation_year : '' }))}
-                        className="accent-[#9E1A24] w-4 h-4"
-                      />
-                      لا
-                    </label>
-                  </div>
-                </div>
-                )}
-
-                {show('graduation_year') && (!show('still_studying') || formData.still_studying !== undefined) && (
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-stone-700">{formData.still_studying ? 'السنة الدراسية الحالية' : 'سنة التخرج'} <Req k="graduation_year" /></label>
-                  <input
-                    type="text"
-                    placeholder={formData.still_studying ? 'مثال: الفرقة الثالثة' : 'مثال: 2023'}
-                    value={formData.graduation_year || ''}
-                    onChange={e => setFormData(prev => ({ ...prev, graduation_year: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-[#9E1A24] text-stone-900 text-sm font-mono"
-                  />
-                </div>
-                )}
-              </div>
-            </div>
-            )}
-            {/* الحقول الإضافية التي أضافها مدير النظام — قسم education */}
-            <CustomFieldsInputs
-              config={fieldConfig}
-              section="education"
-              values={customData}
-              onChange={handleCustomChange}
-              columns={2}
-            />
-          </div>
+          <PublicJobEducationStep
+            formData={formData}
+            onFormDataChange={setFormData}
+            branches={branches}
+            positions={positions}
+            config={fieldConfig}
+            customValues={customData}
+            show={show}
+            req={req}
+            lbl={lbl}
+            opts={opts}
+            onCustomChange={handleCustomChange}
+            showEducation={showEducation}
+          />
         )}
 
         {/* STEP 3: Experience & Skills & Shifts */}
@@ -1378,7 +1160,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-bold text-stone-600 mb-1">اسم المكان / الشركة / المطعم</label>
-                        <input
+                        <SharedInput
                           type="text"
                           placeholder="مثال: مطعم شاورما"
                           value={exp.workplace}
@@ -1388,7 +1170,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-stone-600 mb-1">المسمى الوظيفي</label>
-                        <input
+                        <SharedInput
                           type="text"
                           placeholder="مثال: ويتر / كاشير / شيف"
                           value={exp.position}
@@ -1399,7 +1181,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                       <div>
                         <label className="block text-[11px] font-bold text-stone-600 mb-1">مدة الخبرة</label>
                         <div className="flex items-center gap-2">
-                          <input
+                          <SharedInput
                             type="number"
                             min={0}
                             max={50}
@@ -1410,7 +1192,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                             className="w-full px-3 py-2 rounded-lg border border-stone-300 text-xs bg-white text-center"
                           />
                           <span className="text-[11px] font-bold text-stone-600 whitespace-nowrap">سنة</span>
-                          <input
+                          <SharedInput
                             type="number"
                             min={0}
                             max={11}
@@ -1425,7 +1207,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-stone-600 mb-1">سبب ترك العمل</label>
-                        <input
+                        <SharedInput
                           type="text"
                           placeholder="سبب المغادرة"
                           value={exp.leaving_reason}
@@ -1482,7 +1264,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {show('shifts_preference') && (
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
-                  <input
+                  <SharedInput
                     type="checkbox"
                     checked={formData.shift_morning === true}
                     onChange={e => setFormData(prev => ({ ...prev, shift_morning: e.target.checked }))}
@@ -1494,7 +1276,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
                 {show('shifts_preference') && (
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
-                  <input
+                  <SharedInput
                     type="checkbox"
                     checked={formData.shift_night === true}
                     onChange={e => setFormData(prev => ({ ...prev, shift_night: e.target.checked }))}
@@ -1506,7 +1288,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
                 {show('availability') && (
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
-                  <input
+                  <SharedInput
                     type="checkbox"
                     checked={formData.can_work_overtime === true}
                     onChange={e => setFormData(prev => ({ ...prev, can_work_overtime: e.target.checked }))}
@@ -1518,7 +1300,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
                 {show('availability') && (
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
-                  <input
+                  <SharedInput
                     type="checkbox"
                     checked={formData.can_work_holidays === true}
                     onChange={e => setFormData(prev => ({ ...prev, can_work_holidays: e.target.checked }))}
@@ -1530,7 +1312,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
                 {show('availability') && (
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer text-xs font-bold text-stone-800">
-                  <input
+                  <SharedInput
                     type="checkbox"
                     checked={formData.can_work_shifts === true}
                     onChange={e => setFormData(prev => ({ ...prev, can_work_shifts: e.target.checked }))}
@@ -1591,7 +1373,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     <span className="text-xs font-bold text-stone-700">
                       {uploadingDocType === 'صورة بطاقة الرقم القومي - الوجه' ? 'جاري الرفع...' : 'اضغط لرفع وش البطاقة'}
                     </span>
-                    <input
+                    <SharedInput
                       type="file"
                       accept="image/*,.pdf"
                       onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي - الوجه')}
@@ -1626,7 +1408,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     <span className="text-xs font-bold text-stone-700">
                       {uploadingDocType === 'صورة بطاقة الرقم القومي - الظهر' ? 'جاري الرفع...' : 'اضغط لرفع ظهر البطاقة'}
                     </span>
-                    <input
+                    <SharedInput
                       type="file"
                       accept="image/*,.pdf"
                       onChange={e => handleDocumentUpload(e, 'صورة بطاقة الرقم القومي - الظهر')}
@@ -1662,7 +1444,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                     <span className="text-xs font-bold text-stone-700">
                       {uploadingDocType === 'شهادة صحية' ? 'جاري الرفع...' : 'اضغط لرفع الشهادة الصحية'}
                     </span>
-                    <input
+                    <SharedInput
                       type="file"
                       accept="image/*,.pdf"
                       onChange={e => handleDocumentUpload(e, 'شهادة صحية')}
@@ -1734,7 +1516,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                         accepted ? 'border-[#9E1A24] bg-red-50/40' : 'border-stone-300 bg-stone-50 hover:border-[#9E1A24]'
                       }`}
                     >
-                      <input
+                      <SharedInput
                         type="checkbox"
                         checked={accepted}
                         onChange={e => setAccepted(e.target.checked)}
@@ -1756,7 +1538,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
                 <label className="block text-xs font-bold text-stone-700">
                   توقيع المتقدم (نفس الاسم المكتوب في الاستمارة)
                 </label>
-                <input
+                <SharedInput
                   type="text"
                   readOnly
                   value={formData.full_name || ''}
@@ -1767,8 +1549,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
 
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-stone-700">تاريخ التقديم</label>
-                <input
-                  type="date"
+                <SharedDateInput
                   disabled
                   value={formData.declaration_date || new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-3 rounded-xl border border-stone-300 bg-stone-100 text-stone-600 text-sm font-mono"
@@ -1813,7 +1594,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
             <button
               type="button"
               onClick={handlePrev}
-              className="px-5 py-2.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 font-bold text-xs sm:text-sm transition-all"
+              className="min-h-12 px-5 py-3 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 font-bold text-xs sm:text-sm transition-all"
             >
               ← الخطوة السابقة
             </button>
@@ -1825,7 +1606,7 @@ export const PublicApplicantPortal: React.FC<PublicApplicantPortalProps> = ({
             <button
               type="button"
               onClick={handleNext}
-              className="px-6 py-2.5 rounded-xl bg-[#9E1A24] hover:bg-[#80141D] text-white font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center gap-2"
+              className="min-h-12 px-6 py-3 rounded-xl bg-[#9E1A24] hover:bg-[#80141D] text-white font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center gap-2"
             >
               <span>متابعة للخطوة التالية</span>
               <span>→</span>

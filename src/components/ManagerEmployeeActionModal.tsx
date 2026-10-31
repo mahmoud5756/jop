@@ -80,7 +80,7 @@ export const ManagerEmployeeActionModal: React.FC<Props> = ({ employee, branches
               {employee.full_name} · {employee.position_name}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/15 transition-colors" title="إغلاق">
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/15 transition-colors" aria-label="إغلاق" title="إغلاق">
             <SvgIcons.XMark className="w-5 h-5" />
           </button>
         </div>

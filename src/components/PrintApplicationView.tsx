@@ -60,6 +60,26 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
   };
 
   const skillsList = applicant.skills || [];
+  const printStyles = `
+    @media print {
+      .print-root .print-first-page-intro {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .print-root .page-break-after {
+        break-after: page;
+        page-break-after: always;
+      }
+      .print-root .print-avoid-break,
+      .print-root table,
+      .print-root thead,
+      .print-root tbody,
+      .print-root tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  `;
   const experiences = applicant.experiences || [];
   const assets = applicant.assets || [];
   const totalAssetsCount = assets.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
@@ -98,6 +118,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
 
   return (
     <div className="print-root fixed inset-0 z-50 overflow-y-auto bg-stone-900/80 backdrop-blur-xs flex justify-center p-2 sm:p-6 print:p-0 print:bg-white print:static print:overflow-visible">
+      <style>{printStyles}</style>
       {/* Top Action Bar in Non-Print View */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-white/95 backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl border border-stone-200 flex items-center gap-4 print:hidden">
         <button
@@ -123,6 +144,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
         {/* ================= PAGE 1 ================= */}
         <div className="p-6 sm:p-8 print:p-0 min-h-[297mm] print:min-h-[297mm] print:h-[297mm] print-page flex flex-col justify-between relative border-b-4 border-dashed border-stone-300 print:border-none page-break-after">
           <div>
+            <div className="print-first-page-intro">
             {/* Page 1 Header */}
             <div className="print-avoid-break flex items-start justify-between border-b-2 border-[#9E1A24] pb-3 mb-3">
               {/* Brand Logo & Title */}
@@ -246,6 +268,7 @@ export const PrintApplicationView: React.FC<PrintApplicationViewProps> = ({
               </div>
             </div>
 
+            </div>
             {/* Section 2: الوظيفة المطلوبة */}
             <div className="print-avoid-break mb-3">
               <div className="bg-[#9E1A24] text-white px-2.5 py-0.5 text-[11px] font-bold rounded-t">

@@ -9,18 +9,13 @@ import {
   createRateLimiter,
   AuthenticatedRequest
 } from './auth.js';
+import { redactEmployeeForManager } from './permissions.js';
+import { sanitizePublicApplicantInput } from './publicApplicantInput.js';
+import { isHrStoragePublicUrl, validateSignedUpload } from './uploadValidation.js';
+import { isValidEgyptianNationalId, isValidEgyptianMobile, normalizeDigits } from '../src/utils/egyptianValidation.js';
+import { Applicant } from '../src/types/index.js';
 
 const UPLOADS_BUCKET = 'hr-documents';
-const ALLOWED_UPLOAD_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-
-/**
- * مدير الفرع مايشوفش راتب الموظفين اللي عليهم علامة "إخفاء الراتب عن مدير الفرع".
- * بنفرّغ الراتب من السيرفر نفسه (مش بس نخفيه في الشاشة) عشان مايبقاش ظاهر في أي طلب.
- */
-function maskSalaryForManager<T extends { salary?: any; hide_salary_from_manager?: boolean }>(emp: T): T {
-  if (!emp || !emp.hide_salary_from_manager) return emp;
-  return { ...emp, salary: null };
-}
 
 // Builds and returns a fully configured Express app with all API routes.
 // Shared between the local dev server (server.ts) and the Vercel serverless
@@ -44,7 +39,7 @@ export function createApp() {
   const loginLimiter = createRateLimiter(15, 60 * 1000, 'تم تجاوز عدد محاولات الدخول، يرجى المحاولة بعد دقيقة');
   const publicApplyLimiter = createRateLimiter(10, 60 * 1000, 'تم تجاوز الحد المسموح به لإرسال الطلبات، يرجى المحاولة بعد قليل');
   const nationalIdCheckLimiter = createRateLimiter(30, 60 * 1000, 'تم تجاوز معدل الفحص السريع');
-  const uploadSignedUrlLimiter = createRateLimiter(30, 60 * 1000, 'تم تجاوز الحد المسموح لعمليات رفع الملفات، يرجى المحاولة بعد قليل');
+  const uploadSignedUrlLimiter = createRateLimiter(15, 60 * 1000, 'تم تجاوز الحد المسموح لعمليات رفع الملفات، يرجى المحاولة بعد قليل');
 
   // =========================================================================
   // 1. PUBLIC API ROUTES (مفتوحة لعامة المتقدمين بدون توكن)
@@ -63,18 +58,11 @@ export function createApp() {
   // Supabase Storage using the returned token, bypassing Vercel's function
   // body limit altogether.
   app.post('/api/uploads/signed-url', uploadSignedUrlLimiter, async (req: Request, res: Response) => {
-    const { fileName, contentType } = req.body || {};
+    const validation = validateSignedUpload(req.body || {});
+    if (validation.ok === false) return res.status(400).json({ error: validation.error });
+    const { contentType, extension: safeExt } = validation.value;
 
-    if (!contentType || typeof contentType !== 'string' || !ALLOWED_UPLOAD_CONTENT_TYPES.includes(contentType)) {
-      return res.status(400).json({ error: 'نوع الملف غير مسموح به. يرجى رفع صور (JPEG, PNG, WEBP) أو ملفات PDF فقط.' });
-    }
-
-    // Build a safe, unpredictable storage path — never trust the client's
-    // filename directly (path traversal / overwrite risk), only reuse its
-    // extension for readability.
-    const rawExt = typeof fileName === 'string' ? fileName.split('.').pop() || '' : '';
-    const safeExt = rawExt.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase() ||
-      (contentType === 'application/pdf' ? 'pdf' : 'jpg');
+    // The caller's filename is never used in the storage path; use a MIME-derived extension only.
     const datePrefix = new Date().toISOString().slice(0, 10);
     const uniquePath = `public-uploads/${datePrefix}/${crypto.randomUUID()}.${safeExt}`;
 
@@ -138,6 +126,13 @@ export function createApp() {
     }
   });
 
+  app.post('/api/check-phone-public', nationalIdCheckLimiter, async (req: Request, res: Response) => {
+    const phone = String(req.body?.phone || '').trim();
+    const category = req.body?.applicantCategory === 'internal_staff' ? 'internal_staff' : 'external';
+    if (!phone) return res.json({ exists: false });
+    try { res.json({ exists: !!(await db.getApplicantByPhone(phone, undefined, category)) }); }
+    catch (err) { console.error('Public phone duplicate check failed:', err); res.json({ exists: false }); }
+  });
   // Public: application form field settings (which fields the candidate sees).
   // Read-only and public on purpose — the candidate portal needs it before login.
   app.get('/api/form-fields-public', async (req: Request, res: Response) => {
@@ -152,17 +147,20 @@ export function createApp() {
 
   // Public Application Submission (Candidate Portal)
   app.post('/api/applicants/public-apply', publicApplyLimiter, async (req: Request, res: Response) => {
-    const body = req.body;
+    const rawBody = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const body = sanitizePublicApplicantInput(rawBody, process.env.SUPABASE_URL);
+    body.national_id = normalizeDigits(String(body.national_id || '').trim());
+    body.phone = normalizeDigits(String(body.phone || '').trim());
 
-    // Strict validation of required fields
-    if (!body.full_name || !body.full_name.trim()) {
+    // Strict server-side validation of candidate-provided fields
+    if (typeof body.full_name !== 'string' || !body.full_name.trim()) {
       return res.status(400).json({ error: 'الاسم الرباعي مطلوب' });
     }
-    if (!body.national_id || body.national_id.trim().length !== 14) {
-      return res.status(400).json({ error: 'الرقم القومي يجب أن يتكون من 14 رقماً' });
+    if (!isValidEgyptianNationalId(String(body.national_id || ''))) {
+      return res.status(400).json({ error: 'الرقم القومي غير صحيح؛ أدخل رقمًا مصريًا صحيحًا من 14 رقمًا' });
     }
-    if (!body.phone || !body.phone.trim()) {
-      return res.status(400).json({ error: 'رقم الهاتف مطلوب' });
+    if (!isValidEgyptianMobile(String(body.phone || ''))) {
+      return res.status(400).json({ error: 'رقم الهاتف المصري غير صحيح' });
     }
     if (!body.position_name) {
       return res.status(400).json({ error: 'يرجى اختيار الوظيفة المطلوبة' });
@@ -173,8 +171,8 @@ export function createApp() {
 
     try {
       // Force public application defaults
-      const applicant_category = body.applicant_category === 'internal_staff' ? 'internal_staff' : 'external';
-      const candidateData = {
+      const applicant_category: Applicant['applicant_category'] = rawBody.applicant_category === 'internal_staff' ? 'internal_staff' : 'external';
+      const candidateData: Partial<Applicant> = {
         ...body,
         status: 'طلب جديد',
         applicant_category,
@@ -194,7 +192,10 @@ export function createApp() {
 
       res.status(201).json({
         success: true,
-        data: result.applicant,
+        data: {
+          application_code: result.applicant?.application_code || '',
+          created_at: result.applicant?.created_at || new Date().toISOString(),
+        },
         message: 'تم استلام طلب التوظيف الخاص بك بنجاح',
       });
     } catch (err: any) {
@@ -259,7 +260,7 @@ export function createApp() {
   });
 
   // Dashboard Stats
-  app.get('/api/stats', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/stats', requireAuth, requireRole(['admin', 'hr', 'manager']), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const stats = await db.getStats();
       res.json({ data: stats });
@@ -270,7 +271,7 @@ export function createApp() {
   });
 
   // Global Search
-  app.get('/api/search', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/search', requireAuth, requireRole(['admin', 'hr', 'manager']), async (req: AuthenticatedRequest, res: Response) => {
     const q = (req.query.q as string) || '';
     try {
       const results = await db.globalSearch(q);
@@ -280,7 +281,7 @@ export function createApp() {
         return res.json({
           data: {
             applicants: [],
-            employees: results.employees.filter(e => e.branch_name === branch).map(maskSalaryForManager),
+            employees: results.employees.filter(e => e.branch_name === branch).map(redactEmployeeForManager),
           },
         });
       }
@@ -292,7 +293,7 @@ export function createApp() {
   });
 
   // Staff check National ID duplication (with candidate metadata for duplicate warnings)
-  app.get('/api/check-national-id/:nationalId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/check-national-id/:nationalId', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     const nationalId = req.params.nationalId;
     const excludeId = req.query.excludeId as string | undefined;
     const category = req.query.category === 'internal_staff' ? 'internal_staff' : (req.query.category === 'external' ? 'external' : undefined);
@@ -318,6 +319,13 @@ export function createApp() {
     }
   });
 
+  app.get('/api/check-phone/:phone', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
+    const category = req.query.category === 'internal_staff' ? 'internal_staff' : (req.query.category === 'external' ? 'external' : undefined);
+    try {
+      const applicant = await db.getApplicantByPhone(req.params.phone, req.query.excludeId as string | undefined, category);
+      res.json(applicant ? { exists: true, applicant: { id: applicant.id, full_name: applicant.full_name, application_code: applicant.application_code } } : { exists: false });
+    } catch (err: any) { res.status(500).json({ error: err.message || 'فشل التحقق من رقم الهاتف' }); }
+  });
   // Applicants List & Filter — Admin/HR only. Branch managers must never see
   // candidate data; their only window into the pipeline is /api/branch-overview
   // (scoped to their own branch's already-hired employees).
@@ -403,13 +411,13 @@ export function createApp() {
   });
 
   // Documents Management
-  app.post('/api/applicants/:id/documents', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/applicants/:id/documents', requireAuth, requireRole(['admin', 'hr', 'manager']), async (req: AuthenticatedRequest, res: Response) => {
     const applicantId = req.params.id;
     const { document_type, file_name, file_url, file_size } = req.body;
     const uploaded_by = req.user?.name || 'مسؤول التوظيف';
 
-    if (!file_url || !file_name) {
-      return res.status(400).json({ error: 'ملف المرفق وبياناته مطلوبة' });
+    if (!file_url || !file_name || typeof file_name !== 'string' || file_name.length > 255 || !isHrStoragePublicUrl(file_url, process.env.SUPABASE_URL)) {
+      return res.status(400).json({ error: 'رابط الملف غير صالح أو لا ينتمي إلى مساحة ملفات الموارد البشرية.' });
     }
 
     try {
@@ -437,7 +445,7 @@ export function createApp() {
     }
   });
 
-  app.delete('/api/documents/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.delete('/api/documents/:id', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     const performedBy = req.user?.name || 'مسؤول التوظيف';
     const userRole = req.user?.role || 'hr';
     try {
@@ -487,7 +495,7 @@ export function createApp() {
   });
 
   // Employees List
-  app.get('/api/employees', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/employees', requireAuth, requireRole(['admin', 'hr', 'manager']), async (req: AuthenticatedRequest, res: Response) => {
     const filters = {
       search: req.query.search as string,
       // مدير الفرع بيشوف موظفين فرعه بس، حتى لو حاول يبعت فلتر فرع تاني
@@ -500,7 +508,7 @@ export function createApp() {
       try { await db.applyDueDepartures(); } catch (e) { console.warn('applyDueDepartures failed:', e); }
       const employees = await db.getEmployees(filters);
       // مدير الفرع مايشوفش راتب الموظفين اللي الموارد البشرية مخفياه عنه
-      const safe = req.user?.role === 'manager' ? employees.map(maskSalaryForManager) : employees;
+      const safe = req.user?.role === 'manager' ? employees.map(redactEmployeeForManager) : employees;
       res.json({ data: safe, total: safe.length });
     } catch (err: any) {
       console.error('API /api/employees error:', err);
@@ -508,7 +516,7 @@ export function createApp() {
     }
   });
 
-  app.get('/api/employees/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/employees/:id', requireAuth, requireRole(['admin', 'hr', 'manager']), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const result = await db.getEmployeeById(req.params.id);
       if (!result) {
@@ -519,7 +527,7 @@ export function createApp() {
         if (!req.user.branch || result.employee.branch_name !== req.user.branch) {
           return res.status(404).json({ error: 'ملف الموظف غير موجود' });
         }
-        return res.json({ data: { employee: maskSalaryForManager(result.employee), applicant: null } });
+        return res.json({ data: { employee: redactEmployeeForManager(result.employee), applicant: null } });
       }
       res.json({ data: result });
     } catch (err: any) {
@@ -578,7 +586,7 @@ export function createApp() {
         if (!result.success) {
           return res.status(400).json({ error: result.error });
         }
-        return res.json({ success: true, data: maskSalaryForManager(result.employee!), message: 'تم تحديث رقم البصمة بنجاح' });
+        return res.json({ success: true, data: redactEmployeeForManager(result.employee!), message: 'تم تحديث رقم البصمة بنجاح' });
       } catch (err: any) {
         console.error('API PATCH /api/employees/:id (manager) error:', err);
         return res.status(500).json({ error: err.message || 'فشل تحديث رقم البصمة' });
@@ -952,7 +960,7 @@ export function createApp() {
   // ملخص متابعة الفرع: مدير الفرع بيشوف فرعه بس (بيتحدد من حسابه مباشرة
   // ومينفعش يتغير من الفرونت)، والأدمن/الموارد البشرية يقدروا يشوفوا أي فرع
   // بتمرير ?branch=...
-  app.get('/api/branch-overview', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/branch-overview', requireAuth, requireRole(['admin', 'hr', 'manager']), async (req: AuthenticatedRequest, res: Response) => {
     try {
       let branch: string;
       if (req.user?.role === 'manager') {
@@ -980,7 +988,7 @@ export function createApp() {
   // on every printed document (payslip, contracts, ...). Readable by any
   // authenticated staff member (needed to print), editable by admin/hr only.
   // =========================================================================
-  app.get('/api/company-settings', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/company-settings', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const settings = await db.getCompanySettings();
       res.json({ data: settings });
@@ -995,7 +1003,7 @@ export function createApp() {
   // وأيها إلزامي، ويضيف حقول جديدة. نفس الإعداد يستخدم في شاشة الأدمن
   // وفي صفحة الطباعة حتى لا يحدث أي اختلاف بينهم.
   // =========================================================================
-  app.get('/api/form-fields', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/form-fields', requireAuth, requireRole(['admin', 'hr']), async (req: AuthenticatedRequest, res: Response) => {
     try {
       const config = await db.getFormFieldConfig();
       res.json({ data: config });

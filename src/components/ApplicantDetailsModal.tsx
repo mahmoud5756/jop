@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { calcAge, formatAge, formatDuration } from '../utils/age';
 import { Applicant, CurrentUser, Employee, FormFieldConfig } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
+import { ApplicantInterviewsPanel } from './ApplicantInterviewsPanel';
 import { CustomFieldsReadOnly } from './CustomFieldsRenderer';
 import { isRejectedApplicant } from '../utils/applicantStatus';
 import {
@@ -48,7 +49,41 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
   onWhatsApp,
   onInterviewAdded,
 }) => {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const convertDialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'interviews' | 'assets' | 'documents' | 'audit'>('overview');
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    modalRef.current?.querySelector<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])')?.focus();
+    return () => previousFocusRef.current?.focus();
+  }, []);
+
+  const handleModalKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (showConvertDialog) setShowConvertDialog(false);
+      else onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = modalRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    if (!focusable?.length) {
+      event.preventDefault();
+      modalRef.current?.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !modalRef.current?.contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !modalRef.current?.contains(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   // نفس إعدادات نموذج التقديم — الحقول المخفية لا تظهر هنا أيضًا،
   // والحقول الإضافية التي أنشأها مدير النظام تظهر ببياناتها.
@@ -103,6 +138,12 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
 
   const [isConverting, setIsConverting] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
+  useEffect(() => {
+    if (!showConvertDialog) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    convertDialogRef.current?.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), button:not([disabled])')?.focus();
+    return () => previous?.focus();
+  }, [showConvertDialog]);
   const [convertForm, setConvertForm] = useState({
     hire_date: new Date().toISOString().split('T')[0],
     salary: applicant.hr_decision?.proposed_salary || 7000,
@@ -166,7 +207,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6">
-      <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden text-right dir-rtl animate-in fade-in zoom-in-95 duration-150">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="applicant-details-title" onKeyDown={handleModalKeyDown} tabIndex={-1} className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden text-right dir-rtl animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header Bar */}
         <div className="bg-gradient-to-r from-stone-900 via-[#8B1E22] to-[#9E1A24] text-white p-6 flex items-start justify-between">
@@ -186,7 +227,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
 
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h3 className="text-xl sm:text-2xl font-black">{applicant.full_name}</h3>
+                <h3 id="applicant-details-title" className="text-xl sm:text-2xl font-black">{applicant.full_name}</h3>
                 <span className={`px-3 py-1 rounded-full text-xs font-black border ${getStatusBadge(applicant.status)}`}>
                   {applicant.status}
                 </span>
@@ -207,7 +248,9 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={onClose}
+            aria-label="إغلاق تفاصيل المتقدم"
             className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-xl transition-all"
           >
             <SvgIcons.XMark className="w-5 h-5" />
@@ -629,158 +672,18 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
 
           {/* TAB: INTERVIEWS */}
           {activeTab === 'interviews' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-stone-900 text-sm">سجل المقابلات الشخصية</h4>
-                {canAddInterview && !showInterviewForm && (
-                  <button
-                    type="button"
-                    onClick={() => { setInterviewError(null); setShowInterviewForm(true); }}
-                    className="text-xs font-bold bg-[#9E1A24] text-white px-3 py-1.5 rounded-xl hover:opacity-90 transition-all"
-                  >
-                    + إضافة مقابلة
-                  </button>
-                )}
-              </div>
-
-              {showInterviewForm && (
-                <div className="bg-white p-4 rounded-2xl border-2 border-[#9E1A24]/30 space-y-3 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-stone-900">
-                      مقابلة جديدة (رقم {Math.max(0, ...(applicant.interviews || []).map(i => Number(i.interview_number) || 0)) + 1})
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map(star => (
-                        <button key={star} type="button" onClick={() => setInterviewForm(f => ({ ...f, evaluation: star }))}>
-                          <SvgIcons.Star className="w-4 h-4 cursor-pointer" filled={star <= interviewForm.evaluation} />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-stone-700 mb-1">تاريخ المقابلة</label>
-                      <input
-                        type="date"
-                        value={interviewForm.interview_date}
-                        onChange={e => setInterviewForm(f => ({ ...f, interview_date: e.target.value }))}
-                        className="w-full p-2 border border-stone-300 rounded-lg bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-bold text-stone-700 mb-1">المسؤول عن المقابلة</label>
-                      <input
-                        type="text"
-                        value={interviewForm.interviewer_name}
-                        onChange={e => setInterviewForm(f => ({ ...f, interviewer_name: e.target.value }))}
-                        className="w-full p-2 border border-stone-300 rounded-lg bg-white"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-stone-700 mb-1">نتيجة المقابلة</label>
-                    <div className="flex flex-wrap gap-2">
-                      {(['مقبول', 'مرفوض', 'إعادة مقابلة', 'حضر', 'لم يحضر'] as const).map(st => (
-                        <button
-                          key={st}
-                          type="button"
-                          onClick={() => setInterviewForm(f => ({ ...f, status: st }))}
-                          className={`flex-1 min-w-[72px] py-1.5 px-2 rounded-lg font-bold transition-all ${
-                            interviewForm.status === st
-                              ? 'bg-[#9E1A24] text-white'
-                              : 'bg-white text-stone-700 border border-stone-300 hover:bg-stone-100'
-                          }`}
-                        >
-                          {st}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-[11px] text-stone-500 mt-1.5">
-                      حالة المتقدم هتتحدّث تلقائيًا حسب النتيجة دي (ماعدا "لم يحضر").
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-stone-700 mb-1">ملاحظات</label>
-                    <textarea
-                      rows={2}
-                      value={interviewForm.notes}
-                      onChange={e => setInterviewForm(f => ({ ...f, notes: e.target.value }))}
-                      className="w-full p-2 border border-stone-300 rounded-lg bg-white"
-                    />
-                  </div>
-
-                  {interviewError && (
-                    <div className="p-2 bg-red-50 text-red-700 border border-red-200 rounded-lg font-semibold">
-                      {interviewError}
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      type="button"
-                      disabled={isSavingInterview}
-                      onClick={() => { setShowInterviewForm(false); setInterviewError(null); }}
-                      className="px-4 py-1.5 rounded-lg font-bold border border-stone-300 text-stone-700 hover:bg-stone-100"
-                    >
-                      إلغاء
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isSavingInterview}
-                      onClick={handleSaveInterview}
-                      className="px-4 py-1.5 rounded-lg font-bold bg-[#9E1A24] text-white disabled:opacity-60"
-                    >
-                      {isSavingInterview ? 'جاري الحفظ...' : 'حفظ المقابلة'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!applicant.interviews || applicant.interviews.length === 0 ? (
-                <div className="p-8 text-center bg-stone-50 rounded-2xl text-stone-500 text-xs">
-                  لم يتم تسجيل مقابلات بعد للمتقدم
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {applicant.interviews.map((int, i) => (
-                    <div key={int.id || i} className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs bg-[#9E1A24] text-white px-2.5 py-0.5 rounded-lg">
-                          المقابلة رقم {int.interview_number || i + 1}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          {[1, 2, 3, 4, 5].map(star => (
-                            <SvgIcons.Star key={star} className="w-4 h-4" filled={star <= int.evaluation} />
-                          ))}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        <div>
-                          <span className="text-stone-500 block">التاريخ:</span>
-                          <span className="font-mono font-semibold">{int.interview_date}</span>
-                        </div>
-                        <div>
-                          <span className="text-stone-500 block">المسؤول:</span>
-                          <span className="font-semibold">{int.interviewer_name}</span>
-                        </div>
-                        <div>
-                          <span className="text-stone-500 block">النتيجة:</span>
-                          <span className="font-bold text-[#9E1A24]">{int.status}</span>
-                        </div>
-                      </div>
-                      {int.notes && (
-                        <div className="bg-white p-2.5 rounded-xl text-xs text-stone-700 border border-stone-200">
-                          {int.notes}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <ApplicantInterviewsPanel
+              applicant={applicant}
+              canAddInterview={canAddInterview}
+              showInterviewForm={showInterviewForm}
+              setShowInterviewForm={setShowInterviewForm}
+              interviewForm={interviewForm}
+              setInterviewForm={setInterviewForm}
+              isSavingInterview={isSavingInterview}
+              interviewError={interviewError}
+              setInterviewError={setInterviewError}
+              onSaveInterview={handleSaveInterview}
+            />
           )}
 
           {/* TAB: ASSETS */}
@@ -885,6 +788,7 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
             تاريخ التقديم: <span className="font-mono text-stone-800">{new Date(applicant.created_at).toLocaleString('ar-EG')}</span>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="bg-stone-200 hover:bg-stone-300 text-stone-800 px-5 py-2 rounded-xl font-bold transition-all"
           >
@@ -896,19 +800,19 @@ export const ApplicantDetailsModal: React.FC<ApplicantDetailsModalProps> = ({
       {/* Convert to Employee Modal Dialog */}
       {showConvertDialog && (
         <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full text-right dir-rtl shadow-2xl border border-stone-200 space-y-4">
+          <div ref={convertDialogRef} role="dialog" aria-modal="true" aria-labelledby="convert-dialog-title" tabIndex={-1} className="bg-white rounded-3xl p-6 max-w-md w-full text-right dir-rtl shadow-2xl border border-stone-200 space-y-4">
             <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
               <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
                 <SvgIcons.UserCheck className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-lg font-black text-stone-900">تحويل إلى موظف رسمي</h4>
+                <h4 id="convert-dialog-title" className="text-lg font-black text-stone-900">تحويل إلى موظف رسمي</h4>
                 <p className="text-xs text-stone-500">سيتم إنشاء كود موظف جديد ونقل بيانات التعيين</p>
               </div>
             </div>
 
             {convertError && (
-              <div className="bg-red-50 text-red-700 text-xs p-3 rounded-xl font-bold border border-red-200">
+              <div role="alert" className="bg-red-50 text-red-700 text-xs p-3 rounded-xl font-bold border border-red-200">
                 {convertError}
               </div>
             )}

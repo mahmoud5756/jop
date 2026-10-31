@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useAccessibleDialog } from './useAccessibleDialog';
 import { Employee } from '../types';
 
 interface DepartureDialogProps {
@@ -30,6 +31,8 @@ export const DepartureDialog: React.FC<DepartureDialogProps> = ({
   const [date, setDate] = useState(todayLocal());
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useAccessibleDialog(dialogRef, onCancel);
 
   const isResign = status === 'مستقيل';
 
@@ -51,12 +54,12 @@ export const DepartureDialog: React.FC<DepartureDialogProps> = ({
       dir="rtl"
       onClick={onCancel}
     >
-      <div
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="departure-dialog-title" tabIndex={-1}
         className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4"
         onClick={e => e.stopPropagation()}
       >
         <div>
-          <h3 className="text-lg font-black text-stone-900 flex items-center gap-2">
+          <h3 id="departure-dialog-title" className="text-lg font-black text-stone-900 flex items-center gap-2">
             <span>🗄️</span>
             <span>{isResign ? 'تسجيل استقالة' : 'تسجيل إنهاء تعاقد'}</span>
           </h3>

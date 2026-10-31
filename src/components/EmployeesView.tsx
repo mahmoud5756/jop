@@ -6,8 +6,12 @@ import { DepartureDialog } from './DepartureDialog';
 import { ManagerEmployeeActionModal } from './ManagerEmployeeActionModal';
 import { isDepartedStatus } from '../utils/employeeStatus';
 import { ApiService } from '../services/api';
+import { exportExcel } from '../utils/exportExcel';
+import { Download } from 'lucide-react';
+import { ListLoadingSkeleton } from './ApplicantFormControls';
 
 interface EmployeesViewProps {
+  isLoading?: boolean;
   employees: Employee[];
   applicants: Applicant[];
   branches?: Branch[];
@@ -36,6 +40,7 @@ interface EmployeesViewProps {
 }
 
 export const EmployeesView: React.FC<EmployeesViewProps> = ({
+  isLoading = false,
   employees,
   applicants,
   branches = [],
@@ -121,6 +126,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
     }
   };
 
+  if (isLoading) return <ListLoadingSkeleton rows={7} label="جاري تحميل قائمة الموظفين" />;
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -140,12 +146,13 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
             <button
               onClick={onOpenReport}
               className="bg-[#9E1A24] hover:bg-[#85151e] text-white px-4 py-2 rounded-2xl text-xs font-black flex items-center gap-2 shadow transition-all hover:scale-105 active:scale-95"
-              title="تقرير PDF لكل الموظفين مقسّم حسب الفرع (شامل رقم البصمة)"
+              aria-label="تقرير PDF لكل الموظفين مقسّم حسب الفرع (شامل رقم البصمة)" title="تقرير PDF لكل الموظفين مقسّم حسب الفرع (شامل رقم البصمة)"
             >
               <SvgIcons.Print className="w-4 h-4" />
               <span>تقرير الموظفين PDF</span>
             </button>
           )}
+          <button type="button" onClick={() => exportExcel('الموظفون', ['الاسم','كود الموظف','الهاتف','الوظيفة','الفرع','الحالة','تاريخ التعيين'], filteredEmployees.map(e => [e.full_name,e.employee_code,e.phone,e.position_name,e.branch_name,e.status,e.hire_date]), 'قائمة_الموظفين')} disabled={!filteredEmployees.length} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-700 text-white px-4 py-2 text-xs font-bold disabled:opacity-50"><Download className="w-4 h-4"/>تصدير Excel ({filteredEmployees.length})</button>
           <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-4 py-2 rounded-2xl text-xs font-bold flex items-center gap-2">
             <SvgIcons.UserCheck className="w-4 h-4" />
             <span>إجمالي القوة الفعلية: {employees.length} موظف</span>

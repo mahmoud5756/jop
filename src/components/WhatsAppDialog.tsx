@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import { useAccessibleDialog } from './useAccessibleDialog';
 import { Applicant } from '../types';
 import {
   WHATSAPP_TEMPLATES,
@@ -10,7 +11,8 @@ import {
 } from '../utils/whatsapp';
 
 interface WhatsAppDialogProps {
-  applicant: Applicant;
+  applicant?: Applicant;
+  applicants?: Applicant[];
   onClose: () => void;
 }
 
@@ -18,7 +20,10 @@ interface WhatsAppDialogProps {
  * رسالة واتساب جاهزة للمتقدم: بتختار القالب (مقابلة / مستندات / قبول / اعتذار)،
  * تعدّل النص لو حبيت، وبعدين بتفتح واتساب بالرسالة معبّاة — أنت اللي بتدوس إرسال.
  */
-export const WhatsAppDialog: React.FC<WhatsAppDialogProps> = ({ applicant, onClose }) => {
+export const WhatsAppDialog: React.FC<WhatsAppDialogProps> = ({ applicant: singleApplicant, applicants, onClose }) => {
+  const recipients = applicants?.length ? applicants : singleApplicant ? [singleApplicant] : [];
+  const [recipientIndex, setRecipientIndex] = useState(0);
+  const applicant = recipients[Math.min(recipientIndex, recipients.length - 1)];
   const [template, setTemplate] = useState<WhatsAppTemplateKey>(() => defaultTemplateFor(applicant));
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -27,6 +32,8 @@ export const WhatsAppDialog: React.FC<WhatsAppDialogProps> = ({ applicant, onClo
     buildWhatsAppMessage(defaultTemplateFor(applicant), applicant),
   );
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useAccessibleDialog(dialogRef, onClose);
   const phone = useMemo(() => toWhatsAppNumber(applicant.phone), [applicant.phone]);
 
   const regenerate = (key: WhatsAppTemplateKey, d = date, t = time, p = place) =>
@@ -50,14 +57,15 @@ export const WhatsAppDialog: React.FC<WhatsAppDialogProps> = ({ applicant, onClo
       dir="rtl"
       onClick={onClose}
     >
-      <div
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="whatsapp-dialog-title" tabIndex={-1}
         className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-6 space-y-4"
         onClick={e => e.stopPropagation()}
       >
         <div>
+          {recipients.length > 1 && <p className="text-[11px] font-bold text-emerald-700 mb-1">المستلم {recipientIndex + 1} من {recipients.length}</p>}
           <h3 className="text-lg font-black text-stone-900 flex items-center gap-2">
             <span>💬</span>
-            <span>رسالة واتساب</span>
+            <span id="whatsapp-dialog-title">رسالة واتساب</span>
           </h3>
           <p className="text-xs text-stone-500 mt-1">
             {applicant.full_name} ·{' '}
@@ -159,6 +167,7 @@ export const WhatsAppDialog: React.FC<WhatsAppDialogProps> = ({ applicant, onClo
               فتح واتساب بالرسالة
             </button>
           )}
+          {recipientIndex < recipients.length - 1 && <button type="button" onClick={() => { const next = recipientIndex + 1; setRecipientIndex(next); const nextApplicant = recipients[next]; const nextTemplate = defaultTemplateFor(nextApplicant); setTemplate(nextTemplate); setMessage(buildWhatsAppMessage(nextTemplate, nextApplicant)); setDate(''); setTime(''); setPlace(''); }} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 px-4 py-2.5 rounded-xl font-bold text-sm">المستلم التالي</button>}
           <button
             onClick={onClose}
             className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-5 py-2.5 rounded-xl font-bold text-sm transition-all"

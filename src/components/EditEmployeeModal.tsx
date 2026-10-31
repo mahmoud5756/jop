@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useAccessibleDialog } from './useAccessibleDialog';
 import { Employee, Branch, JobPosition } from '../types';
 import { ApiService } from '../services/api';
 import { SvgIcons } from './BobWichLogo';
@@ -37,6 +38,8 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
   const [fingerprintId, setFingerprintId] = useState(employee.fingerprint_id || '');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useAccessibleDialog(dialogRef, onClose);
 
   const activeBranches = branches.filter(b => b.is_active);
   const activePositions = positions.filter(p => p.is_active);
@@ -97,16 +100,16 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
       className="fixed inset-0 z-70 bg-stone-900/70 backdrop-blur-xs flex items-center justify-center p-4 print:hidden"
       dir="rtl"
     >
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-stone-200 overflow-hidden">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="edit-employee-title" tabIndex={-1} className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-stone-200 overflow-hidden">
         {/* Header */}
         <div className="bg-[#9E1A24] text-white px-5 py-4 flex items-center justify-between">
           <div>
-            <h3 className="font-black text-lg">تعديل بيانات الموظف</h3>
+            <h3 id="edit-employee-title" className="font-black text-lg">تعديل بيانات الموظف</h3>
             <p className="text-[11px] text-amber-100 font-semibold mt-0.5">
               {employee.full_name} · {employee.employee_code}
             </p>
           </div>
-          <button
+          <button aria-label="إغلاق نافذة تعديل بيانات الموظف"
             onClick={onClose}
             className="p-2 rounded-xl hover:bg-white/15 transition-colors"
             title="إغلاق"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Applicant,
   Employee,
@@ -8,37 +8,54 @@ import {
   ManagerRequest,
 } from './types';
 import { ApiService } from './services/api';
+const ApplicantsList = lazy(() => import('./components/ApplicantsList').then(module => ({ default: module.ApplicantsList })));
+const ApplicantForm = lazy(() => import('./components/ApplicantForm').then(module => ({ default: module.ApplicantForm })));
+const ApplicantDetailsModal = lazy(() => import('./components/ApplicantDetailsModal').then(module => ({ default: module.ApplicantDetailsModal })));
+const RejectedArchiveView = lazy(() => import('./components/RejectedArchiveView').then(module => ({ default: module.RejectedArchiveView })));
+const DepartedArchiveView = lazy(() => import('./components/DepartedArchiveView').then(module => ({ default: module.DepartedArchiveView })));
+const WhatsAppDialog = lazy(() => import('./components/WhatsAppDialog').then(module => ({ default: module.WhatsAppDialog })));
+const EmployeesView = lazy(() => import('./components/EmployeesView').then(module => ({ default: module.EmployeesView })));
+const AuditLogsView = lazy(() => import('./components/AuditLogsView').then(module => ({ default: module.AuditLogsView })));
+const BranchesAndPositionsView = lazy(() => import('./components/BranchesAndPositionsView').then(module => ({ default: module.BranchesAndPositionsView })));
+const BranchDashboardView = lazy(() => import('./components/BranchDashboardView').then(module => ({ default: module.BranchDashboardView })));
+const ManagerRequestsInboxView = lazy(() => import('./components/ManagerRequestsInboxView').then(module => ({ default: module.ManagerRequestsInboxView })));
+const PublicApplicantPortal = lazy(() => import('./components/PublicApplicantPortal').then(module => ({ default: module.PublicApplicantPortal })));
+const SharePortalModal = lazy(() => import('./components/SharePortalModal').then(module => ({ default: module.SharePortalModal })));
+const LoginView = lazy(() => import('./components/LoginView').then(module => ({ default: module.LoginView })));
+const ChangePasswordModal = lazy(() => import('./components/ChangePasswordModal').then(module => ({ default: module.ChangePasswordModal })));
 import { Navbar } from './components/Navbar';
-import { ApplicantsList } from './components/ApplicantsList';
-import { ApplicantForm } from './components/ApplicantForm';
-import { ApplicantDetailsModal } from './components/ApplicantDetailsModal';
-import { PrintApplicationView } from './components/PrintApplicationView';
-import { CashierContractView } from './components/CashierContractView';
-import { ResignationClearanceView } from './components/ResignationClearanceView';
-import { PayslipView } from './components/PayslipView';
-import { EmployeeCardView } from './components/EmployeeCardView';
-import { EmployeesReportView } from './components/EmployeesReportView';
-import { DocumentsPrintView } from './components/DocumentsPrintView';
-import { RejectedArchiveView } from './components/RejectedArchiveView';
-import { DepartedArchiveView } from './components/DepartedArchiveView';
-import { WhatsAppDialog } from './components/WhatsAppDialog';
-import { EmployeesView } from './components/EmployeesView';
-import { AuditLogsView } from './components/AuditLogsView';
-import { BranchesAndPositionsView } from './components/BranchesAndPositionsView';
-import { BranchDashboardView } from './components/BranchDashboardView';
-import { ManagerRequestsInboxView } from './components/ManagerRequestsInboxView';
-import { CompanySettingsView } from './components/CompanySettingsView';
-import { UsersManagementView } from './components/UsersManagementView';
-import { FormFieldsSettingsView } from './components/FormFieldsSettingsView';
-import { PublicApplicantPortal } from './components/PublicApplicantPortal';
-import { SharePortalModal } from './components/SharePortalModal';
-import { LoginView } from './components/LoginView';
-import { ChangePasswordModal } from './components/ChangePasswordModal';
+
+
+
+const PrintApplicationView = lazy(() => import('./components/PrintApplicationView').then(module => ({ default: module.PrintApplicationView })));
+const CashierContractView = lazy(() => import('./components/CashierContractView').then(module => ({ default: module.CashierContractView })));
+const ResignationClearanceView = lazy(() => import('./components/ResignationClearanceView').then(module => ({ default: module.ResignationClearanceView })));
+const PayslipView = lazy(() => import('./components/PayslipView').then(module => ({ default: module.PayslipView })));
+const EmployeeCardView = lazy(() => import('./components/EmployeeCardView').then(module => ({ default: module.EmployeeCardView })));
+const EmployeesReportView = lazy(() => import('./components/EmployeesReportView').then(module => ({ default: module.EmployeesReportView })));
+const DocumentsPrintView = lazy(() => import('./components/DocumentsPrintView').then(module => ({ default: module.DocumentsPrintView })));
+
+
+
+
+
+
+
+
+const CompanySettingsView = lazy(() => import('./components/CompanySettingsView').then(module => ({ default: module.CompanySettingsView })));
+const UsersManagementView = lazy(() => import('./components/UsersManagementView').then(module => ({ default: module.UsersManagementView })));
+const FormFieldsSettingsView = lazy(() => import('./components/FormFieldsSettingsView').then(module => ({ default: module.FormFieldsSettingsView })));
+
+
+
+
 import { SvgIcons } from './components/BobWichLogo';
 import { isDepartedEmployee } from './utils/employeeStatus';
 import { MANAGER_REQUEST_LABELS } from './utils/managerRequests';
 import { isRejectedApplicant, buildStatusChangePayload, REJECTED_STATUS } from './utils/applicantStatus';
 import { playNotificationSound, requestNotificationPermission, showSystemNotification } from './utils/notificationSound';
+
+const screenLoading = <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center space-y-4"><div className="w-12 h-12 border-4 border-[#9E1A24] border-t-transparent rounded-full animate-spin"></div><p className="text-sm font-bold text-stone-600">جاري تحميل الشاشة...</p></div>;
 
 export function App() {
   // Check if URL has public apply parameter
@@ -132,6 +149,7 @@ export function App() {
   const [printingDocsApplicant, setPrintingDocsApplicant] = useState<Applicant | null>(null);
   // رسالة واتساب جاهزة لمتقدم
   const [whatsAppApplicant, setWhatsAppApplicant] = useState<Applicant | null>(null);
+  const [whatsAppQueue, setWhatsAppQueue] = useState<Applicant[] | null>(null);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -342,6 +360,13 @@ export function App() {
     showToast('تم تسجيل الخروج بنجاح');
   };
 
+  const handleBulkApplicantStatus = async (ids: string[], status: Applicant['status']) => {
+    const targets = applicants.filter(a => ids.includes(a.id));
+    const results = await Promise.allSettled(targets.map(a => ApiService.updateApplicant(a.id, { status }, currentUser)));
+    const failed = results.filter(r => r.status === 'rejected').length;
+    await fetchData();
+    showToast(failed ? `تم تحديث ${targets.length - failed} من ${targets.length} متقدمين، وفشل ${failed}` : `تم تحديث حالة ${targets.length} متقدمين`);
+  };
   // Navigation Handlers
   const handleAddNewApplicant = (category: 'external' | 'internal_staff' = 'external') => {
     setEditingApplicant(null);
@@ -539,6 +564,7 @@ export function App() {
   // =========================================================================
   if (isPublicPortal) {
     return (
+      <Suspense fallback={screenLoading}>
       <>
         <PublicApplicantPortal
           category={portalCategory}
@@ -563,6 +589,7 @@ export function App() {
           </div>
         )}
       </>
+      </Suspense>
     );
   }
 
@@ -583,6 +610,7 @@ export function App() {
   // =========================================================================
   if (!currentUser) {
     return (
+      <Suspense fallback={screenLoading}>
       <>
         <LoginView
           onLoginSuccess={handleLoginSuccess}
@@ -605,6 +633,7 @@ export function App() {
           </div>
         )}
       </>
+      </Suspense>
     );
   }
 
@@ -612,6 +641,7 @@ export function App() {
   // VIEW 4: SECURED HR & ADMIN MANAGEMENT DASHBOARD
   // =========================================================================
   return (
+    <Suspense fallback={screenLoading}>
     <div className="min-h-screen bg-stone-100 text-stone-900 font-sans dir-rtl" dir="rtl">
       {/* Toast popup */}
       {toastMessage && (
@@ -625,24 +655,30 @@ export function App() {
       )}
 
       {/* Change Password Modal */}
-      <ChangePasswordModal
-        isOpen={isChangePasswordOpen}
-        onClose={() => setIsChangePasswordOpen(false)}
-        currentUser={currentUser}
-      />
+      {isChangePasswordOpen && (
+        <ChangePasswordModal
+          isOpen={isChangePasswordOpen}
+          onClose={() => setIsChangePasswordOpen(false)}
+          currentUser={currentUser}
+        />
+      )}
 
       {/* Share Portal Modal — لينك المتقدمين الجدد */}
-      <SharePortalModal
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-      />
+      {isShareModalOpen && (
+        <SharePortalModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+        />
+      )}
 
       {/* Share Portal Modal — لينك تسجيل الموظفين الحاليين */}
-      <SharePortalModal
-        isOpen={isStaffShareModalOpen}
-        onClose={() => setIsStaffShareModalOpen(false)}
-        category="internal_staff"
-      />
+      {isStaffShareModalOpen && (
+        <SharePortalModal
+          isOpen={isStaffShareModalOpen}
+          onClose={() => setIsStaffShareModalOpen(false)}
+          category="internal_staff"
+        />
+      )}
 
       {/* Cashier Contract Print Overlay */}
       {printingContractEmployee && (
@@ -688,9 +724,11 @@ export function App() {
       )}
 
       {/* رسالة واتساب جاهزة للمتقدم */}
-      {whatsAppApplicant && (
+      {whatsAppQueue && whatsAppQueue.length > 0 ? (
+        <WhatsAppDialog applicants={whatsAppQueue} onClose={() => setWhatsAppQueue(null)} />
+      ) : whatsAppApplicant ? (
         <WhatsAppDialog applicant={whatsAppApplicant} onClose={() => setWhatsAppApplicant(null)} />
-      )}
+      ) : null}
 
       {/* طباعة مستندات المتقدم: بطاقة الرقم القومي (وش وضهر) + الشهادة الصحية */}
       {printingDocsApplicant && (
@@ -754,6 +792,7 @@ export function App() {
                 {currentView === 'applicants' && (currentUser?.role === 'admin' || currentUser?.role === 'hr') && (
                   <ApplicantsList
                     applicants={externalApplicants}
+                    isLoading={isLoading}
                     branches={branches}
                     positions={positions}
                     currentUser={currentUser}
@@ -766,6 +805,8 @@ export function App() {
                     onPrintDocs={handlePrintApplicantDocs}
                     onReject={handleRejectApplicant}
                     onWhatsApp={setWhatsAppApplicant}
+                    onBulkStatusChange={handleBulkApplicantStatus}
+                    onBulkWhatsApp={setWhatsAppQueue}
                   />
                 )}
 
@@ -773,6 +814,7 @@ export function App() {
                 {currentView === 'internal_staff_applicants' && (
                   <ApplicantsList
                     applicants={staffApplicants}
+                    isLoading={isLoading}
                     branches={branches}
                     positions={positions}
                     currentUser={currentUser}
@@ -785,6 +827,8 @@ export function App() {
                     onPrintDocs={handlePrintApplicantDocs}
                     onReject={handleRejectApplicant}
                     onWhatsApp={setWhatsAppApplicant}
+                    onBulkStatusChange={handleBulkApplicantStatus}
+                    onBulkWhatsApp={setWhatsAppQueue}
                     title="تسجيل الموظفين الحاليين"
                     subtitle="أرشيف منفصل لتسجيلات الموظفين الحاليين في النظام الجديد — لا يتداخل مع المتقدمين الجدد"
                     shareButtonLabel="رابط تسجيل الموظفين الحاليين"
@@ -831,6 +875,7 @@ export function App() {
                     currentUser={currentUser}
                     defaultCategory={newApplicantCategory}
                     onSaveSuccess={handleSaveSuccess}
+                    onViewDuplicate={async (id) => { try { setSelectedApplicant(await ApiService.getApplicantById(id)); } catch (err: any) { showToast(err.message || 'تعذر فتح السجل الموجود'); } }}
                     onCancel={() => setCurrentView(
                       (editingApplicant?.applicant_category || newApplicantCategory) === 'internal_staff'
                         ? 'internal_staff_applicants'
@@ -843,6 +888,7 @@ export function App() {
                 {currentView === 'employees' && (
                   <EmployeesView
                     employees={activeEmployees}
+                    isLoading={isLoading}
                     applicants={applicants}
                     branches={branches}
                     positions={positions}
@@ -927,6 +973,7 @@ export function App() {
         </div>
       )}
     </div>
+    </Suspense>
   );
 }
 

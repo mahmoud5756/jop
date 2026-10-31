@@ -169,7 +169,7 @@ export async function uploadFileDirectToStorage(
     uploadFileName = file.name;
   }
 
-  const signed = await ApiService.getUploadSignedUrl(uploadFileName, contentType);
+  const signed = await ApiService.getUploadSignedUrl(uploadFileName, contentType, blob.size);
 
   const { error } = await supabaseBrowserClient.storage
     .from(signed.bucket)
